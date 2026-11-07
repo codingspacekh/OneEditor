@@ -1,7 +1,7 @@
 {
   "name": "oneeditor",
   "productName": "OneEditor",
-  "version": "1.5.2",
+  "version": "1.5.3",
   "private": true,
   "description": "Lightweight video, audio, animation and graphics editor for Cambridge AS & A Level IT (9626)",
   "license": "GPL-3.0-or-later",

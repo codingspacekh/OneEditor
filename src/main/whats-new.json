@@ -1,4 +1,7 @@
 {
+  "1.5.3": [
+    "The first update to arrive inside OneEditor: on 1.5.2 or later, a new version is announced when OneEditor opens (or with Help ▸ Check for Updates…); Download, and it is put in when you quit, with nothing to install from the website"
+  ],
   "1.5.2": [
     "Updates work: 1.5.0 and 1.5.1 could not look for new versions (Help ▸ Check for Updates… found nothing). From 1.5.2 on, OneEditor finds and installs its updates itself"
   ],
