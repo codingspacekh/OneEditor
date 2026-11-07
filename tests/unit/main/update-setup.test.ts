@@ -1,10 +1,16 @@
 // M17a U1–U5: how the installed app sets its updates up — the address the build wrote, the
 // settings file, a Mac's .dmg download — with temporary folders and a fake network.
+import { execFileSync } from 'node:child_process';
 import { existsSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
-import { fetchToFile, readUpdateConfig, setUpUpdates } from '../../../src/main/update-setup.ts';
+import {
+  autoUpdaterOf,
+  fetchToFile,
+  readUpdateConfig,
+  setUpUpdates,
+} from '../../../src/main/update-setup.ts';
 import type { Updater } from '../../../src/main/updates.ts';
 
 let dir: string;
@@ -52,21 +58,21 @@ describe("a Mac's .dmg download", () => {
   });
 });
 
-describe('setting updates up', () => {
-  const base = () => ({
-    platform: 'win32',
-    arch: 'x64',
-    version: '1.5.1',
-    configFile: join(dir, 'resources-updates.json'),
-    userData: dir,
-    downloads: join(dir, 'Downloads'),
-    send: vi.fn(),
-    fetch: vi.fn(),
-    showItem: vi.fn(),
-    openPath: vi.fn(async () => ''),
-    quit: vi.fn(),
-  });
+const base = () => ({
+  platform: 'win32',
+  arch: 'x64',
+  version: '1.5.1',
+  configFile: join(dir, 'resources-updates.json'),
+  userData: dir,
+  downloads: join(dir, 'Downloads'),
+  send: vi.fn(),
+  fetch: vi.fn(),
+  showItem: vi.fn(),
+  openPath: vi.fn(async () => ''),
+  quit: vi.fn(),
+});
 
+describe('setting updates up', () => {
   it('run from the source: off, and electron-updater is never loaded', async () => {
     const loadUpdater = vi.fn();
     const updates = await setUpUpdates({ ...base(), packaged: false, loadUpdater });
@@ -100,5 +106,44 @@ describe('setting updates up', () => {
       loadUpdater: async () => ({ on: vi.fn(), setFeedURL: vi.fn() }) as unknown as Updater,
     });
     expect(updates.setAuto(true).autoDownload).toBe(true);
+  });
+});
+
+describe('electron-updater as the installed app loads it', () => {
+  it('autoUpdater is only on the default export: a getter Node does not list by name', () => {
+    // How Electron's main process (Node) imports the real module, outside Vitest's own loader.
+    const out = execFileSync(
+      process.execPath,
+      [
+        '--input-type=module',
+        '-e',
+        "const m = await import('electron-updater'); console.log(JSON.stringify({ named: 'autoUpdater' in m, getter: typeof Object.getOwnPropertyDescriptor(m.default, 'autoUpdater')?.get }))",
+      ],
+      { encoding: 'utf8' },
+    );
+    expect(JSON.parse(out)).toEqual({ named: false, getter: 'function' });
+  });
+
+  it('autoUpdaterOf takes it from either place, and says when it is in neither', () => {
+    const updater = { setFeedURL: vi.fn() };
+    const real = { default: {} as Record<string, unknown> };
+    Object.defineProperty(real.default, 'autoUpdater', { get: () => updater, enumerable: true });
+    expect(autoUpdaterOf(real)).toBe(updater);
+    expect(autoUpdaterOf({ autoUpdater: updater })).toBe(updater);
+    expect(() => autoUpdaterOf({ default: {} })).toThrow(/no autoUpdater/);
+    expect(() => autoUpdaterOf(undefined)).toThrow(/no autoUpdater/);
+  });
+
+  it('an updater that will not load leaves updates on, saying they could not start', async () => {
+    writeFileSync(join(dir, 'resources-updates.json'), JSON.stringify({ url, macSigned: false }));
+    const updates = await setUpUpdates({
+      ...base(),
+      packaged: true,
+      loadUpdater: async () => {
+        throw new Error('electron-updater has no autoUpdater');
+      },
+    });
+    updates.start();
+    expect(updates.get()).toMatchObject({ mode: 'auto', status: 'error' });
   });
 });

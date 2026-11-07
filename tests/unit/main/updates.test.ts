@@ -245,3 +245,23 @@ describe('U1 off and dmg modes', () => {
     expect(deps.openPath).toHaveBeenCalledWith(file);
   });
 });
+
+describe('an updater that cannot start (1.5.0 and 1.5.1: electron-updater loaded wrongly)', () => {
+  it('says so, and Check for Updates does not claim there is nothing new', async () => {
+    const logged: string[] = [];
+    const { updates, timers } = setup({
+      updater: () => {
+        throw new TypeError("Cannot read properties of undefined (reading 'setFeedURL')");
+      },
+      log: (line) => void logged.push(line),
+    });
+    expect(() => updates.start()).not.toThrow();
+    expect(timers).toHaveLength(0);
+    expect(updates.get()).toMatchObject({
+      status: 'error',
+      error: expect.stringMatching(/could not start.*download the newest version/i),
+    });
+    expect(await updates.check()).toMatchObject({ status: 'error' });
+    expect(logged.join('\n')).toMatch(/setFeedURL/);
+  });
+});
