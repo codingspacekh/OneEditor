@@ -90,17 +90,41 @@ export interface UpdateSetup {
   loadUpdater: () => Promise<Updater>;
 }
 
+/**
+ * electron-updater's autoUpdater from `import('electron-updater')`. It is a getter on the module's
+ * exports, which Node does not list as a named export of a CommonJS module, so in the installed
+ * app it is only on `default` (1.5.0 and 1.5.1 read the named one, got undefined, and never looked
+ * for updates).
+ */
+export function autoUpdaterOf(mod: unknown): Updater {
+  const m = mod as { autoUpdater?: Updater; default?: { autoUpdater?: Updater } } | undefined;
+  const updater = m?.autoUpdater ?? m?.default?.autoUpdater;
+  if (!updater) throw new Error('electron-updater has no autoUpdater');
+  return updater;
+}
+
 export async function setUpUpdates(o: UpdateSetup): Promise<Updates> {
   const config = o.packaged ? readUpdateConfig(o.configFile) : { url: null, macSigned: false };
   const mode = updateMode({ platform: o.platform, packaged: o.packaged, ...config });
-  const updater = mode === 'off' ? null : await o.loadUpdater();
+  let updater: Updater | null = null;
+  let failed: unknown = null;
+  if (mode !== 'off')
+    try {
+      updater = await o.loadUpdater();
+    } catch (error) {
+      failed = error;
+    }
   const prefsFile = join(o.userData, 'updates.json');
   const notes = whatsNew as Record<string, string[]>;
   return createUpdates({
     mode,
     current: o.version,
     url: config.url,
-    updater: () => updater!,
+    // Updates stay on and say they could not start (start() reports it).
+    updater: () => {
+      if (!updater) throw failed;
+      return updater;
+    },
     readPrefs: (): UpdatePrefs => {
       try {
         return { ...NO_UPDATE_PREFS, ...JSON.parse(readFileSync(prefsFile, 'utf8')) };

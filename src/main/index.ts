@@ -33,7 +33,7 @@ import { createProblemLog, saveProblemReport, type ProblemLog } from './problem-
 import { createAllowList } from './protocol/allowlist.ts';
 import { serveMediaFile } from './protocol/serve.ts';
 import { selfCheck } from './self-check.ts';
-import { readUpdateConfig, setUpUpdates } from './update-setup.ts';
+import { autoUpdaterOf, readUpdateConfig, setUpUpdates } from './update-setup.ts';
 import { electronDialogs, projectFiles } from './services.ts';
 
 const APP_ROOT = join(__dirname, '..');
@@ -239,7 +239,7 @@ void app.whenReady().then(async () => {
     showItem: (path) => shell.showItemInFolder(path),
     openPath: (path) => shell.openPath(path),
     quit: () => app.quit(),
-    loadUpdater: async () => (await import('electron-updater')).autoUpdater,
+    loadUpdater: async () => autoUpdaterOf(await import('electron-updater')),
   });
 
   const perf = process.env.ONEEDITOR_PERF_REPORT

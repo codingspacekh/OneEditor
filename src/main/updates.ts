@@ -179,8 +179,20 @@ export function createUpdates(deps: UpdatesDeps): Updates {
   return {
     start() {
       if (state.mode === 'off' || !deps.url) return;
-      updater = deps.updater();
-      updater.setFeedURL({ provider: 'generic', url: deps.url });
+      try {
+        updater = deps.updater();
+        updater.setFeedURL({ provider: 'generic', url: deps.url });
+      } catch (error) {
+        // Said, not hidden: without it Check for Updates would seem to find nothing new.
+        updater = null;
+        deps.log(`updates: could not start: ${String((error as Error)?.message ?? error)}`);
+        set({
+          status: 'error',
+          error:
+            'Updates could not start in this version. Download the newest version from the website and install it over this one.',
+        });
+        return;
+      }
       updater.autoDownload = false;
       updater.autoInstallOnAppQuit = true;
       updater.logger = {
