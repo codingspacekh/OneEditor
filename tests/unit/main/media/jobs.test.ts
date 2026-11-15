@@ -125,6 +125,14 @@ describe('computePeaks', () => {
       expect(args).toEqual(expect.arrayContaining(['-map', '[v]', '-map', '[a]', '-c:a', 'aac']));
     });
 
+    it('a GIF palette is counted over every pixel of every frame (the report of 2026-11-15)', () => {
+      // stats_mode=diff counted only changed pixels: a colour reached and then held could be
+      // missing from the palette, so the last frames of a colour change showed a wrong colour.
+      const graph = animationArgs('/f', { ...options, format: 'gif' }).join(' ');
+      expect(graph).toContain('palettegen=stats_mode=full');
+      expect(graph).not.toContain('stats_mode=diff');
+    });
+
     it('AN28 a GIF has no sound: the sounds are not read', () => {
       const args = animationArgs('/f', { ...options, format: 'gif', sounds: [alarm] });
       expect(args).not.toContain('/m/alarm.mp3');

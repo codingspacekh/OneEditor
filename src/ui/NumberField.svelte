@@ -24,6 +24,8 @@
     const n = text === '' ? NaN : Number(text);
     error = Number.isFinite(n) ? commit(n) : `Type a number such as ${example}.`;
   }
+  /** As wide as its number needs (the teacher's layout check, 2026-11-15), wider for a longer one. */
+  const chars = $derived(Math.max(5, String(String(value)).length));
 </script>
 
 <div class="field">
@@ -34,6 +36,7 @@
       type="text"
       inputmode="decimal"
       value={String(value)}
+      style:width="{chars + 0.5}ch"
       {onchange}
       aria-invalid={error !== null}
     />
@@ -45,7 +48,8 @@
 <style>
   .field {
     display: grid;
-    grid-template-columns: 96px 1fr;
+    /* The label takes the room the box does not need. */
+    grid-template-columns: minmax(0, 1fr) auto;
     align-items: center;
     gap: 4px 8px;
     margin-bottom: 8px;
@@ -66,8 +70,9 @@
     border-color: var(--accent);
   }
   input {
-    flex: 1;
+    flex: none;
     min-width: 0;
+    text-align: right;
     border: 0;
     background: transparent;
     color: var(--tx-1);

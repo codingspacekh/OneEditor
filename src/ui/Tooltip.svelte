@@ -4,7 +4,7 @@
   // (T5) is shown under it. The built-in tooltip is kept away while ours shows, so there are
   // never two.
   import { explain, type Explained } from '../core/effects/help.ts';
-  import { TOOLTIP_DELAY } from './ui-state.svelte.ts';
+  import { TOOLTIP_DELAY, ui } from './ui-state.svelte.ts';
 
   const TARGETS =
     '[title], button[aria-label], [role="button"][aria-label], [role="menuitem"][aria-label]';
@@ -133,7 +133,7 @@
 {#if tip}
   <div class="tooltip" class:above={tip.above} role="tooltip" style:top="{tip.y}px" {@attach place}>
     <div class="what">{tip.what}</div>
-    {#if tip.why}
+    {#if tip.why && ui.showWhy}
       <div class="why">
         <div class="answer"><span class="tag">Why?</span> {tip.why.answer}</div>
         {#if tip.why.reasons.length}
@@ -172,7 +172,7 @@
     margin-top: 6px;
     padding-top: 6px;
     border-top: 1px solid var(--line);
-    font-weight: 400;
+    font-weight: 450;
     white-space: normal;
   }
   .tag {

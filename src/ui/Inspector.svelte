@@ -1,6 +1,8 @@
 <script lang="ts">
   // Inspector (screens 01–04): change the selected clip or text by typing exact values
   // (V2, V4–V7, V12, V13, V14).
+  import PropertySearch from './PropertySearch.svelte';
+  import { propertyFilter } from './property-search.ts';
   import type { App } from '../app/app.ts';
   import {
     moveTimedItem,
@@ -123,6 +125,11 @@
             }),
           );
   }
+  /** Property search: the words typed, and how many settings match (−1: no search). */
+  let search = $state('');
+  let found = $state(-1);
+  /** A tab's sections show when it is open, or while searching (a search looks in every tab). */
+  const shows = (t: InspectorTab) => tab === t || search.trim() !== '';
 </script>
 
 {#snippet turnAndFlip(clip: VideoClip | ImageClip)}
@@ -163,8 +170,13 @@
   </section>
 {/snippet}
 
-<aside class="inspector">
+<aside
+  class="inspector prop-panel"
+  aria-label="Inspector"
+  {@attach propertyFilter(search, (n) => (found = n))}
+>
   <div class="panel-h">Inspector</div>
+  <PropertySearch bind:value={search} {found} />
   {#if sound}
     {#key sound.item.id}<AudioInspector {app} item={sound.item} track={sound.track} />{/key}
   {:else if overItem}
@@ -247,7 +259,8 @@
       </div>
     </div>
 
-    {#if item.type === 'video' && tab === 'clip'}
+    <!-- A search looks in every tab: their sections show one after another, filtered. -->
+    {#if item.type === 'video' && shows('clip')}
       <section>
         <h3>Trim <span class="syl">11.1</span></h3>
         <TimeField
@@ -294,7 +307,8 @@
         <Why tool="speed" />
       </section>
       {@render turnAndFlip(item)}
-    {:else if item.type === 'video' && tab === 'audio'}
+    {/if}
+    {#if item.type === 'video' && shows('audio')}
       <section>
         <h3>Clip sound <span class="syl">11.1</span></h3>
         <label class="check">
@@ -325,15 +339,18 @@
         </p>
         <Why tool="separateSound" />
       </section>
-    {:else if item.type === 'image' && tab === 'clip'}
+    {/if}
+    {#if item.type === 'image' && shows('clip')}
       <p class="hint pad">
         This picture shows for the duration above. Use the Effects tab for pan & zoom, fades and
         filters.
       </p>
       {@render turnAndFlip(item)}
-    {:else if item.type === 'title' && tab === 'text'}
+    {/if}
+    {#if item.type === 'title' && shows('text')}
       {#key item.id}<TextInspector {app} {item} />{/key}
-    {:else if tab === 'effects'}
+    {/if}
+    {#if shows('effects')}
       {#key item.id}
         <ClipLookInspector
           {app}

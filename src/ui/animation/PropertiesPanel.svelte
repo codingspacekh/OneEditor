@@ -3,6 +3,8 @@
   // fill, stroke, and what its kind adds (corners, points, sides, words and font, what a button
   // does). With several objects selected, a value typed here goes to all of them.
   import { tick } from 'svelte';
+  import PropertySearch from '../PropertySearch.svelte';
+  import { propertyFilter } from '../property-search.ts';
   import { editorOf } from './editor.ts';
   import type { App } from '../../app/app.ts';
   import { BUTTON_ACTIONS } from '../../core/animation/buttons.ts';
@@ -175,11 +177,15 @@
     if (!first) return null;
     return set({ stroke: { ...(first.stroke ?? DEFAULT_STROKE), ...change } });
   };
+  /** Property search: the words typed, and how many settings match (−1: no search). */
+  let search = $state('');
+  let matching = $state(-1);
 </script>
 
-<aside class="props" aria-label="Properties">
+<aside class="props prop-panel" aria-label="Properties">
   <div class="panel-h">Properties</div>
-  <div class="body">
+  <PropertySearch bind:value={search} found={matching} />
+  <div class="body" {@attach propertyFilter(search, (n) => (matching = n))}>
     {#if !first}
       <p class="hint">
         Click an object on the stage, or draw one with a tool from the strip on the left.
@@ -246,6 +252,7 @@
             <label for="prop-name">Name</label>
             <input
               id="prop-name"
+              type="text"
               class="text"
               value={first.name}
               onchange={(e) =>
@@ -975,20 +982,29 @@
   }
   .field {
     display: grid;
-    grid-template-columns: 58px 1fr;
+    grid-template-columns: 76px 1fr;
     align-items: center;
     gap: 3px 6px;
     margin-bottom: 6px;
     min-width: 0;
+  }
+  /* Beside another field (Width | Style) a label takes only the room its words need. */
+  .two > .field {
+    grid-template-columns: auto minmax(0, 1fr);
   }
   .field label {
     color: var(--tx-2);
     font-size: 12px;
   }
   input.text,
-  select,
   .words {
     width: 100%;
+  }
+  select {
+    /* Full width (so it never jumps with the choice), its words on the right as in the boxes
+       (the teacher's layout check, 2026-11-15). A menu is a flex box (forms.css, base-select). */
+    width: 100%;
+    justify-content: safe flex-end; /* a choice too long for the box starts at its left */
   }
   .words {
     display: block;
@@ -1030,7 +1046,7 @@
   /* Arrange (issues/animate-2.png): a caption column as the fields have, then even buttons. */
   .line {
     display: grid;
-    grid-template-columns: 58px 1fr;
+    grid-template-columns: 76px 1fr;
     align-items: center;
     gap: 6px;
     margin-bottom: 6px;

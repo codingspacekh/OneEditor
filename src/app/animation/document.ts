@@ -2,7 +2,11 @@
 // settings, layers and folders.
 import * as cmd from '../animation-commands.ts';
 import { undo, redo } from '../history.ts';
-import { findObject, setFolderOpen as setFolderOpenIn } from '../../core/animation/layers.ts';
+import {
+  findObject,
+  setFolderOpen as setFolderOpenIn,
+  type LayerDrop,
+} from '../../core/animation/layers.ts';
 import type { Id, Stage, ViewSettings } from '../../core/animation/types.ts';
 import type { AnimationContext } from './context.ts';
 
@@ -80,13 +84,16 @@ export function documentActions(ctx: AnimationContext) {
 
     setLayerColour: (id: Id, colour: string) => void run(cmd.setLayer(id, { colour })),
 
+    /** AN7: a new folder holding the selected layer. */
     addFolder(name = 'Folder'): void {
-      run(cmd.addFolder(name, () => {}));
+      run(cmd.addFolder(name, () => {}, store.get().layerId));
     },
     renameFolder: (id: Id, name: string): string | null => edit(cmd.renameFolder(id, name)),
     removeFolder: (id: Id) => void run(cmd.removeFolder(id)),
     moveLayerToFolder: (layerId: Id, folderId: Id | null) =>
       void run(cmd.moveLayerToFolder(layerId, folderId)),
+    /** AN7: a layer dragged in the Layers panel and dropped on a folder, a layer or empty space. */
+    dropLayer: (layerId: Id, target: LayerDrop) => void run(cmd.dropLayer(layerId, target)),
 
     /** Opens or closes a folder in the Layers panel: kept with the animation, not an undo step. */
     setFolderOpen(id: Id, open: boolean): void {

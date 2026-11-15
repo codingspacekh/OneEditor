@@ -112,6 +112,40 @@ describe('Node + FFmpeg engine, real-file details', () => {
     await expect(readdir(folder)).rejects.toThrow();
   });
 
+  it('a GIF of a colour change ends on its last colour: red for 1 s, then blue held (2026-11-15)', async () => {
+    const folder = await mkdtemp(join(out, 'colour-frames-'));
+    for (const [colour, start] of [
+      ['red', 0],
+      ['blue', 24],
+    ] as const)
+      await execFileAsync(bundledFfmpeg().ffmpeg, [
+        ...['-v', 'error', '-f', 'lavfi', '-i', `color=${colour}:size=60x40:rate=24`],
+        ...['-frames:v', '24', '-start_number', String(start), join(folder, 'frame-%05d.png')],
+      ]);
+    const gif = join(out, 'colour.gif');
+    await engine.encodeFrames(folder, gif, {
+      format: 'gif',
+      fps: 24,
+      frames: 48,
+      width: 60,
+      height: 40,
+    }).done;
+    // Every frame's middle pixel, as a viewer draws it: up to 1.5.3 all 48 were red.
+    const { stdout } = await execFileAsync(
+      bundledFfmpeg().ffmpeg,
+      [
+        ...['-v', 'error', '-i', gif],
+        ...['-vf', 'format=rgb24,crop=1:1:30:20', '-f', 'rawvideo', '-pix_fmt', 'rgb24', '-'],
+      ],
+      { encoding: 'buffer' },
+    );
+    const pixels = stdout as unknown as Buffer;
+    const colours = Array.from({ length: pixels.length / 3 }, (_, i) =>
+      pixels[3 * i + 2]! > 200 && pixels[3 * i]! < 30 ? 'blue' : pixels[3 * i]! > 200 ? 'red' : '?',
+    );
+    expect(colours).toEqual([...Array(24).fill('red'), ...Array(24).fill('blue')]);
+  });
+
   it('AN28 an MP4 with a sound: silent until the sound’s time (1 s), then heard, as long as the video', async () => {
     const folder = await mkdtemp(join(out, 'sound-frames-'));
     await execFileAsync(bundledFfmpeg().ffmpeg, [

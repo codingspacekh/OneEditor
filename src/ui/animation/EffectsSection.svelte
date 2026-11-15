@@ -100,13 +100,22 @@
     font-size: 12px;
     color: var(--tx-2);
   }
-  .field input,
-  .field select {
-    width: 100%;
+  .field input {
+    /* A number box as wide as its number, on the right, as in the Properties above. */
+    width: 9ch;
     min-width: 0;
+    justify-self: end;
+    text-align: right;
+  }
+  .field select {
+    /* Full width (so it never jumps with the choice), its words on the right as in the boxes
+       (the teacher's layout check, 2026-11-15). A menu is a flex box (forms.css, base-select). */
+    width: 100%;
+    justify-content: safe flex-end; /* a choice too long for the box starts at its left */
   }
   button {
-    align-self: flex-start;
+    /* On the right, under the boxes it uses (the teacher's layout check, 2026-11-15). */
+    align-self: flex-end;
   }
   .hint {
     margin: 0;

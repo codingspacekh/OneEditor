@@ -22,6 +22,11 @@
   let error: string | null = $state(null);
   const id = `num-${Math.random().toString(36).slice(2, 9)}`;
   const shown = $derived(Number.isFinite(value) ? value.toFixed(decimals) : '');
+  /**
+   * As wide as the numbers it holds need (the teacher's layout check: the boxes were wider than
+   * their numbers, squeezing the labels): "-360", "100.0", "1280.00"; wider for a longer value.
+   */
+  const chars = $derived(Math.max(decimals === 0 ? 4 : decimals === 1 ? 5 : 7, shown.length));
 
   function onchange(event: Event): void {
     const text = (event.currentTarget as HTMLInputElement).value.trim().replace(unit, '');
@@ -38,6 +43,7 @@
       type="text"
       inputmode="decimal"
       value={shown}
+      style:width="{chars + 0.5}ch"
       {step}
       {disabled}
       {onchange}
@@ -51,7 +57,8 @@
 <style>
   .field {
     display: grid;
-    grid-template-columns: 58px 1fr;
+    /* The label takes the room the box does not need. */
+    grid-template-columns: minmax(0, 1fr) auto;
     align-items: center;
     gap: 3px 6px;
     margin-bottom: 6px;
@@ -60,6 +67,7 @@
   label {
     color: var(--tx-2);
     font-size: 12px;
+    line-height: 1.25;
   }
   .box {
     display: flex;
@@ -77,10 +85,10 @@
     border-color: var(--accent);
   }
   input {
-    flex: 1;
+    flex: none;
     min-width: 0;
-    width: 100%;
     border: 0;
+    text-align: right;
     background: transparent;
     color: var(--tx-1);
     font: 500 12.5px var(--mono);

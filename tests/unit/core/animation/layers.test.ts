@@ -11,6 +11,7 @@ import {
   addFolder,
   addLayer,
   addObject,
+  dropLayer,
   drawOrder,
   duplicateObjects,
   findObject,
@@ -21,6 +22,7 @@ import {
   removeFolder,
   removeLayer,
   removeObjects,
+  renameFolder,
   renameLayer,
   reorderObject,
   setLayer,
@@ -94,6 +96,51 @@ describe('layers (AN7)', () => {
     expect(d4.folders).toEqual([]);
     expect(d4.layers.find((l) => l.id === top)!.folderId).toBeUndefined();
     expect(moveLayerToFolder(d3, top, null).layers[1]!.folderId).toBeUndefined();
+  });
+
+  it('a new folder takes the layer it is made for, and gets a name of its own (Folder, Folder 2)', () => {
+    const { doc, bottom, top } = twoLayers();
+    const { doc: d2, folder } = addFolder(doc, undefined, top);
+    expect(folder.name).toBe('Folder');
+    expect(d2.layers.find((l) => l.id === top)!.folderId).toBe(folder.id);
+    expect(d2.layers.find((l) => l.id === bottom)!.folderId).toBeUndefined();
+    const { folder: second } = addFolder(d2);
+    expect(second.name).toBe('Folder 2');
+    expect(renameFolder(d2, folder.id, '  stick_person ').folders[0]!.name).toBe('stick_person');
+    expect(() => renameFolder(d2, folder.id, ' ')).toThrow(/name/);
+  });
+
+  it('a layer dropped on a folder goes in it, in front of the layers already there', () => {
+    const { doc, bottom, top } = twoLayers();
+    const { doc: d2, layer: third } = addLayer(doc, 'third'); // bottom, top, third (front)
+    const { doc: d3, folder } = addFolder(d2, 'arms', bottom);
+    const d4 = dropLayer(d3, third.id, { folder: folder.id });
+    expect(d4.layers.find((l) => l.id === third.id)!.folderId).toBe(folder.id);
+    // In front of bottom (the folder's only layer) but behind top, which is not in the folder.
+    expect(d4.layers.map((l) => l.id)).toEqual([bottom, third.id, top]);
+    // An empty folder: the layer keeps its place.
+    const { doc: d5, folder: empty } = addFolder(d4, 'legs');
+    const d6 = dropLayer(d5, top, { folder: empty.id });
+    expect(d6.layers.map((l) => l.id)).toEqual([bottom, third.id, top]);
+    expect(d6.layers[2]!.folderId).toBe(empty.id);
+  });
+
+  it('a layer dropped on another layer goes just in front of it, into its folder or out of one', () => {
+    const { doc, bottom, top } = twoLayers();
+    const { doc: d2, layer: third } = addLayer(doc, 'third'); // bottom, top, third
+    const { doc: d3, folder } = addFolder(d2, 'f', bottom);
+    const d4 = dropLayer(d3, third.id, { layer: bottom });
+    expect(d4.layers.map((l) => l.id)).toEqual([bottom, third.id, top]);
+    expect(d4.layers[1]!.folderId).toBe(folder.id);
+    const d5 = dropLayer(d4, bottom, { layer: top });
+    expect(d5.layers.map((l) => l.id)).toEqual([third.id, top, bottom]);
+    expect(d5.layers[2]!.folderId).toBeUndefined();
+    // Dropped on itself or on empty space: out of its folder, in the same place.
+    expect(dropLayer(d4, third.id, { layer: third.id })).toBe(d4);
+    const d6 = dropLayer(d4, third.id, 'out');
+    expect(d6.layers.map((l) => l.id)).toEqual([bottom, third.id, top]);
+    expect(d6.layers[1]!.folderId).toBeUndefined();
+    expect(() => dropLayer(d4, third.id, { folder: 'nope' })).toThrow(/folder/);
   });
 });
 

@@ -31,6 +31,7 @@ export function menuTemplate(
             label: 'OneEditor',
             submenu: [
               item('About OneEditor', '', 'about'),
+              item('Settings…', 'CmdOrCtrl+,', 'settings'),
               { type: 'separator' },
               { role: 'services' },
               { type: 'separator' },
@@ -79,6 +80,10 @@ export function menuTemplate(
         { role: 'copy' },
         { role: 'paste' },
         item('Select All', 'CmdOrCtrl+A', 'selectAll'),
+        // Settings…: on a Mac in the app menu, as Mac apps have it.
+        ...(mac
+          ? []
+          : [{ type: 'separator' } as const, item('Settings…', 'CmdOrCtrl+,', 'settings')]),
       ],
     },
     {

@@ -84,6 +84,9 @@ export function menuActions(app: App): Record<MenuAction, () => unknown> {
     about: app.showAbout,
     updates: () => app.updates.openDialog(),
     candidate: () => app.candidate.openDialog(),
+    settings: () => {
+      ui.settings = true;
+    },
     selectAll: () => {
       const box = inTextBox();
       if (box) box.select();

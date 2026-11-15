@@ -17,7 +17,11 @@ describe('X3 native menus', () => {
     expect(entries[0]!.label).toBe('About OneEditor');
     (entries[0]!.click as () => void)();
     expect(send).toHaveBeenCalledWith('about');
-    expect(entries.slice(1).map((i) => i.role)).toEqual([
+    // Settings… (⌘,) where Mac apps have it, after About.
+    expect(entries[1]).toMatchObject({ label: 'Settings…', accelerator: 'CmdOrCtrl+,' });
+    (entries[1]!.click as () => void)();
+    expect(send).toHaveBeenCalledWith('settings');
+    expect(entries.slice(2).map((i) => i.role)).toEqual([
       'services',
       'hide',
       'hideOthers',
@@ -48,6 +52,15 @@ describe('X3 native menus', () => {
     expect(item.accelerator).toBe(accelerator);
     (item.click as () => void)();
     expect(send).toHaveBeenCalledWith(action);
+  });
+
+  it('Windows has Settings… (Ctrl+,) at the end of Edit; macOS has it in the app menu only', () => {
+    const settingsIn = (platform: string) =>
+      items(menuTemplate(platform, () => {}, false).find((m) => m.label === 'Edit')!).find(
+        (i) => i.label === 'Settings…',
+      );
+    expect(settingsIn('win32')).toMatchObject({ accelerator: 'CmdOrCtrl+,' });
+    expect(settingsIn('darwin')).toBeUndefined();
   });
 
   it('Redo is ⇧⌘Z on macOS and Ctrl+Y on Windows', () => {

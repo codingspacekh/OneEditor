@@ -27,9 +27,10 @@ const quiet = new Proxy({} as Record<string, unknown>, {
 }) as unknown as StageCanvas;
 
 describe('the library (AN19)', () => {
-  it('has the eight categories, each with enough to choose from', () => {
+  it('has the nine categories, each with enough to choose from', () => {
     expect(LIBRARY_CATEGORIES.map((c) => c.id)).toEqual([
       'cartoons',
+      'characters',
       'school',
       'maths',
       'science',
@@ -39,14 +40,15 @@ describe('the library (AN19)', () => {
       'backgrounds',
     ]);
     const count = (c: string) => LIBRARY.filter((i) => i.category === c).length;
-    expect(count('cartoons')).toBeGreaterThanOrEqual(12);
+    expect(count('cartoons')).toBeGreaterThanOrEqual(34);
+    expect(count('characters')).toBeGreaterThanOrEqual(16);
     expect(count('school')).toBeGreaterThanOrEqual(16);
     expect(count('maths')).toBeGreaterThanOrEqual(28);
     expect(count('science')).toBeGreaterThanOrEqual(26);
     expect(count('biology')).toBeGreaterThanOrEqual(22);
-    expect(count('computers')).toBeGreaterThanOrEqual(62);
+    expect(count('computers')).toBeGreaterThanOrEqual(95);
     expect(count('icons')).toBeGreaterThanOrEqual(16);
-    expect(count('backgrounds')).toBeGreaterThanOrEqual(30);
+    expect(count('backgrounds')).toBeGreaterThanOrEqual(62);
     expect(new Set(LIBRARY.map((i) => i.id)).size).toBe(LIBRARY.length);
   });
 
@@ -57,7 +59,7 @@ describe('the library (AN19)', () => {
       expect(group.kind).toBe('group');
       expect(group.name).toBe(item.name);
       // A symbol (a minus sign, a pointer) may be one shape; a picture has parts.
-      const symbol = item.category !== 'cartoons' && item.category !== 'backgrounds';
+      const symbol = !['cartoons', 'characters', 'backgrounds'].includes(item.category);
       expect(group.children.length).toBeGreaterThanOrEqual(symbol ? 1 : 2);
       for (const part of leaves(group)) {
         validateObject(part);
@@ -118,6 +120,27 @@ describe('the library (AN19)', () => {
     expect(searchLibrary('', 'backgrounds').every((i) => i.category === 'backgrounds')).toBe(true);
     expect(searchLibrary('flowchart', 'icons').length).toBeGreaterThanOrEqual(4);
     expect(searchLibrary('zzzz')).toEqual([]);
+  });
+
+  it('people, characters, IT fields and new scenes are found by the words a lesson uses', () => {
+    const found = (q: string) => searchLibrary(q).map((i) => i.id);
+    expect(searchLibrary('', 'characters').map((i) => i.id)).toEqual(
+      expect.arrayContaining(['character.teacher', 'character.programmer', 'character.scientist']),
+    );
+    expect(found('teacher')).toContain('character.teacher');
+    expect(found('security')).toEqual(
+      expect.arrayContaining(['computer.phishing', 'computer.password', 'computer.encryption']),
+    );
+    expect(found('ai')).toEqual(expect.arrayContaining(['computer.ai', 'computer.neuralnetwork']));
+    expect(found('animal')).toEqual(expect.arrayContaining(['cartoon.penguin', 'cartoon.lion']));
+    expect(searchLibrary('computer', 'backgrounds').map((i) => i.id)).toEqual(
+      expect.arrayContaining(['background.serverroom', 'background.codeeditor']),
+    );
+    // Each character is a person to animate: a head, arms and legs of its own.
+    const teacher = buildItem(itemById('character.teacher')!) as GroupObject;
+    expect(teacher.children.map((c) => c.name)).toEqual(
+      expect.arrayContaining(['Head', 'Left arm', 'Right arm', 'Left leg', 'Right leg']),
+    );
   });
 
   it('school, science and computer pictures are found by the words a lesson uses', () => {

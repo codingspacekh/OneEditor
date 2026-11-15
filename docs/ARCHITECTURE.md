@@ -702,7 +702,7 @@ Each kind of extension has one place, so later stages add rather than edit:
 | A video or audio effect | a file in `core/effects/video/` or `audio/` exporting its definition (with `why` and `syllabus`) | list it in `core/effects/registry.ts`; the inspector and dialogs are generated from it |
 | A transition | an entry in `core/effects/transitions/transitions.ts` | — |
 | A one-click animation effect | an entry in `ANIM_EFFECTS` (`core/animation/effects.ts`): its keys from the object at the start | — (the Effects menu lists it) |
-| A library item | an item (named parts) in `core/animation/library/cartoons.ts`, `icons.ts` or `backgrounds.ts` | — (the library test checks it draws, is named and stays in its box) |
+| A library item | an item (named parts) in a file of `core/animation/library/` (`cartoons.ts`, `characters.ts`, `computers.ts`, `icons.ts`, `backgrounds.ts`, or their `-more.ts` files); a new category also goes in `build.ts`'s `Category` and `index.ts`'s `LIBRARY_CATEGORIES` | — (the library test checks it draws, is named and stays in its box) |
 | A tool's "Why use this?" | a text in `WHY` and a `tool(…)` line with its syllabus point (`core/effects/help.ts`) | `<Why tool="…" />` or `withWhy()` in the UI |
 | A Learn page | content in `core/teaching/`, a component in `ui/learn/` | a `LearnTab`, a Learn menu item (`main/menu.ts`) and its action (`ui/menu-actions.ts`) |
 | A menu item | `item(label, accelerator, action)` in `main/menu.ts` | the action in `MenuAction` (`preload/api.ts`) and in `ui/menu-actions.ts` |

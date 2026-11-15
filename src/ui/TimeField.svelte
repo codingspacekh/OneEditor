@@ -16,6 +16,8 @@
     const seconds = parseTime((event.currentTarget as HTMLInputElement).value);
     error = seconds === null ? 'Type a time such as 12.5 or 00:12.50.' : commit(seconds);
   }
+  /** As wide as its number needs (the teacher's layout check, 2026-11-15), wider for a longer one. */
+  const chars = $derived(Math.max(6, String(value.toFixed(2)).length));
 </script>
 
 <div class="field">
@@ -26,6 +28,7 @@
       type="text"
       inputmode="decimal"
       value={value.toFixed(2)}
+      style:width="{chars + 0.5}ch"
       {onchange}
       aria-invalid={error !== null}
     />
@@ -37,7 +40,8 @@
 <style>
   .field {
     display: grid;
-    grid-template-columns: 96px 1fr;
+    /* The label takes the room the box does not need. */
+    grid-template-columns: minmax(0, 1fr) auto;
     align-items: center;
     gap: 4px 8px;
     margin-bottom: 8px;
@@ -58,8 +62,9 @@
     border-color: var(--accent);
   }
   input {
-    flex: 1;
+    flex: none;
     min-width: 0;
+    text-align: right;
     border: 0;
     background: transparent;
     color: var(--tx-1);

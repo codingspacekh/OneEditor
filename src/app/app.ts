@@ -17,6 +17,7 @@ import { createLearnApp } from './learn.ts';
 import { createHistory, execute, redo, undo, type Command, type History } from './history.ts';
 import { proxyPathFor } from './proxy-path.ts';
 import { createLayoutApp } from './layout.ts';
+import { createSettingsApp } from './settings.ts';
 import { createPreferences } from './preferences.ts';
 import { createCandidateApp } from './candidate.ts';
 import { UNEXPECTED, unexpected } from './problems.ts';
@@ -494,6 +495,7 @@ export function createApp({
   /** Learn mode (T1, T3, T6): never changes the project. */
   const learn = createLearnApp({ engine, dialogs, files, paths });
   const layout = createLayoutApp(preferences);
+  const settings = createSettingsApp(preferences);
   /** Animation mode (AN1–AN18): its own document and file (M13). */
   const animation = createAnimationApp({
     dialogs,
@@ -536,6 +538,8 @@ export function createApp({
     graphics,
     /** N16: the panels' sizes and which are shown. */
     layout,
+    /** Settings…: choices kept for the whole app ("Why use this?" shown or hidden). */
+    settings,
     candidate,
     /** M17a U1–U5: updates (the note at the bottom, Help ▸ Check for Updates…). */
     updates: createAppUpdates(updates),
@@ -545,6 +549,7 @@ export function createApp({
       await animation.start();
       await graphics.start();
       await layout.load();
+      await settings.load();
       await candidate.load();
       // X7: the Welcome, on the first launch only.
       if (paths.preferences && (await preferences.read()).welcomeSeen !== true)

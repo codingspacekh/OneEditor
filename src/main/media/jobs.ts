@@ -89,7 +89,10 @@ function videoCodecs(format: 'mp4' | 'avi' | 'mov', fps: number, sound: boolean)
  * AN15: an animation's PNG frames as an MP4, MOV (H.264, yuv420p) or AVI (MPEG-4 Part 2), an odd
  * side padded to even, or an animated GIF, made in two passes in one run: palettegen finds the
  * best 256 colours, paletteuse draws every frame with them. The GIF loops for ever (-loop 0) or,
- * AN8, plays once and stops on its last frame (-loop -1: no looping block in the file).
+ * AN8, plays once and stops on its last frame (-loop -1: no looping block in the file). The
+ * palette is counted over every pixel of every frame (stats_mode=full): counting only the pixels
+ * that changed (diff) could leave out a colour reached and then held, so a colour change ended
+ * on a wrong colour (the teacher's report, 2026-11-15: red to blue stayed red).
  *
  * AN28: a video's sounds: each file is read from its trim start for the seconds heard, set to its
  * volume and faded as in the app, cut where the export starts after it did, moved to its time
@@ -105,7 +108,7 @@ export function animationArgs(
     return [
       ...input,
       '-vf',
-      'split[a][b];[a]palettegen=stats_mode=diff[p];[b][p]paletteuse=dither=bayer:bayer_scale=3',
+      'split[a][b];[a]palettegen=stats_mode=full[p];[b][p]paletteuse=dither=bayer:bayer_scale=3',
       '-loop',
       once ? '-1' : '0',
     ];

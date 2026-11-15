@@ -112,12 +112,22 @@ export function moveLayer(doc: AnimationDoc, id: Id, index: number): AnimationDo
 
 // ---- folders ----
 
+/**
+ * A new folder, named "Folder" when free, else "Folder 2"… With `layerId`, that layer goes in it
+ * (the Layers panel's Folder button groups the selected layer, so the folder is never left empty).
+ */
 export function addFolder(
   doc: AnimationDoc,
-  name: string,
+  name = 'Folder',
+  layerId?: Id,
 ): { doc: AnimationDoc; folder: LayerFolder } {
-  const folder: LayerFolder = { id: newId(), name: name.trim() || 'Folder', open: true };
-  return { doc: { ...doc, folders: [...doc.folders, folder] }, folder };
+  const wanted = name.trim() || 'Folder';
+  const taken = new Set(doc.folders.map((f) => f.name));
+  let free = wanted;
+  for (let n = 2; taken.has(free); n++) free = `${wanted} ${n}`;
+  const folder: LayerFolder = { id: newId(), name: free, open: true };
+  const next = { ...doc, folders: [...doc.folders, folder] };
+  return { doc: layerId ? moveLayerToFolder(next, layerId, folder.id) : next, folder };
 }
 
 export function renameFolder(doc: AnimationDoc, id: Id, name: string): AnimationDoc {
@@ -144,6 +154,31 @@ export function moveLayerToFolder(
   const rest = { ...layer };
   delete rest.folderId;
   return replaceLayer(doc, folderId === null ? rest : { ...rest, folderId });
+}
+
+/** Where a layer dragged in the Layers panel is dropped: a folder, another layer, or empty space. */
+export type LayerDrop = { folder: Id } | { layer: Id } | 'out';
+
+/**
+ * AN7: a layer dragged in the Layers panel. On a folder it goes in it, just in front of the
+ * folder's front layer (an empty folder: it keeps its place); on another layer it goes just in
+ * front of it and into that layer's folder, or out of one; on empty space it leaves its folder.
+ */
+export function dropLayer(doc: AnimationDoc, id: Id, target: LayerDrop): AnimationDoc {
+  const layer = layerOf(doc, id);
+  if (target === 'out') return moveLayerToFolder(doc, id, null);
+  if ('folder' in target) {
+    const inFolder = moveLayerToFolder(doc, id, target.folder);
+    const others = inFolder.layers.filter((l) => l.id !== id);
+    const front = others.findLastIndex((l) => l.folderId === target.folder);
+    if (front < 0) return inFolder;
+    return withLayers(inFolder, others.toSpliced(front + 1, 0, layerOf(inFolder, id)));
+  }
+  if (target.layer === id) return doc;
+  const onto = layerOf(doc, target.layer);
+  const moved = moveLayerToFolder(doc, id, onto.folderId ?? null);
+  const others = moved.layers.filter((l) => l.id !== layer.id);
+  return withLayers(moved, others.toSpliced(others.indexOf(onto) + 1, 0, layerOf(moved, id)));
 }
 
 /** Deletes the folder; its layers stay, out of any folder. */

@@ -573,9 +573,9 @@ export const setLayer = (
     (doc) => layers.setLayer(doc, id, change),
   );
 
-export function addFolder(name: string, made: (id: Id) => void): AnimCommand {
+export function addFolder(name: string, made: (id: Id) => void, layerId?: Id): AnimCommand {
   return command('New folder', (doc) => {
-    const { doc: next, folder } = layers.addFolder(doc, name);
+    const { doc: next, folder } = layers.addFolder(doc, name, layerId);
     made(folder.id);
     return next;
   });
@@ -589,6 +589,9 @@ export const removeFolder = (id: Id): AnimCommand =>
 
 export const moveLayerToFolder = (layerId: Id, folderId: Id | null): AnimCommand =>
   command('Move layer to folder', (doc) => layers.moveLayerToFolder(doc, layerId, folderId));
+
+export const dropLayer = (layerId: Id, target: layers.LayerDrop): AnimCommand =>
+  command('Move layer', (doc) => layers.dropLayer(doc, layerId, target));
 
 export type GuideAxis = 'x' | 'y';
 

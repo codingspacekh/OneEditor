@@ -418,11 +418,9 @@ describe('the Layers panel in detail', () => {
     expect(s.doc().layers.map((l) => l.id)).toEqual([top, bottom]);
     await fireEvent.click(screen.getByRole('button', { name: 'Move layer up' }));
     expect(s.doc().layers.map((l) => l.id)).toEqual([bottom, top]);
+    // Folder takes the selected layer (Layer 2) with it.
     await fireEvent.click(screen.getByRole('button', { name: 'Folder' }));
     const folder = s.doc().folders[0]!;
-    await fireEvent.change(screen.getByLabelText('Folder of Layer 2'), {
-      target: { value: folder.id },
-    });
     expect(s.doc().layers[1]!.folderId).toBe(folder.id);
     await fireEvent.click(screen.getByRole('button', { name: 'Close folder Folder' }));
     expect(s.doc().folders[0]!.open).toBe(false);
@@ -430,6 +428,7 @@ describe('the Layers panel in detail', () => {
       within(screen.getByRole('listbox', { name: 'Layer list' })).queryByText('Layer 2'),
     ).toBeNull();
     await fireEvent.click(screen.getByRole('button', { name: 'Open folder Folder' }));
+    await fireEvent.click(screen.getByRole('button', { name: 'Move Layer 2 to a folder' }));
     await fireEvent.change(screen.getByLabelText('Folder of Layer 2'), { target: { value: '' } });
     expect(s.doc().layers[1]!.folderId).toBeUndefined();
     await fireEvent.click(screen.getByRole('button', { name: 'Delete folder Folder' }));

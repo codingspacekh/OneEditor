@@ -115,7 +115,10 @@
     font-size: 12px;
   }
   select {
+    /* Full width (so it never jumps with the choice), its words on the right as in the boxes
+       (the teacher's layout check, 2026-11-15). A menu is a flex box (forms.css, base-select). */
     width: 100%;
+    justify-content: safe flex-end; /* a choice too long for the box starts at its left */
   }
   .hint {
     margin: 0 0 6px;

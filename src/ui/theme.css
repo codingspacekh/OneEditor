@@ -6,9 +6,11 @@
   --bg-3: #272c36;
   --line: #2c323d;
   --line-strong: #3a414e;
-  --tx-1: #eceef2;
-  --tx-2: #a9b0bc;
-  --tx-3: #737b89;
+  /* Text: brighter greys than the first design (the teacher found the words too light on the
+     dark panels); --tx-3 keeps a 5:1 contrast on the panels (WCAG AA for small text). */
+  --tx-1: #f1f3f6;
+  --tx-2: #bcc3ce;
+  --tx-3: #8d95a3;
   --accent: #4f8cff;
   --accent-soft: rgba(79, 140, 255, 0.16);
   --danger: #ff5a5f;
@@ -36,7 +38,20 @@ body {
   height: 100%;
   background: var(--bg-0);
   color: var(--tx-1);
-  font: 13px/1.4 var(--font);
+  /* 450: Inter is a variable font; its 400 looks thin as light words on a dark background. */
+  font: 450 13px/1.4 var(--font);
+  /* A desktop app: dragging a playhead, a clip or an object never selects the window's words
+     (the teacher's report, 2026-11-15, in every mode). What is typed can still be selected, and
+     so can the pages that are there to be read. */
+  user-select: none;
+}
+input,
+textarea,
+[contenteditable='true'],
+.learn,
+[role='dialog'][aria-label='Glossary'],
+[role='dialog'][aria-label='Licences'] {
+  user-select: text;
 }
 button {
   font: inherit;
@@ -166,4 +181,43 @@ button.primary {
 [role='dialog'][aria-modal='true'] {
   max-height: calc(100vh - 32px);
   overflow: auto;
+}
+
+/* Property panels (Video's Inspector, Audio's side panel, Animation's and Graphics' Properties),
+   one layout for all (the teacher's layout check, 2026-11-15): each row's words on the left, what
+   it sets on the right — numbers and words in boxes, a list's choice, a single checkbox, a row of
+   choices — and each section's "Why use this?" on the right too. Words typed over several lines
+   (a title's, a text object's) stay on the left. */
+.prop-panel input[type='text'],
+.prop-panel input[type='number'] {
+  text-align: right;
+}
+/* A menu is a flex box (forms.css, base-select); a choice too long for it starts at its left. */
+.prop-panel select {
+  justify-content: safe flex-end;
+}
+.prop-panel span.why {
+  display: flex;
+  justify-content: flex-end;
+}
+.prop-panel label:has(> input[type='checkbox']) {
+  display: flex;
+  flex-direction: row-reverse;
+  justify-content: space-between;
+  align-items: center;
+  gap: 8px;
+}
+/* A row of radio buttons ("Fade to ○ Black ○ White"); not the font list or the transition
+   tiles, which are radio groups of buttons laid out as grids. */
+.prop-panel [role='radiogroup']:has(> label > input[type='radio']) {
+  display: flex;
+  align-items: center;
+  justify-content: flex-end;
+}
+.prop-panel [role='radiogroup']:has(> label > input[type='radio']) > :first-child:not(label) {
+  margin-right: auto;
+}
+/* Property search: what does not match is hidden (property-search.ts). */
+[data-filtered] {
+  display: none !important;
 }

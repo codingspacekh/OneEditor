@@ -162,7 +162,8 @@ test('Workbook Task 3 stage (1024 × 768, #CBCDF0, rulers and grid) and Activity
     await name.fill(part);
     await name.press('Enter');
     await expect(layerRow(page, part)).toBeVisible();
-    await page.getByLabel(`Folder of ${part}`).selectOption({ label: 'Folder' });
+    // A new layer goes in the folder of the one it is made above (here, the folder).
+    await expect(layerRow(page, part)).toHaveClass(/infolder/);
   }
   // The layer rows only (a folder select's options are options too).
   await expect(page.locator('li[role="option"]')).toHaveCount(4);

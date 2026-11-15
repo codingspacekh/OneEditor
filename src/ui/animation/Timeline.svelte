@@ -61,6 +61,9 @@
 
   function onRulerDown(e: PointerEvent): void {
     if (e.button !== 0) return;
+    // A drag must not start a text selection across the window (the panels' words turned blue).
+    e.preventDefault();
+    ruler?.focus();
     anim.pause();
     anim.setFrame(frameAt(e.clientX));
     const move = (ev: PointerEvent) => anim.setFrame(frameAt(ev.clientX));
