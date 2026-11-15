@@ -32,6 +32,28 @@
     ['star', 'Star', 'star', withWhy('Drag out a star (S)', 'vectorShapes')],
     ['polygon', 'Polygon', 'polygon', withWhy('Drag out a polygon (G)', 'vectorShapes')],
     ['line', 'Line', 'line', withWhy('Drag a straight line (L)', 'vectorShapes')],
+    // GV1 (M19): an arc (ends and how it closes in Properties), a spiral, clicked straight lines.
+    [
+      'arc',
+      'Arc',
+      'arc',
+      withWhy('Drag out an arc: half an ellipse (C); Shift for a circle’s', 'graphicShapes'),
+    ],
+    [
+      'spiral',
+      'Spiral',
+      'spiral',
+      withWhy('Drag out a spiral (O); its turns are in Properties', 'graphicShapes'),
+    ],
+    [
+      'polyline',
+      'Polyline',
+      'polyline',
+      withWhy(
+        'Click points for straight lines (Y); double-click or Enter to finish, click the first point to close; Shift for 15° steps',
+        'graphicShapes',
+      ),
+    ],
     [
       'pen',
       'Pen',
@@ -121,6 +143,17 @@
         const on = !(view.snap.grid || view.snap.guides || view.snap.objects);
         anim.setView({ snap: { ...view.snap, grid: on, guides: on, objects: on } });
       }}><Icon name="snap" /></button
+    >
+    <!-- GV7 (M19): View ▸ Outline. -->
+    <button
+      class="tbtn"
+      aria-label="Outline view"
+      aria-pressed={view.wireframe === true}
+      title={withWhy(
+        'Outline view: every shape as a thin line, no fills (⌘Y on a Mac, Ctrl+Shift+Y on Windows)',
+        'outlineView',
+      )}
+      onclick={() => anim.toggleOutline()}><Icon name="wireframe" /></button
     >
   </div>
 </div>

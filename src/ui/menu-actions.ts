@@ -49,6 +49,18 @@ export function menuActions(app: App): Record<MenuAction, () => unknown> {
       ui.mode = 'Graphics';
       animUi.dialog = 'export';
     },
+    /** GV8 (M19): a template in the drawing mode showing; from Video or Audio, in Graphics. */
+    placeTemplate: () => {
+      if (!inDrawing()) ui.mode = 'Graphics';
+      return drawing().placeTemplate();
+    },
+    /** GV6 (M19): an SVG's shapes into the drawing showing; from Video or Audio, into Graphics. */
+    importSvg: () => {
+      if (!inDrawing()) ui.mode = 'Graphics';
+      return drawing().importSvg();
+    },
+    /** GV7 (M19): View ▸ Outline in Animation and Graphics mode. */
+    outline: () => (inDrawing() ? drawing().toggleOutline() : undefined),
     newAnimation: () => {
       ui.mode = 'Animation';
       return a.newAnimation();

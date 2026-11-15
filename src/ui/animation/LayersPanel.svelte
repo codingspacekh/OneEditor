@@ -8,6 +8,7 @@
   import { editorOf } from './editor.ts';
   import type { LayerDrop } from '../../core/animation/layers.ts';
   import type { Id, Layer } from '../../core/animation/types.ts';
+  import { withWhy } from '../../core/effects/help.ts';
   import Icon from '../Icon.svelte';
   import Why from '../Why.svelte';
   import { ui } from '../ui-state.svelte.ts';
@@ -104,6 +105,16 @@
     >
       <Icon name="folder" size={14} /> Folder
     </button>
+    <!-- GV8 (M19): a picture to draw over, on a template layer of its own at the bottom. -->
+    <button
+      class="sm icon-only"
+      aria-label="Place template"
+      title={withWhy(
+        'Place template…: a picture under the drawing, faded and locked, to draw over (never exported)',
+        'templateLayer',
+      )}
+      onclick={() => anim.placeTemplate()}><Icon name="template" size={14} /></button
+    >
     <span class="spacer"></span>
     <button
       class="sm icon-only"
@@ -251,6 +262,19 @@
               anim.toggleLayer(layer.id, 'mask');
             }}><Icon name="mask" size={14} /></button
           >
+          <button
+            class="ghost sm icon-only"
+            class:on={layer.template}
+            aria-label="Template {layer.name}"
+            aria-pressed={layer.template === true}
+            title={layer.template
+              ? 'This layer is a template: faded, locked and never exported. Click to make it an ordinary layer.'
+              : 'Make this layer a template: faded and locked, to draw over, and never exported'}
+            onclick={(e) => {
+              e.stopPropagation();
+              anim.toggleTemplate(layer.id);
+            }}><Icon name="template" size={14} /></button
+          >
           {#if renaming === layer.id}
             <input
               class="rename"
@@ -266,7 +290,9 @@
             <span class="name" title="Double-click to rename; drag to move">{layer.name}</span>
             <!-- The selected layer shows its folder button instead, so its name keeps its room. -->
             {#if !(doc.folders.length && layer.id === $store.layerId)}
-              <span class="count">{count(layer)}</span>
+              {#if layer.template}<span class="badge" title="Faded, locked and never exported"
+                  >Template</span
+                >{:else}<span class="count">{count(layer)}</span>{/if}
             {/if}
           {/if}
           {#if doc.folders.length && layer.id === $store.layerId}
@@ -323,6 +349,15 @@
 <style>
   .on {
     color: var(--accent);
+  }
+  /* GV8 (M19): a template layer's badge, where the count of objects is. */
+  .badge {
+    flex: none;
+    font-size: 10px;
+    padding: 0 5px;
+    border-radius: 8px;
+    border: 1px solid var(--line-strong);
+    color: var(--tx-2);
   }
   .layers {
     /* N16: the size is the panel slot's (App, PanelSlot.svelte). */

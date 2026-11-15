@@ -12,7 +12,12 @@ import {
   type Point,
 } from '../core/animation/geometry.ts';
 import * as layers from '../core/animation/layers.ts';
-import { combineObjects, flipObject, type CombineHow } from '../core/animation/combine.ts';
+import {
+  COMBINE_LABELS,
+  combineObjects,
+  flipObject,
+  type CombineHow,
+} from '../core/animation/combine.ts';
 import type { MeasureText } from '../core/animation/letters.ts';
 import { validateObject, validateStage } from '../core/animation/rules.ts';
 import { changeFps as changeFpsIn } from '../core/animation/time.ts';
@@ -410,8 +415,7 @@ export function combineSelected(
   how: CombineHow,
   made: (ids: Id[]) => void,
 ): AnimCommand {
-  const labels = { union: 'Union', cutOut: 'Cut out', intersect: 'Intersect' };
-  return command(labels[how], (doc) => {
+  return command(COMBINE_LABELS[how], (doc) => {
     const { doc: next, ids: shapes } = combineObjects(doc, ids, how);
     made(shapes);
     return next;
@@ -435,9 +439,14 @@ export function ungroupObjects(ids: readonly Id[]): AnimCommand {
   );
 }
 
-export function duplicateObjects(ids: readonly Id[], made: (ids: Id[]) => void): AnimCommand {
+/** GV2 (M19): `offset` repeats the last Duplicate's move (absent: 10 px right and down). */
+export function duplicateObjects(
+  ids: readonly Id[],
+  made: (ids: Id[]) => void,
+  offset?: { dx: number; dy: number },
+): AnimCommand {
   return command(`Duplicate ${'' /* label below */}`.trim(), (doc) => {
-    const { doc: next, ids: copies } = layers.duplicateObjects(doc, ids);
+    const { doc: next, ids: copies } = layers.duplicateObjects(doc, ids, offset);
     made(copies);
     return next;
   });
@@ -449,12 +458,20 @@ export function pasteObjects(
   clipboard: { objects: readonly AnimObject[]; pictures: readonly Picture[] },
   made: (ids: Id[]) => void,
   frame = 0,
+  /** GV2 (M19): Paste in place: 0, where they were copied from. */
+  offset = 10,
 ): AnimCommand {
-  return command('Paste', (doc) => {
+  return command(offset === 0 ? 'Paste in place' : 'Paste', (doc) => {
     const layer = doc.layers.find((l) => l.id === layerId);
     // AN14: on a frame-by-frame layer the copies join the drawing shown.
     const placed = clipboard.objects.map((o) => (layer ? frames.placeIn(layer, o, frame) : o));
-    const { doc: next, ids } = layers.pasteObjects(doc, layerId, placed, clipboard.pictures);
+    const { doc: next, ids } = layers.pasteObjects(
+      doc,
+      layerId,
+      placed,
+      clipboard.pictures,
+      offset,
+    );
     made(ids);
     return next;
   });

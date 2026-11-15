@@ -1,6 +1,8 @@
 // AN3, AN6: the shapes as points — outlines, bounds, centres, hit-testing, moving, resizing from
 // handles and turning. Every object is a box (x, y, width, height) turned about its centre, or
 // about the point chosen for it (AN27, its pivot); "local" coordinates are inside the box before the turn, with (0, 0) at its top-left corner.
+import { ellipseAnchors } from '../graphics/bezier.ts';
+import { bendPolyline } from '../graphics/envelope.ts';
 import type { AnimObject, MotionPath, PathPoint, Track, TweenProperty } from './types.ts';
 
 export interface Point {
@@ -206,8 +208,12 @@ export function localOutline(o: AnimObject): Point[] {
   switch (o.kind) {
     case 'rect':
       return roundedRectPoints(w, h, o.radius);
-    case 'ellipse':
-      return ellipsePoints(w, h);
+    case 'ellipse': {
+      if (!o.arc) return ellipsePoints(w, h);
+      // GV1 (M19): an arc's line, and a pie slice's or a chord's way back.
+      const arc = ellipseAnchors(w, h, o.arc);
+      return flattenPath(arc.points, arc.closed);
+    }
     case 'star':
       return radialPoints(w, h, o.points, o.inner);
     case 'polygon':
@@ -224,7 +230,9 @@ export function localOutline(o: AnimObject): Point[] {
   }
 }
 
-export const isClosed = (o: AnimObject): boolean => o.kind !== 'path' || o.closed;
+/** Whether the outline goes all the way round: not an open path, nor (GV1) an open arc. */
+export const isClosed = (o: AnimObject): boolean =>
+  o.kind === 'path' ? o.closed : o.kind !== 'ellipse' || o.arc?.close !== 'open';
 
 /** A shape (it can morph, AN10); text, pictures, buttons and groups are boxes. */
 export const isShape = (o: AnimObject): boolean =>
@@ -232,7 +240,16 @@ export const isShape = (o: AnimObject): boolean =>
 
 /** The outline on the stage, turned. One polyline per object (lists, for masks and groups later). */
 export function outlineOf(o: AnimObject): Point[][] {
-  return [localOutline(o).map((p) => toStage(o, p))];
+  return [bentLocal(o, localOutline(o), isClosed(o)).map((p) => toStage(o, p))];
+}
+
+/**
+ * GV4 (M19): a local outline bent by the object's envelope, as it is drawn (text, pictures and
+ * buttons are never bent), so a bent object is picked, measured and snapped where it is seen.
+ */
+function bentLocal(o: AnimObject, pts: Point[], closed: boolean): Point[] {
+  const bendable = o.kind !== 'text' && o.kind !== 'picture' && o.kind !== 'button';
+  return o.envelope && bendable ? bendPolyline(o.envelope, o.width, o.height, pts, closed) : pts;
 }
 
 export function boundsOf(o: AnimObject): Bounds {
@@ -281,15 +298,15 @@ export function hitTest(o: AnimObject, p: Point): boolean {
   if (!isShape(o)) return insidePolygon(p, pts);
   const reach = Math.max(TOUCH, (o.stroke?.width ?? 0) / 2);
   if (distanceToPolyline(p, pts, isClosed(o)) <= reach) return true;
-  if (o.fill.kind === 'none' || !isClosed(o) || !insidePolygon(p, pts)) return false;
-  // AN24: a click in a hole goes through to what is behind.
+  if (o.fill.kind === 'none' || !isClosed(o)) return false;
+  // AN24: a click in a hole goes through to what is behind. G4 (M19): filled even-odd, so inside
+  // an odd number of its outlines (a piece of a combined path apart from its first is filled).
   const holes = o.kind === 'path' ? (o.holes ?? []) : [];
-  return !holes.some((h) =>
-    insidePolygon(
-      p,
-      flattenPath(h, true).map((q) => toStage(o, q)),
-    ),
-  );
+  const rings = [
+    pts,
+    ...holes.map((h) => bentLocal(o, flattenPath(h, true), true).map((q) => toStage(o, q))),
+  ];
+  return rings.filter((r) => insidePolygon(p, r)).length % 2 === 1;
 }
 
 /**

@@ -3,15 +3,20 @@
 // student sees is what is exported (ARCHITECTURE §7.3, as the text drawing).
 import { curvedText, curveOf, type PlacedLetter } from './curve.ts';
 import { roughTextWidth } from './factory.ts';
-import { flattenPath, localOutline, outlineOf, pivotInBox, skewOf } from './geometry.ts';
+import { bentForDrawing } from '../graphics/warp.ts';
+import { flattenPath, isClosed, localOutline, outlineOf, pivotInBox, skewOf } from './geometry.ts';
+import { arcSweep } from '../graphics/bezier.ts';
 import { colourStops, radialCentre } from './gradient.ts';
+import { patternTileOf, timesMatrix, type PatternTile } from './appearance.ts';
 import { TRANSPARENT } from './rules.ts';
 import { stateAt } from './state.ts';
 import type {
   AnimObject,
   AnimationDoc,
   ButtonObject,
+  EllipseObject,
   Layer,
+  ObjectFilter,
   Paint,
   PathObject,
   Stroke,
@@ -80,6 +85,17 @@ export interface StageCanvas {
    * it fades each part instead.
    */
   withLayer?(alpha: number, draw: (layer: StageCanvas) => void): void;
+  /**
+   * G12 (M19): a pattern fill to use as a fillStyle: `tile` repeated, placed by its matrix in
+   * the current space. A canvas without it (or giving null) fills with the pattern's colour.
+   */
+  patternOf?(tile: PatternTile): object | null;
+  /**
+   * G14 (M19): draws `draw` into a layer of its own, then puts the layer down with the effects,
+   * in order, each on what the ones before made (shadows, glows, bevels, blur). Their sizes are
+   * stage pixels, their offsets the stage's directions. A canvas without it draws no effects.
+   */
+  withFilters?(filters: readonly ObjectFilter[], draw: (layer: StageCanvas) => void): void;
 }
 
 export interface CanvasGradientLike {
@@ -89,6 +105,8 @@ export interface CanvasGradientLike {
 export interface DrawOptions {
   /** The loaded image for a picture (an HTMLImageElement in the app); null while loading. */
   image?: (pictureId: string) => unknown | null;
+  /** G12 (M19): a picture's size, for a picture tiled in a pattern fill (drawStage: the doc's). */
+  pictureSize?: (pictureId: string) => { width: number; height: number } | undefined;
   /** Drawn after the background and before the objects (the grid behind them, AN2). */
   afterBackground?: (ctx: StageCanvas) => void;
   /** AN9: the frame to draw (every object with its tweened values); frame 0 when absent. */
@@ -104,10 +122,22 @@ export interface DrawOptions {
    * drawings just before and after the one shown, see frames.ts), to draw the next one in step.
    */
   onionSkin?: (layerId: string) => readonly AnimObject[];
+  /**
+   * GV7 (M19): View ▸ Outline while editing — every object as a thin line `lineWidth` stage px
+   * wide (1 screen px at the zoom), no fills, pictures as their box with a cross, on a white
+   * stage, so overlapping parts can be checked and picked. Ignored unless `editing`: exports
+   * never use it.
+   */
+  wireframe?: { lineWidth: number };
 }
 
 /** AN14: how strongly the onion skin's neighbouring drawings are drawn. */
 export const ONION_OPACITY = 0.3;
+
+/** GV7 (M19): the outline view's lines, the same dark grey on every object. */
+export const WIREFRAME_COLOUR = '#1e222a';
+/** GV8 (M19): how strongly a template layer is drawn on the stage (it is never exported). */
+export const TEMPLATE_OPACITY = 0.4;
 
 export const LINE_HEIGHT = 1.2;
 const TAU = 2 * Math.PI;
@@ -152,6 +182,7 @@ function styleOf(
   w: number,
   h: number,
   spot?: Spot,
+  options: DrawOptions = {},
 ): string | object | null {
   const at = (x: number, y: number) => {
     if (!spot) return { x, y };
@@ -163,6 +194,8 @@ function styleOf(
   switch (paint.kind) {
     case 'none':
       return null;
+    case 'pattern':
+      return patternStyle(ctx, paint, w, h, spot, options);
     case 'solid':
       return paint.colour;
     case 'linear': {
@@ -184,6 +217,47 @@ function styleOf(
   }
   for (const stop of colourStops(paint)) g.addColorStop(stop.offset, stop.colour);
   return g;
+}
+
+/**
+ * G12 (M19): a pattern fill as a canvas style: its tile repeated from the box's top-left corner
+ * (for a letter of curved text, AN26, from where the letter is drawn, so it runs on across the
+ * words). A canvas that cannot repeat a tile, or a picture still loading, gives the colour.
+ */
+function patternStyle(
+  ctx: StageCanvas,
+  paint: Extract<Paint, { kind: 'pattern' }>,
+  w: number,
+  h: number,
+  spot: Spot | undefined,
+  options: DrawOptions,
+): string | object {
+  const id = paint.pictureId ?? '';
+  const image = paint.pattern === 'picture' ? (options.image?.(id) ?? null) : null;
+  const tile = patternTileOf(paint, w, h, image, options.pictureSize?.(id));
+  if (!tile || !ctx.patternOf) return paint.colour;
+  if (spot) {
+    const a = (-spot.angle * Math.PI) / 180;
+    const back: [number, number, number, number, number, number] = [
+      Math.cos(a),
+      Math.sin(a),
+      -Math.sin(a),
+      Math.cos(a),
+      0,
+      0,
+    ];
+    tile.matrix = timesMatrix(back, timesMatrix([1, 0, 0, 1, -spot.x, -spot.y], tile.matrix));
+  }
+  return ctx.patternOf(tile) ?? paint.colour;
+}
+
+/** G12 (M19): draws with the fill's or the outline's own opacity under the object's (`shown`). */
+function faded(ctx: StageCanvas, shown: number, percent: number | undefined, draw: () => void) {
+  const own = (percent ?? 100) / 100;
+  if (own === 1) return draw();
+  ctx.globalAlpha = shown * own;
+  draw();
+  ctx.globalAlpha = shown;
 }
 
 function applyStroke(ctx: StageCanvas, stroke: Stroke): void {
@@ -226,6 +300,7 @@ function tracePath(ctx: StageCanvas, o: AnimObject): void {
   const oy = -o.height / 2;
   ctx.beginPath();
   if (o.kind === 'ellipse') {
+    if (o.arc) return traceArc(ctx, o);
     ctx.ellipse(0, 0, o.width / 2, o.height / 2, 0, 0, TAU);
     return;
   }
@@ -256,6 +331,18 @@ function tracePath(ctx: StageCanvas, o: AnimObject): void {
   if (o.kind === 'path') traceHoles(ctx, o);
 }
 
+/**
+ * GV1 (M19): part of an ellipse, from its start clockwise to its end (an SVG arc in the SVG); a
+ * pie slice goes on to the centre and back, a chord straight back across, an open arc stops.
+ */
+function traceArc(ctx: StageCanvas, o: EllipseObject): void {
+  const arc = o.arc!;
+  const start = (arc.start * Math.PI) / 180;
+  ctx.ellipse(0, 0, o.width / 2, o.height / 2, 0, start, start + (arcSweep(arc) * Math.PI) / 180);
+  if (arc.close === 'pie') ctx.lineTo(0, 0);
+  if (arc.close !== 'open') ctx.closePath();
+}
+
 /** AN24: each hole as its own closed outline in the same path (filled even-odd). */
 function traceHoles(ctx: StageCanvas, o: PathObject): void {
   const ox = -o.width / 2;
@@ -272,7 +359,7 @@ function traceHoles(ctx: StageCanvas, o: PathObject): void {
  * AN26: curved text, letter by letter: each from the middle of its line-high cell on the arc,
  * turned to follow it; the bent words in the middle of the box (their bounds are the box).
  */
-function drawCurvedText(ctx: StageCanvas, t: TextObject): void {
+function drawCurvedText(ctx: StageCanvas, t: TextObject, shown: number, options: DrawOptions) {
   ctx.font = fontOf(t);
   ctx.textAlign = 'center';
   ctx.textBaseline = 'top';
@@ -285,23 +372,26 @@ function drawCurvedText(ctx: StageCanvas, t: TextObject): void {
     ctx.save();
     ctx.translate(spot.x, spot.y);
     if (spot.angle !== 0) ctx.rotate((spot.angle * Math.PI) / 180);
-    if (t.stroke && t.stroke.width > 0) {
-      applyStroke(ctx, t.stroke);
-      ctx.strokeText(l.char, 0, -half);
-    }
-    const fill = styleOf(ctx, t.fill, t.width, t.height, spot);
-    if (fill !== null) {
-      ctx.fillStyle = fill;
-      ctx.fillText(l.char, 0, -half);
-    }
+    const stroke = t.stroke;
+    if (stroke && stroke.width > 0)
+      faded(ctx, shown, stroke.opacity, () => {
+        applyStroke(ctx, stroke);
+        ctx.strokeText(l.char, 0, -half);
+      });
+    const fill = styleOf(ctx, t.fill, t.width, t.height, spot, options);
+    if (fill !== null)
+      faded(ctx, shown, t.fillOpacity, () => {
+        ctx.fillStyle = fill;
+        ctx.fillText(l.char, 0, -half);
+      });
     ctx.restore();
   };
   for (const l of bent.letters) if (l.char.trim() !== '') letter(l);
 }
 
-function drawText(ctx: StageCanvas, t: TextObject): void {
-  if (curveOf(t) !== 0) return drawCurvedText(ctx, t);
-  const fill = styleOf(ctx, t.fill, t.width, t.height);
+function drawText(ctx: StageCanvas, t: TextObject, shown = 1, options: DrawOptions = {}): void {
+  if (curveOf(t) !== 0) return drawCurvedText(ctx, t, shown, options);
+  const fill = styleOf(ctx, t.fill, t.width, t.height, undefined, options);
   ctx.font = fontOf(t);
   ctx.textAlign = t.align === 'centre' ? 'center' : t.align;
   ctx.textBaseline = 'top';
@@ -310,15 +400,81 @@ function drawText(ctx: StageCanvas, t: TextObject): void {
   const oy = -t.height / 2;
   t.text.split('\n').forEach((line, i) => {
     const y = i * t.size * LINE_HEIGHT;
-    if (t.stroke && t.stroke.width > 0) {
-      applyStroke(ctx, t.stroke);
-      ctx.strokeText(line, ox + x, oy + y);
-    }
-    if (fill !== null) {
-      ctx.fillStyle = fill;
-      ctx.fillText(line, ox + x, oy + y);
-    }
+    const stroke = t.stroke;
+    if (stroke && stroke.width > 0)
+      faded(ctx, shown, stroke.opacity, () => {
+        applyStroke(ctx, stroke);
+        ctx.strokeText(line, ox + x, oy + y);
+      });
+    if (fill !== null)
+      faded(ctx, shown, t.fillOpacity, () => {
+        ctx.fillStyle = fill;
+        ctx.fillText(line, ox + x, oy + y);
+      });
   });
+}
+
+/**
+ * GV7 (M19): an object in the outline view, in its own box (centred on (0, 0), already placed by
+ * drawObject): a shape's outline (holes too), a picture's box with a cross, a group's parts,
+ * text's letters and a button's label in the outline colour. Nothing is filled, faded or given
+ * effects, so parts hidden under others can be seen and picked (O/N/25 Apple).
+ */
+function drawOutlined(
+  ctx: StageCanvas,
+  o: AnimObject,
+  options: DrawOptions,
+  lineWidth: number,
+): void {
+  const ox = -o.width / 2;
+  const oy = -o.height / 2;
+  const line = () => {
+    ctx.strokeStyle = WIREFRAME_COLOUR;
+    ctx.lineWidth = lineWidth;
+    ctx.lineCap = 'butt';
+    ctx.lineJoin = 'miter';
+    ctx.setLineDash([]);
+  };
+  switch (o.kind) {
+    case 'group':
+      ctx.translate(ox, oy);
+      for (const child of o.children) drawObject(ctx, child, options);
+      return;
+    case 'text':
+      return drawText(ctx, {
+        ...o,
+        fill: { kind: 'solid', colour: WIREFRAME_COLOUR },
+        stroke: undefined,
+      });
+    case 'picture':
+      line();
+      ctx.strokeRect(ox, oy, o.width, o.height);
+      ctx.beginPath();
+      ctx.moveTo(ox, oy);
+      ctx.lineTo(-ox, -oy);
+      ctx.moveTo(-ox, oy);
+      ctx.lineTo(ox, -oy);
+      ctx.stroke();
+      return;
+    default: {
+      tracePath(ctx, o);
+      // The skew is taken off while the line is drawn, so it stays as thin (as for an outline).
+      const k = skewOf(o);
+      const det = 1 + k.x * k.y;
+      const unskew = (k.x !== 0 || k.y !== 0) && Math.abs(det) > 1e-9;
+      if (unskew) ctx.transform(1 / det, -k.y / det, k.x / det, 1 / det, 0, 0);
+      line();
+      ctx.stroke();
+      if (unskew) ctx.transform(1, k.y, -k.x, 1, 0, 0);
+      if (o.kind === 'button') {
+        ctx.font = buttonFontOf(o);
+        ctx.textAlign = 'center';
+        ctx.textBaseline = 'middle';
+        ctx.fillStyle = WIREFRAME_COLOUR;
+        ctx.fillText(o.label, 0, 0);
+      }
+    }
+  }
 }
 
 /** Draws one object; `alpha` is the opacity of the groups it is in (0–1). */
@@ -328,6 +484,19 @@ export function drawObject(
   options: DrawOptions = {},
   alpha = 1,
 ): void {
+  // GV4 (M19): a bent shape or group is drawn as its bent paths (the envelope stays live on it).
+  if (o.envelope) {
+    const bent = bentForDrawing(o);
+    if (bent !== o) return drawObject(ctx, bent, options, alpha);
+  }
+  // G14 (M19): its effects are drawn from it as it looks, faded and all, so it is drawn whole
+  // into a layer first.
+  if (o.filters?.length && ctx.withFilters && !options.wireframe) {
+    const { filters, ...plain } = o;
+    return ctx.withFilters(filters, (layer) =>
+      drawObject(layer, plain as AnimObject, options, alpha),
+    );
+  }
   // AN27: turned, mirrored and skewed about the point it turns about (its centre unless chosen).
   const pivot = pivotInBox(o);
   ctx.save();
@@ -341,6 +510,11 @@ export function drawObject(
   // The rest is drawn about the box's centre: placed from the pivot, in the turned box.
   const fromPivot = { x: o.width / 2 - pivot.x, y: o.height / 2 - pivot.y };
   if (fromPivot.x !== 0 || fromPivot.y !== 0) ctx.translate(fromPivot.x, fromPivot.y);
+  // GV7 (M19): View ▸ Outline: only its lines, at full strength.
+  if (options.wireframe) {
+    drawOutlined(ctx, o, options, options.wireframe.lineWidth);
+    return ctx.restore();
+  }
   const shown = alpha * (o.opacity / 100);
   if (shown !== 1) ctx.globalAlpha = shown;
   const ox = -o.width / 2;
@@ -358,7 +532,7 @@ export function drawObject(
       else for (const child of o.children) drawObject(ctx, child, options, shown);
       break;
     case 'text':
-      drawText(ctx, o);
+      drawText(ctx, o, shown, options);
       break;
     case 'picture': {
       const image = options.image?.(o.pictureId) ?? null;
@@ -373,20 +547,24 @@ export function drawObject(
     }
     default: {
       tracePath(ctx, o);
-      const fill = styleOf(ctx, o.fill, o.width, o.height);
-      if (fill !== null && (o.kind !== 'path' || o.closed)) {
-        ctx.fillStyle = fill;
-        if (o.kind === 'path' && o.holes?.length) ctx.fill('evenodd');
-        else ctx.fill();
-      }
+      const fill = styleOf(ctx, o.fill, o.width, o.height, undefined, options);
+      if (fill !== null && isClosed(o))
+        faded(ctx, shown, o.fillOpacity, () => {
+          ctx.fillStyle = fill;
+          if (o.kind === 'path' && o.holes?.length) ctx.fill('evenodd');
+          else ctx.fill();
+        });
       if (o.stroke && o.stroke.width > 0) {
         // AN25: the outline follows the skewed shape but its lines stay as wide as set (as in
         // the SVG): the skew is taken off while it is drawn, then put back for a button's label.
         const det = 1 + k.x * k.y;
         const unskew = skewed && Math.abs(det) > 1e-9;
         if (unskew) ctx.transform(1 / det, -k.y / det, k.x / det, 1 / det, 0, 0);
-        applyStroke(ctx, o.stroke);
-        ctx.stroke();
+        const stroke = o.stroke;
+        faded(ctx, shown, stroke.opacity, () => {
+          applyStroke(ctx, stroke);
+          ctx.stroke();
+        });
         if (unskew) ctx.transform(1, k.y, -k.x, 1, 0, 0);
       }
       if (o.kind === 'button') {
@@ -402,26 +580,47 @@ export function drawObject(
   ctx.restore();
 }
 
+/**
+ * GV8 (M19): a template layer, faded, only while editing (every export leaves it out); in the
+ * outline view it stays a picture, to be drawn over.
+ */
+function drawTemplate(ctx: StageCanvas, layer: Layer, options: DrawOptions): void {
+  if (!options.editing) return;
+  const plain = { ...options, wireframe: undefined };
+  for (const object of layer.objects) drawObject(ctx, object, plain, TEMPLATE_OPACITY);
+}
+
 /** Draws the whole stage at its own size: background, then every visible layer in order. */
-export function drawStage(ctx: StageCanvas, doc: AnimationDoc, options: DrawOptions = {}): void {
+export function drawStage(ctx: StageCanvas, doc: AnimationDoc, given: DrawOptions = {}): void {
+  // G12 (M19): a picture tiled in a pattern fill takes its proportions from the doc's pictures.
+  const options: DrawOptions = {
+    pictureSize: (id) => doc.pictures.find((p) => p.id === id),
+    ...given,
+    // GV7 (M19): the outline view is only for editing; an export never draws it.
+    wireframe: given.editing ? given.wireframe : undefined,
+  };
   // AN21: a transparent stage is cleared (a canvas used again keeps no earlier frame).
-  if (doc.stage.background === TRANSPARENT) ctx.clearRect(0, 0, doc.stage.width, doc.stage.height);
+  if (doc.stage.background === TRANSPARENT && !options.wireframe)
+    ctx.clearRect(0, 0, doc.stage.width, doc.stage.height);
   else {
-    ctx.fillStyle = doc.stage.background;
+    // GV7: the outline view's lines are on white, as Illustrator's.
+    ctx.fillStyle = options.wireframe ? '#ffffff' : doc.stage.background;
     ctx.fillRect(0, 0, doc.stage.width, doc.stage.height);
   }
   options.afterBackground?.(ctx);
   // Frame 0 is a frame like any other (an object on a path is at its start, not where drawn).
   const shown = options.frame === undefined ? doc : stateAt(doc, options.frame);
   const layers = shown.layers;
+  // GV7: in the outline view nothing is masked, so every part can be checked.
   const masking = (l: Layer): boolean =>
-    l.mask === true && l.visible && (!options.editing || l.locked);
+    l.mask === true && l.visible && (!options.editing || l.locked) && !options.wireframe;
   const skin = (layer: Layer): void => {
     for (const object of options.onionSkin?.(layer.id) ?? [])
       drawObject(ctx, object, options, ONION_OPACITY);
   };
   layers.forEach((layer, i) => {
     if (!layer.visible || masking(layer)) return;
+    if (layer.template) return drawTemplate(ctx, layer, options);
     const mask = layers[i + 1];
     if (!mask || !masking(mask)) {
       skin(layer);

@@ -56,6 +56,10 @@ export function menuTemplate(
         item('Open Animation…', '', 'openAnimation'),
         item('New Image…', '', 'newImage'),
         item('Open Image…', '', 'openImage'),
+        // GV8 (M19): a picture to draw over, faded and locked, never exported.
+        item('Place Template…', '', 'placeTemplate'),
+        // GV6 (M19): a given SVG's shapes into the drawing, editable.
+        item('Import SVG…', '', 'importSvg'),
         { type: 'separator' },
         item('Import Media…', 'CmdOrCtrl+I', 'import'),
         item('Export Video…', 'CmdOrCtrl+E', 'export'),
@@ -94,6 +98,9 @@ export function menuTemplate(
         item('Show / Hide Right Panel', 'CmdOrCtrl+Alt+2', 'toggleRight'),
         item('Show / Hide Timeline', 'CmdOrCtrl+Alt+3', 'toggleBottom'),
         item('Reset Layout', '', 'resetLayout'),
+        // GV7 (M19): Animation and Graphics mode's outline view; ⌘Y as Illustrator (Ctrl+Y is
+        // Redo on Windows).
+        item('Outline', mac ? 'Cmd+Y' : 'Ctrl+Shift+Y', 'outline'),
         { type: 'separator' },
         { role: 'resetZoom' },
         { role: 'zoomIn' },

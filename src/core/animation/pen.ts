@@ -11,6 +11,8 @@ const map = (p: PathPoint, f: (q: Point) => Point): PathPoint => ({
   ...f(p),
   ...(p.in ? { in: f(p.in) } : {}),
   ...(p.out ? { out: f(p.out) } : {}),
+  // GV3 (M19): the node keeps its type (cusp, smooth, symmetrical) wherever it goes.
+  ...(p.type ? { type: p.type } : {}),
 });
 
 /** The anchors and handles where they are on the stage. */
@@ -22,7 +24,7 @@ export const anchorsOnStage = (path: PathObject): PathPoint[] =>
  * flipped or skewed one keeps its box (and the point it turns about, AN27): its points are
  * placed in it where they are shown.
  */
-function withAnchors(path: PathObject, anchors: PathPoint[]): PathObject {
+export function withAnchors(path: PathObject, anchors: PathPoint[]): PathObject {
   if (path.rotation !== 0 || path.flipX || path.flipY || path.skewX || path.skewY)
     return { ...path, points: anchors.map((p) => map(p, (q) => toLocal(path, q))) };
   const outline = flattenCurves(anchors, path.closed);
@@ -37,6 +39,14 @@ function withAnchors(path: PathObject, anchors: PathPoint[]): PathObject {
     width: Math.max(...xs) - x,
     height: Math.max(...ys) - y,
     points: anchors.map((p) => map(p, (q) => ({ x: q.x - x, y: q.y - y }))),
+    // AN24: holes stay where they are on the stage when the box moves to fit the outline.
+    ...(path.holes
+      ? {
+          holes: path.holes.map((hole) =>
+            hole.map((p) => map(p, (q) => ({ x: q.x + path.x - x, y: q.y + path.y - y }))),
+          ),
+        }
+      : {}),
   };
 }
 
@@ -69,10 +79,21 @@ export function moveAnchor(path: PathObject, i: number, to: Point): PathObject {
 /** Handles pulled out of the anchor towards `out`; the other side mirrored: a smooth curve. */
 export function pullHandles(path: PathObject, i: number, out: Point): PathObject {
   const a = anchorAt(path, i);
-  return replaced(path, i, { x: a.x, y: a.y, out: { ...out }, in: mirror(a, out) });
+  return replaced(path, i, {
+    x: a.x,
+    y: a.y,
+    out: { ...out },
+    in: mirror(a, out),
+    ...(a.type ? { type: a.type } : {}),
+  });
 }
 
-/** One handle moved; with `keepOpposite` its partner turns to stay opposite (still smooth). */
+/**
+ * One handle moved; with `keepOpposite` its partner turns to stay opposite (still smooth). GV3:
+ * a node with a type keeps its rule — a cusp's handles move on their own, a smooth node's partner
+ * stays in line keeping its own length, a symmetrical node's is mirrored; without `keepOpposite`
+ * (Alt) a smooth or symmetrical node's handle moves alone and the node becomes a cusp.
+ */
 export function moveHandle(
   path: PathObject,
   i: number,
@@ -82,11 +103,30 @@ export function moveHandle(
 ): PathObject {
   const a = anchorAt(path, i);
   const other = which === 'in' ? 'out' : 'in';
+  if (a.type) return replaced(path, i, handleByRule(a, which, to, keepOpposite));
   return replaced(path, i, {
     ...a,
     [which]: { ...to },
     ...(keepOpposite ? { [other]: mirror(a, to) } : {}),
   });
+}
+
+/** GV3: a typed node with one handle moved to `to`, its partner kept to the node's rule. */
+function handleByRule(
+  a: PathPoint,
+  which: 'in' | 'out',
+  to: Point,
+  keepOpposite: boolean,
+): PathPoint {
+  const other = which === 'in' ? 'out' : 'in';
+  const moved = { ...a, [which]: { ...to } };
+  if (a.type === 'cusp' || !keepOpposite) return { ...moved, type: 'cusp' };
+  if (a.type === 'symmetrical') return { ...moved, [other]: mirror(a, to) };
+  const partner = a[other];
+  const reach = Math.hypot(to.x - a.x, to.y - a.y);
+  if (!partner || reach === 0) return moved;
+  const keep = Math.hypot(partner.x - a.x, partner.y - a.y) / reach;
+  return { ...moved, [other]: { x: a.x - (to.x - a.x) * keep, y: a.y - (to.y - a.y) * keep } };
 }
 
 /** The point becomes a corner: no handles. */

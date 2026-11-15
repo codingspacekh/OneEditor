@@ -32,6 +32,7 @@ const NO_PAGE_ASSETS: PageAssets = {
   fontDataUrl: () => Promise.reject(new EditError('Exporting needs the OneEditor app.')),
   soundDataUrl: () => Promise.reject(new EditError('Exporting needs the OneEditor app.')),
   openTest: () => Promise.reject(new EditError('Testing needs the OneEditor app.')),
+  svgToPdf: () => Promise.reject(new EditError('Exporting needs the OneEditor app.')),
 };
 
 /** The playback clock ticks this often; the frame follows the time, so slow laptops drop frames. */

@@ -19,20 +19,24 @@
   } from '../../core/animation/geometry.ts';
   import { findObject } from '../../core/animation/layers.ts';
   import {
+    anchorsOnStage,
     cornerPoint,
     insertPoint,
     moveAnchor,
     moveHandle,
     pullHandles,
-    removePoint,
   } from '../../core/animation/pen.ts';
+  import { deleteNodes } from '../../core/graphics/nodes.ts';
   import { snapBox } from '../../core/animation/snap.ts';
+  import { angleStep } from '../../core/graphics/shapes.ts';
   import { stateAt } from '../../core/animation/state.ts';
   import type { PathObject } from '../../core/animation/types.ts';
   import { toMediaUrl } from '../../core/media-url.ts';
   import { animUi, SNAP_PX } from './animation-ui.svelte.ts';
   import { textBox } from './measure.ts';
   import PathPoints from './PathPoints.svelte';
+  import EnvelopeHandles from './EnvelopeHandles.svelte';
+  import { previewEnvelope, shapedOnStage } from './envelope-handles.ts';
   import SelectionHandles from './SelectionHandles.svelte';
   import StageGuides from './StageGuides.svelte';
   import StageRulers from './StageRulers.svelte';
@@ -101,7 +105,9 @@
   const single = $derived(selected.length === 1 ? selected[0]! : null);
 
   /** The document as it looks during the drag. */
-  const shown = $derived(previewDoc(doc, drag, $store.layerId));
+  /** GV4 (M19): an envelope's corner or handle being dragged. */
+  let bending: Parameters<typeof previewEnvelope>[1] = $state(null);
+  const shown = $derived(previewEnvelope(previewDoc(doc, drag, $store.layerId), bending));
 
   // ---- pictures (AN5): loaded once each; the stage is drawn again when one arrives ----
   // A plain cache, not state: the stage is drawn again through `loaded` when a picture arrives.
@@ -161,6 +167,8 @@
       ...(view.grid.show && !view.grid.over ? { afterBackground: drawGrid } : {}),
       // AN14: the drawings before and after, faintly, on frame-by-frame layers.
       ...($store.onionSkin ? { onionSkin: skinOf } : {}),
+      // GV7 (M19): View ▸ Outline: lines one screen pixel wide at any zoom.
+      ...(view.wireframe ? { wireframe: { lineWidth: 1 / zoom } } : {}),
     });
   });
 
@@ -216,6 +224,7 @@
               anim.select([]);
               return;
             }
+            if (chooseNodesIn(box, u.shiftKey)) return;
             const inside = objectsInBox(doc, box);
             anim.select(inside);
           },
@@ -279,8 +288,8 @@
       anim.addButton({ x: round(p.x), y: round(p.y) });
       return;
     }
-    if (tool === 'pen') {
-      const p = snapPoint(raw, e.altKey);
+    if (tool === 'pen' || tool === 'polyline') {
+      const p = clickedPoint(raw, e);
       const first = pen[0];
       if (first && pen.length >= 3 && Math.hypot(p.x - first.x, p.y - first.y) <= 6 / zoom) {
         finishPen(true);
@@ -305,7 +314,14 @@
     }
     // Shapes and lines are dragged out (AN3).
     const start = snapPoint(raw, e.altKey);
-    drag = { kind: 'draw', tool, start, now: start, square: e.shiftKey };
+    drag = {
+      kind: 'draw',
+      tool,
+      start,
+      now: start,
+      square: e.shiftKey,
+      ...(tool === 'spiral' ? { spiral: anim.spiralOptions() } : {}),
+    };
     track(
       (m) => {
         if (drag?.kind === 'draw')
@@ -335,7 +351,17 @@
     const points = pen;
     pen = [];
     penNow = null;
-    if (points.length >= 2) anim.addPath(points, closed && points.length >= 3);
+    if (points.length < 2) return;
+    // GV1 (M19): the polyline's points are straight lines with a name of their own.
+    if ($store.tool === 'polyline') anim.addPolyline(points, closed && points.length >= 3);
+    else anim.addPath(points, closed && points.length >= 3);
+  }
+
+  /** The pen's or polyline's next point; GV1: Shift keeps a polyline's line to 15° steps. */
+  function clickedPoint(raw: Point, e: MouseEvent): Point {
+    const p = snapPoint(raw, e.altKey);
+    const from = pen.at(-1);
+    return $store.tool === 'polyline' && e.shiftKey && from ? angleStep(from, p) : p;
   }
 
   function startResize(e: PointerEvent, handle: Handle): void {
@@ -363,10 +389,47 @@
     return own?.kind === 'path' && single.kind === 'path' ? single : null;
   });
 
+  /** GV3: the nodes chosen on the edited path (drawn hollow; moved and changed together). */
+  const chosenNodes = $derived.by((): number[] => {
+    void $store;
+    return editablePath ? anim.chosenNodes() : [];
+  });
+
+  /**
+   * GV3: a box dragged round nodes of the edited path chooses them (Shift: added or taken
+   * away), and the path stays selected. True when the box held any.
+   */
+  function chooseNodesIn(
+    box: { x: number; y: number; width: number; height: number },
+    add: boolean,
+  ) {
+    if (!editablePath) return false;
+    const inside = anchorsOnStage(editablePath).flatMap((a, i) =>
+      a.x >= box.x && a.x <= box.x + box.width && a.y >= box.y && a.y <= box.y + box.height
+        ? [i]
+        : [],
+    );
+    if (inside.length === 0) return false;
+    anim.chooseNodes(inside, add);
+    return true;
+  }
+
   function startAnchor(e: PointerEvent, index: number): void {
     e.stopPropagation();
     if (!editablePath) return;
     const id = editablePath.id;
+    // GV3: Shift-click chooses one more node (or takes it away); a click chooses this one, unless
+    // it is one of those chosen: then a drag moves all of them.
+    if (e.shiftKey) {
+      anim.chooseNodes([index], true);
+      return;
+    }
+    if (!chosenNodes.includes(index) || e.altKey) anim.chooseNodes([index]);
+    const together = e.altKey ? [] : chosenNodes;
+    if (together.length > 1) {
+      startNodesDrag(e, id, together, index);
+      return;
+    }
     const pull = e.altKey;
     drag = { kind: 'anchor', id, index, now: at(e), pull, moved: false };
     track(
@@ -380,6 +443,24 @@
         if (!moved && pull) anim.editPath(id, 'Corner point', (p) => cornerPoint(p, index));
         else if (moved && pull) anim.editPath(id, 'Curve point', (p) => pullHandles(p, index, now));
         else if (moved) anim.editPath(id, 'Move point', (p) => moveAnchor(p, index, now));
+      },
+    );
+  }
+
+  /** GV3: the chosen nodes dragged together; the node under the pointer snaps. */
+  function startNodesDrag(e: PointerEvent, id: string, indices: number[], index: number): void {
+    const from = anchorsOnStage(editablePath!)[index]!;
+    const start = at(e);
+    drag = { kind: 'nodes', id, indices, dx: 0, dy: 0 };
+    track(
+      (m) => {
+        if (drag?.kind !== 'nodes') return;
+        const p = at(m);
+        const to = snapPoint({ x: from.x + p.x - start.x, y: from.y + p.y - start.y }, m.altKey);
+        drag = { ...drag, dx: round(to.x - from.x), dy: round(to.y - from.y) };
+      },
+      () => {
+        if (drag?.kind === 'nodes') anim.moveNodes(drag.dx, drag.dy);
       },
     );
   }
@@ -403,7 +484,9 @@
 
   function removeAnchor(e: MouseEvent, index: number): void {
     e.stopPropagation();
-    if (editablePath) anim.editPath(editablePath.id, 'Remove point', (p) => removePoint(p, index));
+    // GV3: the curves either side are fitted again, so the shape stays as close as it can.
+    if (editablePath)
+      anim.editPath(editablePath.id, 'Remove point', (p) => deleteNodes(p, [index]));
   }
 
   function startRotate(e: PointerEvent): void {
@@ -493,11 +576,12 @@
   function onpointermove(e: PointerEvent): void {
     const p = at(e);
     animUi.pointer = { x: Math.round(p.x), y: Math.round(p.y) };
-    if ($store.tool === 'pen' && pen.length) penNow = snapPoint(p, e.altKey);
+    if (($store.tool === 'pen' || $store.tool === 'polyline') && pen.length)
+      penNow = clickedPoint(p, e);
   }
 
   function ondblclick(e: MouseEvent): void {
-    if ($store.tool === 'pen') {
+    if ($store.tool === 'pen' || $store.tool === 'polyline') {
       finishPen(false);
       return;
     }
@@ -515,7 +599,7 @@
   }
 
   function onkeydown(e: KeyboardEvent): void {
-    if ($store.tool !== 'pen' || pen.length === 0) return;
+    if (($store.tool !== 'pen' && $store.tool !== 'polyline') || pen.length === 0) return;
     if (e.key === 'Enter') {
       e.preventDefault();
       finishPen(false);
@@ -534,6 +618,10 @@
   };
 
   const shownSingle = $derived(single ? (findObject(shown, single.id)?.object ?? single) : null);
+  /** GV4 (M19): a perspective or custom envelope shows its corners and handles instead. */
+  const bentSingle = $derived(
+    $store.tool === 'select' && shapedOnStage(shownSingle) ? shownSingle : null,
+  );
   const hs = $derived(HANDLE / zoom);
 </script>
 
@@ -620,7 +708,7 @@
           {/each}
         {/if}
         <!-- A pen path shows its points instead of the box's handles (its size and turn are in Properties). -->
-        {#if shownSingle && $store.tool === 'select' && drag?.kind !== 'move' && !editablePath}
+        {#if shownSingle && $store.tool === 'select' && drag?.kind !== 'move' && !editablePath && !bentSingle}
           <SelectionHandles
             object={shownSingle}
             {zoom}
@@ -631,11 +719,20 @@
             oncentre={centrePivot}
           />
         {/if}
-        {#if editablePath && drag?.kind !== 'move'}
+        {#if bentSingle && drag?.kind !== 'move'}
+          <EnvelopeHandles
+            object={bentSingle}
+            size={hs}
+            {at}
+            onpreview={(b) => (bending = b)}
+            oncommit={(id, e) => anim.dragEnvelope(id, e)}
+          />
+        {:else if editablePath && drag?.kind !== 'move'}
           <PathPoints
             path={(findObject(shown, editablePath.id)?.object ?? editablePath) as PathObject}
             size={hs}
             onanchor={startAnchor}
+            chosen={chosenNodes}
             oncurve={startCurve}
             onremove={removeAnchor}
           />

@@ -3,6 +3,7 @@
 import type { History } from '../history.ts';
 import type { AnimationFormat } from '../../core/animation/export.ts';
 import type { AnimationDoc, Id } from '../../core/animation/types.ts';
+import type { SpiralOptions } from '../../core/graphics/shapes.ts';
 import type {
   AppPaths,
   Dialogs,
@@ -22,13 +23,17 @@ export type Tool =
   | 'star'
   | 'polygon'
   | 'line'
+  /** GV1 (M19): part of an ellipse, a spiral, and straight lines clicked point to point. */
+  | 'arc'
+  | 'spiral'
+  | 'polyline'
   | 'pen'
   | 'brush'
   | 'text'
   | 'picture'
   | 'button';
 
-export type ShapeKind = 'rect' | 'ellipse' | 'star' | 'polygon';
+export type ShapeKind = 'rect' | 'ellipse' | 'star' | 'polygon' | 'arc' | 'spiral';
 
 export interface AnimationState {
   history: History<AnimationDoc>;
@@ -38,9 +43,16 @@ export interface AnimationState {
   saved: AnimationDoc;
   /** Selected objects (top-level ones). */
   selection: Id[];
+  /**
+   * GV3 (M19): the nodes chosen on the one pen path selected (its node indices). They belong to
+   * that very selection (`selection` is the same array): any new selection forgets them.
+   */
+  nodes?: { selection: Id[]; indices: number[] };
   /** The layer new objects go on. */
   layerId: Id;
   tool: Tool;
+  /** GV1 (M19): how the Spiral tool draws its next spiral (absent: 3 even turns from the middle). */
+  spiral?: SpiralOptions;
   /** 1 = 100 %; 'fit' fills the window. */
   zoom: number | 'fit';
   /** AN8: the playhead, 0 to the stage's length (the end shows the last pose). */

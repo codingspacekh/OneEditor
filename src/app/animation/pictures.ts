@@ -5,6 +5,7 @@ import { createPicture } from '../../core/animation/factory.ts';
 import { findObject } from '../../core/animation/layers.ts';
 import { sortByName, stopMotion, stopMotionTiming } from '../../core/animation/frames.ts';
 import {
+  keepPictureUnder,
   traceBitmap,
   tracedGroup,
   type Pixels,
@@ -211,8 +212,11 @@ export function pictureActions(ctx: AnimationContext) {
       }
     },
 
-    /** AN5: the selected picture becomes a group of filled shapes traced from it (one undo step). */
-    async traceBitmap(options: TraceOptions): Promise<void> {
+    /**
+     * AN5: the selected picture becomes a group of filled shapes traced from it (one undo step).
+     * GV5 (M19): `keep`: the picture is kept underneath on a hidden layer, to compare.
+     */
+    async traceBitmap(options: TraceOptions, keep = false): Promise<void> {
       const picture = selectedPicture();
       if (!picture) {
         patch({ message: { kind: 'error', text: 'Select a picture to trace it.' } });
@@ -224,8 +228,28 @@ export function pictureActions(ctx: AnimationContext) {
         if (traced.regions.length === 0)
           throw new EditError('There is nothing to trace: the picture is see-through.');
         const group = tracedGroup(picture.object, traced.regions, traced);
-        if (run(cmd.replaceObject(picture.object.id, group, 'Trace bitmap')))
-          patch({ selection: [group.id] });
+        const replace = cmd.replaceObject(picture.object.id, group, 'Trace bitmap');
+        const layerId = findObject(present(), picture.object.id)?.layerId;
+        const command =
+          keep && layerId
+            ? {
+                label: replace.label,
+                apply: (doc: Parameters<typeof replace.apply>[0]) =>
+                  keepPictureUnder(replace.apply(doc), layerId, picture.object).doc,
+              }
+            : replace;
+        if (run(command))
+          patch({
+            selection: [group.id],
+            ...(keep
+              ? {
+                  message: {
+                    kind: 'info' as const,
+                    text: 'Traced. The picture is kept underneath on a hidden layer: show it with the layer’s eye to compare.',
+                  },
+                }
+              : {}),
+          });
       } catch (error) {
         showError(error);
       } finally {

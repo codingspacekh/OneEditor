@@ -117,12 +117,30 @@ export const WHY = {
     'The canvas is the picture you draw on: its size in pixels decides how much detail it holds, and its resolution (dots per inch) how big it prints. 300 dpi suits print, so an A4 page is 2480 × 3508 pixels; a screen needs only its own pixels, so a web logo can be 200 × 200 px at 96 dpi. Too low a resolution looks blocky (pixelated) when printed; too high makes big files that are slow to load. A transparent background lets the logo sit on any colour.',
   graphicLayers:
     'Layers hold the parts of an image on top of each other, like pieces of paper, so each part can be moved or changed without affecting the others. The top layer is in front. Locking a layer stops accidental changes; hiding it keeps it out of the way. A mask layer shows the layer beneath only through its shapes (a photo inside a circle).',
+  graphicNodes:
+    'Nodes are the points a vector shape’s outline passes through; their handles bend the curves between them. A cusp makes a sharp point (each handle on its own), a smooth node a flowing curve (the handles in line, each its own length: asymmetrical) and a symmetrical node an even curve (in line and the same length). Editing nodes changes the shape itself: a rectangle flared at the bottom, a traced outline made exact, a brush stroke simplified to a few nodes so it is smooth and quick to change.',
+  graphicEnvelope:
+    'An envelope bends a whole shape at once into another outline: an arch or a bulge for a badge, a wave for a flag, a rectangle flared into a road or a roller-coaster track. Perspective drags the four corners so a flat shape seems to lie back into the distance, its far end smaller. The bend stays live, so the shape can still be changed underneath, until Apply makes it ordinary paths whose nodes can be edited. Moving every node by hand would be slow and seldom even.',
   graphicAlign:
     'Align puts the edges or centres of objects in line, and distribute makes the space between three or more of them the same. A drawing then looks neat without measuring by eye: legs evenly spaced, buttons in a row. Relative to the canvas, one object is centred on it or put against an edge. Moving them by hand is slower and less exact.',
   graphicExport:
     'Export makes a file for where the image will be used. SVG keeps the shapes as vectors, so it can be any size without blurring: logos, icons, drawings. PNG keeps every pixel (lossless) and transparency: sharp edges, text, logos on a web page. JPG makes photographs small by losing detail you hardly see (lossy) and has no transparency. A part can be exported on its own, and the size can be a width or height in pixels, or a printed size at a resolution.',
   graphicSend:
     'Most graphics are made to be animated next: Send to Animation puts the drawing into Animation mode as editable shapes on a layer of its own, where it was drawn, so each part can still be moved, recoloured and tweened. Copy and Paste work between the two modes too.',
+  outlineView:
+    'The outline view shows every shape as a thin line, with no fills, so parts hidden under others can be seen, checked and selected: a bite cut out of an apple, a stalk behind a leaf, two shapes that should meet exactly. It only changes how the stage looks while working; the image and its exports are unchanged.',
+  templateLayer:
+    'A template is a picture placed faded and locked under the drawing, to trace over by hand with the pen and shapes: the drawing then has the right shape and proportions, and it stays vector. The template is only a guide, so it is never exported or sent to Animation mode.',
+  graphicPattern:
+    'A pattern fills a shape with a tile repeated: stripes, checks, dots, hatching, bricks or a picture. It shows a material (a brick wall, a woven basket, a checked cloth) without drawing every part, and stays a vector, so it is sharp at any size. The fill and the outline can each be made see-through on their own, so a shape can be pale but its outline strong.',
+  graphicFilters:
+    'Filters give flat shapes depth. A drop shadow lifts an object off the background; an inner shadow sinks it in; a glow makes a halo or a light bloom round it; a bevel lights one side and shades the other, for raised lettering, 3-D buttons and metal; a blur softens its edges. They change only how it is drawn, so the shape can still be edited, and in an SVG they stay filters.',
+  graphicShapes:
+    'Arcs, spirals and polylines are drawn exactly, as vector shapes, instead of by hand: an arc is part of an ellipse (the scale of a meter, a slice of a cake), left open, closed to the centre like a pie slice or straight across like a chord; a spiral goes round as many times as chosen, evenly or opening out; a polyline is straight lines clicked point to point, with Shift keeping them at 15° steps. Each can still be changed in Properties.',
+  graphicCurves:
+    'Convert to curves turns a shape (a rectangle, ellipse, arc, star or polygon) into a path of nodes and curves that looks the same, so every point can then be moved on its own: a star’s arm pulled out, a corner of a rounded rectangle made square, a circle squeezed into a leaf. The shape loses what made it a rectangle or a star (its corner radius, its number of points), so do it once its size and corners are right.',
+  graphicReplicate:
+    'Replication makes exact, evenly spaced copies instead of placing each one by eye. Step and repeat makes several copies at once, each moved and turned by the same amount: the spokes of a wheel round its hub, the legs of a chip along its side. Duplicate again after moving a copy repeats that move. Paste in place puts a copy exactly where the original is (on another layer, say), and Mirror copy makes the other half of a symmetrical drawing.',
   animSound:
     'Sound is a secondary component of an animation: an alarm ringing, a door slamming or music under the action tells the audience what is happening and when. Each sound starts at a frame, so it is heard in time with the movement; a fade in or out stops it starting or ending suddenly. An MP4, AVI, MOV or web page carries the sounds; a GIF and pictures cannot.',
 } as const;
@@ -210,9 +228,26 @@ export const TOOLS: Tool[] = [
     '19.1 the need for different image resolutions',
   ),
   tool('graphicLayers', 'Layers', '19.1 graphics tools: layers'),
+  tool('graphicNodes', 'Nodes', '19.2 nodes: cusp, smooth and symmetrical'),
   tool('graphicAlign', 'Align and distribute', '19.1 alignment and distribution tools'),
+  tool('graphicEnvelope', 'Envelope and perspective', '19.2 envelopes and perspective'),
   tool('graphicExport', 'Export image', '19.1 exporting an image in different file formats'),
   tool('graphicSend', 'Send to Animation', '19.2 creating a vector graphic for its application'),
+  tool(
+    'graphicShapes',
+    'Arc, spiral and polyline',
+    '19.2 vector shapes: arcs, spirals and polylines',
+  ),
+  tool('graphicCurves', 'Convert to curves', '19.2 convert to curves and replication'),
+  tool(
+    'graphicReplicate',
+    'Step and repeat, mirror copy',
+    '19.2 convert to curves and replication',
+  ),
+  tool('outlineView', 'Outline view', '19.2 creating a vector graphic for its application'),
+  tool('templateLayer', 'Template layer', '19.2 creating a vector graphic for its application'),
+  tool('graphicPattern', 'Pattern fill and opacity', '19.1 changing solid and gradient fills'),
+  tool('graphicFilters', 'Filters', '19.1 changing solid and gradient fills'),
 ];
 
 export function toolById(id: ToolId): Tool {

@@ -21,6 +21,7 @@ import { fontsNeeded, picturesUsed, webPage, type WebPageView } from '../../core
 import type { AnimationDoc, Id } from '../../core/animation/types.ts';
 import { TRANSPARENT } from '../../core/animation/rules.ts';
 import { stageSvg } from '../../core/animation/svg-export.ts';
+import { withoutTemplates } from '../../core/animation/template.ts';
 import { newId } from '../../core/model/factory.ts';
 import type { JobHandle } from '../../core/ports.ts';
 import { fileNameOf } from '../../core/project/relocate.ts';
@@ -228,7 +229,8 @@ export function exportActions(ctx: AnimationContext) {
   ): Promise<string | null> {
     if (store.get().exporting || store.get().busy) return null;
     pause();
-    const drawn = present();
+    // GV8 (M19): a template layer is never exported.
+    const drawn = withoutTemplates(present());
     // The size and the frames are checked before the save box.
     let size: ReturnType<typeof exportSize>;
     let range: ReturnType<typeof exportedFrames>;
@@ -396,7 +398,7 @@ export function exportActions(ctx: AnimationContext) {
      * frames typed cannot be used.
      */
     exportSummary(format: AnimationFormat, options: AnimationExportOptions = {}) {
-      const doc = present();
+      const doc = withoutTemplates(present());
       const sounds = soundsHeard(doc).length;
       const picture = format === 'png' || format === 'svg';
       try {
@@ -436,7 +438,7 @@ export function exportActions(ctx: AnimationContext) {
     async testAnimation(): Promise<void> {
       if (store.get().busy) return;
       pause();
-      const doc = present();
+      const doc = withoutTemplates(present());
       patch({ busy: 'Opening the test…' });
       try {
         const { html, missing } = await makePage(doc);

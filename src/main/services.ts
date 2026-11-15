@@ -43,6 +43,7 @@ const GRAPHIC_EXPORTS: Record<GraphicExportFormat, { label: string; extension: s
   png: { label: 'PNG picture', extension: 'png' },
   jpg: { label: 'JPG picture', extension: 'jpg' },
   svg: { label: 'SVG vector picture', extension: 'svg' },
+  pdf: { label: 'PDF document', extension: 'pdf' },
 };
 
 const ANIMATION_EXPORTS: Record<AnimationExportFormat, { label: string; extension: string }> = {
@@ -205,7 +206,20 @@ export function electronDialogs(window: () => BrowserWindow | undefined): Dialog
       const r = await dialog.showOpenDialog(win(), {
         title: 'Open image',
         properties: ['openFile'],
-        filters: [{ name: 'OneEditor image', extensions: ['mveg'] }],
+        // GV6 (M19): an SVG opens as a new image of its shapes.
+        filters: [
+          { name: 'OneEditor image or SVG', extensions: ['mveg', 'svg'] },
+          { name: 'OneEditor image', extensions: ['mveg'] },
+          { name: 'SVG picture', extensions: ['svg'] },
+        ],
+      });
+      return r.canceled ? null : (r.filePaths[0] ?? null);
+    },
+    async openSvg() {
+      const r = await dialog.showOpenDialog(win(), {
+        title: 'Import SVG',
+        properties: ['openFile'],
+        filters: [{ name: 'SVG picture', extensions: ['svg'] }],
       });
       return r.canceled ? null : (r.filePaths[0] ?? null);
     },

@@ -382,10 +382,14 @@ function withNewIds(object: AnimObject): AnimObject {
   return copy.kind === 'group' ? { ...copy, children: copy.children.map(withNewIds) } : copy;
 }
 
-/** A picture object's pictures: its own and, in a stop motion (AN14), every one it changes to. */
+/**
+ * A picture object's pictures: its own and, in a stop motion (AN14), every one it changes to; and
+ * G12 (M19) the picture tiled in a pattern fill.
+ */
 export const pictureIdsOf = (objects: readonly AnimObject[]): Id[] =>
-  objects.flatMap((o) =>
-    o.kind === 'picture'
+  objects.flatMap((o) => [
+    ...(o.fill.kind === 'pattern' && o.fill.pictureId ? [o.fill.pictureId] : []),
+    ...(o.kind === 'picture'
       ? [
           o.pictureId,
           ...(o.tracks ?? [])
@@ -394,15 +398,20 @@ export const pictureIdsOf = (objects: readonly AnimObject[]): Id[] =>
         ]
       : o.kind === 'group'
         ? pictureIdsOf(o.children)
-        : [],
-  );
+        : []),
+  ]);
 
 /** The object with its pictures (and its stop motion's) changed as `map` says. */
-function withPictureIds(object: AnimObject, map: ReadonlyMap<Id, Id>): AnimObject {
+function withPictureIds(given: AnimObject, map: ReadonlyMap<Id, Id>): AnimObject {
+  const to = (id: Id) => map.get(id) ?? id;
+  // G12 (M19): a picture tiled in a pattern fill.
+  const object: AnimObject =
+    given.fill.kind === 'pattern' && given.fill.pictureId
+      ? { ...given, fill: { ...given.fill, pictureId: to(given.fill.pictureId) } }
+      : given;
   if (object.kind === 'group')
     return { ...object, children: object.children.map((c) => withPictureIds(c, map)) };
   if (object.kind !== 'picture') return object;
-  const to = (id: Id) => map.get(id) ?? id;
   return {
     ...object,
     pictureId: to(object.pictureId),
@@ -449,19 +458,51 @@ export function pasteObjects(
   return { doc: next, ids };
 }
 
-/** Copies 10 px to the right and down, each just above its original. */
+/**
+ * Copies 10 px to the right and down, each just above its original. GV2 (M19): or moved by
+ * `offset` (Duplicate repeating the last move: "duplicate twice and arrange").
+ */
 export function duplicateObjects(
   doc: AnimationDoc,
   ids: readonly Id[],
+  offset: { dx: number; dy: number } = { dx: 10, dy: 10 },
 ): { doc: AnimationDoc; ids: Id[] } {
   let next = doc;
   const made: Id[] = [];
   for (const id of ids) {
     const { layer, index, object } = requireObject(next, id);
     editable(layer);
-    const copy = { ...moved(withNewIds(object), 10, 10), name: uniqueName(next, object.name) };
+    const copy = {
+      ...moved(withNewIds(object), offset.dx, offset.dy),
+      name: uniqueName(next, object.name),
+    };
     made.push(copy.id);
     next = replaceLayer(next, { ...layer, objects: layer.objects.toSpliced(index + 1, 0, copy) });
+  }
+  return { doc: next, ids: made };
+}
+
+/**
+ * GV2 (M19): `count` copies of an object (new ids, each named once: "Spoke 2", "Spoke 3"…), just
+ * above it on its layer, the last in front; `place` moves or turns the n-th copy (1, 2, …).
+ */
+export function copiesAbove(
+  doc: AnimationDoc,
+  id: Id,
+  count: number,
+  place: (copy: AnimObject, n: number) => AnimObject,
+): { doc: AnimationDoc; ids: Id[] } {
+  let next = doc;
+  const made: Id[] = [];
+  for (let n = 1; n <= count; n++) {
+    const { layer, index, object } = requireObject(next, id);
+    editable(layer);
+    const copy = { ...place(withNewIds(object), n), name: uniqueName(next, object.name) };
+    made.push(copy.id);
+    next = replaceLayer(next, {
+      ...layer,
+      objects: layer.objects.toSpliced(index + n, 0, copy),
+    });
   }
   return { doc: next, ids: made };
 }

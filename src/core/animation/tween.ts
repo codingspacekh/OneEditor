@@ -193,7 +193,7 @@ const DEFAULT_STROKE_COLOUR = '#1e222a';
 export function propertyOf(object: AnimObject, property: TweenProperty): KeyValue {
   switch (property) {
     case 'fillColour':
-      return object.fill.kind === 'solid'
+      return object.fill.kind === 'solid' || object.fill.kind === 'pattern'
         ? object.fill.colour
         : object.fill.kind === 'none'
           ? '#000000'
@@ -521,6 +521,12 @@ export function editAt<T extends AnimObject>(object: T, frame: number, change: (
       if (next.stroke.width !== now.stroke.width) key('strokeWidth', next.stroke.width);
       if (next.stroke.dash !== now.stroke.dash && result.stroke)
         result = { ...result, stroke: { ...result.stroke, dash: next.stroke.dash } };
+      // G12 (M19): the outline's own opacity is a plain change too (100 %: none is saved).
+      if (next.stroke.opacity !== now.stroke.opacity && result.stroke) {
+        const stroke = { ...result.stroke, opacity: next.stroke.opacity };
+        if (stroke.opacity === undefined) delete stroke.opacity;
+        result = { ...result, stroke };
+      }
     } else if (next.stroke) result = { ...result, stroke: next.stroke };
     else {
       result = dropTracks(result, ['strokeColour', 'strokeWidth']);

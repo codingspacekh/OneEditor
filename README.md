@@ -266,6 +266,8 @@ Phase 3 (decided 2026-11-07): a fifth mode, **Graphics**, for syllabus Chapter 1
 
 **Built in M18 (v1.5.1):** G1, G3 (no envelope or perspective yet), G4 (as AN24), G5, G6, G7, G8 (crop and fit the canvas; a picture's crop as AN5), G10 (the resolution inside PNG and JPG files), G11 (SVG, PNG, JPG), G12 and G13 (as AN6), GL3, and the vector layers of G2. The rest comes in M19–M23 as listed in §13.
 
+**Built in M19 (file version 5):** GV1 (the arc — open, pie or chord — spiral and polyline tools), GV2 (Convert to curves for shapes; Step and repeat; Duplicate repeating the last move; Paste in place; Mirror copy), GV3 (the node tool: cusp, smooth and symmetrical nodes, to line / curve, many nodes, align and distribute nodes, simplify, break, join, close, reverse), GV4 and G3's envelope and perspective (live until Apply), GV5 (trace in black and white, of a part, the picture kept underneath), GV6 (SVG opened and imported as editable objects), GV7 (View ▸ Outline), GV8 (template layers), G4 Exclude / Combine / Join, G12 pattern fills and fill and outline opacity, G14 drop shadow, inner shadow, glow, bevel and blur (Properties ▸ Filters), G11 PDF and the warning for bitmaps inside an SVG. Text to curves (GT4) and warped text (GT5) come with M20.
+
 IDs: **G** common skills (19.1), **GV** vector (19.2), **GB** bitmap (19.3), **GC** compression
 (19.4), **GT** text (19.5), **GL** teaching, **GN** non-functional. "Reuse" names what comes from
 Animation mode.

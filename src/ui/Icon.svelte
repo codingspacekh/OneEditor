@@ -99,6 +99,11 @@
     star: '<path d="m12 3 2.6 5.3 5.9.9-4.3 4.1 1 5.8L12 16.4 6.8 19.1l1-5.8-4.3-4.1 5.9-.9z"/>',
     polygon: '<path d="M12 3l7.8 4.5v9L12 21l-7.8-4.5v-9z"/>',
     line: '<path d="M4 20 20 4"/>',
+    // GV1 (M19): the top half of a circle; a spiral from its middle; clicked straight lines.
+    arc: '<path d="M3 17a9 9 0 0 1 18 0"/><path d="M3 17h0M21 17h0"/>',
+    spiral:
+      '<path d="M12 12a1.5 1.5 0 0 1 3 0 3 3 0 0 1-6 0 4.5 4.5 0 0 1 9 0 6 6 0 0 1-12 0 7.5 7.5 0 0 1 15 0"/>',
+    polyline: '<path d="M3 19 8 8l6 7 7-11"/>',
     pen: '<path d="M4 20 15 9"/><path d="m13 7 4-4 4 4-4 4z"/>',
     brush:
       '<path d="M9.5 14.5 19 5a1.4 1.4 0 0 1 2 2l-9.5 9.5"/><path d="M9.5 14.5c-2.5 0-4 1.5-4 4 0 1-1 2-2.5 2.5 3 .5 7 0 7.5-3.5"/>',
@@ -116,6 +121,12 @@
     ruler:
       '<rect x="3" y="8" width="18" height="8" rx="1"/><path d="M7 8v3M11 8v3M15 8v3M19 8v3"/>',
     guides: '<path d="M12 3v18"/><path d="M3 12h18"/>',
+    // GV7 (M19): View ▸ Outline: two overlapping shapes drawn as lines only.
+    wireframe:
+      '<rect x="3" y="3" width="12" height="12" rx="1" stroke-dasharray="2 2"/><circle cx="15" cy="15" r="6"/>',
+    // GV8 (M19): a template layer: a picture under a pen line.
+    template:
+      '<rect x="3" y="3" width="18" height="18" rx="2" stroke-dasharray="3 2"/><path d="m6 17 4-5 3 3 2-2 3 4"/>',
     folder: '<path d="M3 7a2 2 0 0 1 2-2h4l2 2h8a2 2 0 0 1 2 2v9a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z"/>',
     group:
       '<rect x="3" y="3" width="8" height="8" rx="1"/><rect x="13" y="13" width="8" height="8" rx="1"/><path d="M11 7h2v6"/>',

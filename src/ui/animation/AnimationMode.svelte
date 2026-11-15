@@ -4,7 +4,8 @@
   // comma and full stop step a frame, Delete, arrow keys nudge (Shift: 10 px), V R E S G L P
   // B T I choose tools, F6 duplicates the frame-by-frame drawing and F7 adds a blank one (Shift:
   // removes it), Ctrl/Cmd + D duplicates, G groups, Shift + G ungroups, 0 fits, + / −
-  // zoom; the Edit menu's cut, copy and paste work on the selected objects (N10).
+  // zoom; the Edit menu's cut, copy and paste work on the selected objects (N10). M19: C O Y
+  // the arc, spiral and polyline; Ctrl/Cmd + Shift + V pastes in place.
   import type { App } from '../../app/app.ts';
   import { editorOf } from './editor.ts';
   import type { Tool } from '../../app/animation.ts';
@@ -36,6 +37,10 @@
     s: 'star',
     g: 'polygon',
     l: 'line',
+    // GV1 (M19): the arc, spiral and polyline.
+    c: 'arc',
+    o: 'spiral',
+    y: 'polyline',
     p: 'pen',
     b: 'brush',
     t: 'text',
@@ -59,6 +64,10 @@
       if (key === 'd') {
         e.preventDefault();
         anim.duplicate();
+      } else if (key === 'v' && e.shiftKey) {
+        // GV2 (M19): Paste in place.
+        e.preventDefault();
+        anim.pasteInPlace();
       } else if (key === 'g') {
         e.preventDefault();
         if (e.shiftKey) anim.ungroup();

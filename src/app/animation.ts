@@ -3,15 +3,21 @@
 // shows). Each area is a module in ./animation/ sharing one context (the store, running commands
 // as undo steps, the player); this file puts them together. A new feature is a new module, or
 // one more action in the module of its area.
+import { appearanceActions } from './animation/appearance.ts';
 import { createAnimationContext } from './animation/context.ts';
 import { documentActions } from './animation/document.ts';
 import { drawingActions } from './animation/drawing.ts';
+import { envelopeActions } from './animation/envelope.ts';
 import { exportActions } from './animation/exporting.ts';
 import { fileActions } from './animation/files.ts';
 import { graphicActions } from './animation/graphic.ts';
+import { nodeActions } from './animation/nodes.ts';
 import { pictureActions } from './animation/pictures.ts';
+import { shapeActions } from './animation/shapes.ts';
 import { soundActions } from './animation/sounds.ts';
 import type { AnimationDeps } from './animation/state.ts';
+import { svgActions } from './animation/svg-files.ts';
+import { templateActions } from './animation/templates.ts';
 import { timelineActions } from './animation/timeline.ts';
 
 export {
@@ -37,9 +43,15 @@ export function createAnimationApp(deps: AnimationDeps) {
     ...pictureActions(ctx),
     ...soundActions(ctx),
     ...drawingActions(ctx),
+    ...shapeActions(ctx),
+    ...envelopeActions(ctx),
+    ...nodeActions(ctx),
     ...timelineActions(ctx),
     ...documentActions(ctx),
     ...graphicActions(ctx, files.startWith),
+    ...templateActions(ctx),
+    ...svgActions(ctx),
+    ...appearanceActions(ctx),
     /** M18: an animation's app, or Graphics mode's. */
     kind: ctx.kind,
     dispose(): void {

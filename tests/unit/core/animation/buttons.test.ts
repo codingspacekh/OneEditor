@@ -95,12 +95,12 @@ describe('a button (AN18)', () => {
     expect(() => morphInto(pause(), createRect({ x: 0, y: 0 }), 24)).toThrow(/Only shapes/);
   });
 
-  it('is saved and opened again; files now say version 4 and version 3 files still open', () => {
+  it('is saved and opened again; version 3 files still open', () => {
     const doc = stage(pause(), createButton('goto', { x: 0, y: 0 }));
-    expect(ANIMATION_SCHEMA).toBe(4);
+    expect(ANIMATION_SCHEMA).toBe(5);
     expect(deserializeAnimation(serializeAnimation(doc))).toEqual(doc);
-    const v3 = serializeAnimation(stage()).replace('"schemaVersion": 4', '"schemaVersion": 3');
-    expect(deserializeAnimation(v3).schemaVersion).toBe(4);
+    const v3 = serializeAnimation(stage()).replace('"schemaVersion": 5', '"schemaVersion": 3');
+    expect(deserializeAnimation(v3).schemaVersion).toBe(5);
     const broken = serializeAnimation(doc).replace('"action": "pause"', '"action": "explode"');
     expect(() => deserializeAnimation(broken)).toThrow(/not a OneEditor animation/);
   });

@@ -126,6 +126,7 @@ _Made by `npm run guides` from `src/core/teaching/syllabus.ts` and the app's too
 | colour systems: RGB, HSL, CMYK | Graphics ▸ any colour box: the colour picker shows and takes RGB, HSL and CMYK numbers | — |
 | the need for different image resolutions, including the impact of having too low/high resolution for an image on screen or in print | Graphics ▸ File ▸ New Image… and the canvas chip at the top (size in px, cm, mm or in at a resolution; screen and print presets) | Image size and resolution |
 | exporting an image in different file formats | Graphics ▸ Export on the toolbar (PNG, JPG or SVG at a size, of the selection, or each object in its own file; the resolution is written into the file) | Export image |
+| changing solid and gradient fills; changing the opacity of all or part of an image | Graphics (and Animation) ▸ Properties ▸ Fill (solid, linear, radial or Pattern), Fill opacity and Outline opacity; Properties ▸ Filters for shadow, glow, bevel and blur | Pattern fill and opacity, Filters |
 
 ## 19.2 Vector graphics
 
@@ -133,7 +134,11 @@ _Made by `npm run guides` from `src/core/teaching/syllabus.ts` and the app's too
 
 | Syllabus point | Where in OneEditor | Tools |
 |---|---|---|
-| creating a vector graphic that meets the requirements of its intended application and audience | Graphics ▸ the drawing tools on the stage, and To Animation on the toolbar to use the graphic in an animation | Send to Animation |
+| creating a vector graphic that meets the requirements of its intended application and audience | Graphics ▸ the drawing tools on the stage, and To Animation on the toolbar to use the graphic in an animation | Send to Animation, Outline view, Template layer |
+| freehand, Bézier curves, straight lines, rectangles, ellipses, circles, arcs, stars, polygons, spirals | Graphics (and Animation) ▸ the tool strip: Rectangle, Ellipse, Star, Polygon, Line, Pen, Brush, and Arc (C), Spiral (O) and Polyline (Y); Properties ▸ Arc and Spiral | Arc, spiral and polyline |
+| selection tools: convert to curves, replication, transformation tools | Graphics (and Animation) ▸ Properties ▸ Copies: Convert to curves, Step and repeat…, Paste in place, Mirror copy; Duplicate (Ctrl+D) repeats the last move | Convert to curves, Step and repeat, mirror copy |
+| add, move, delete nodes; Bézier handles; symmetrical, asymmetrical, cusp, smooth nodes; align and distribute nodes | Graphics (and Animation) ▸ select a pen path, then Properties ▸ Nodes: click or drag a box round nodes, Cusp / Smooth / Symmetrical, To line / To curve, Align and distribute, Simplify…, Break, Join, Close, Reverse, Delete | Nodes |
+| application of envelopes and perspectives | Graphics (and Animation) ▸ Properties ▸ Envelope: arch, arc, bulge, flag, wave, rise or squeeze with a bend %, Perspective (drag the four corners) or Custom (drag the sides’ corners and handles); Apply makes plain paths | Envelope and perspective |
 
 ## 20.1 Animation
 

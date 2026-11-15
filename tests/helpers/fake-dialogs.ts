@@ -23,6 +23,7 @@ export function fakeDialogs() {
     saveAnimation: vi.fn<Dialogs['saveAnimation']>(async () => null),
     exportAnimation: vi.fn<Dialogs['exportAnimation']>(async () => null),
     openGraphic: vi.fn<Dialogs['openGraphic']>(async () => null),
+    openSvg: vi.fn<Dialogs['openSvg']>(async () => null),
     saveGraphic: vi.fn<Dialogs['saveGraphic']>(async () => null),
     exportGraphic: vi.fn<Dialogs['exportGraphic']>(async () => null),
   } satisfies Dialogs;

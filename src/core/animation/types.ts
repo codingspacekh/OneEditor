@@ -37,7 +37,25 @@ export type Paint =
   /** `angle` in degrees: 0 runs left to right, 90 top to bottom. */
   | { kind: 'linear'; from: string; to: string; angle: number; stops?: GradientStop[] }
   /** From its centre outwards: `cx`, `cy` in % of the box (absent: 50, the middle). */
-  | { kind: 'radial'; from: string; to: string; stops?: GradientStop[]; cx?: number; cy?: number };
+  | { kind: 'radial'; from: string; to: string; stops?: GradientStop[]; cx?: number; cy?: number }
+  /**
+   * G12 (M19): a repeating pattern: one of the built-in tiles drawn in `colour` on `background`
+   * (`'none'`: see-through between), `size` px a tile, turned by `angle`°; or `'picture'`: the
+   * picture `pictureId` tiled at `size` px wide.
+   */
+  | {
+      kind: 'pattern';
+      pattern: PatternName;
+      colour: string;
+      background: string;
+      size: number;
+      angle?: number;
+      pictureId?: Id;
+    };
+
+/** G12 (M19): the built-in pattern tiles, and a picture tiled. */
+export type PatternName =
+  'weave' | 'checks' | 'stripes' | 'dots' | 'hatching' | 'crosshatch' | 'bricks' | 'picture';
 
 export type Dash = 'solid' | 'dashed' | 'dotted';
 
@@ -46,6 +64,69 @@ export interface Stroke {
   colour: string;
   width: number;
   dash: Dash;
+  /** G12 (M19): the outline's own opacity, 0–100 %, under the object's. Absent: 100. */
+  opacity?: number;
+}
+
+/**
+ * G14 (M19): an effect drawn with an object (Animate's filters, Photoshop's layer styles):
+ * depth, 3-D, blooms and halos. Offsets and blurs in px, opacity 0–100 %, angles in degrees
+ * (as Photoshop's: 0: light from the right, 90: from above, the papers' "light from the top left"
+ * is 135).
+ */
+export type ObjectFilter =
+  | { kind: 'dropShadow'; colour: string; dx: number; dy: number; blur: number; opacity: number }
+  | { kind: 'innerShadow'; colour: string; dx: number; dy: number; blur: number; opacity: number }
+  /** The halo round the Moon, a light bloom: a soft colour all round the outline. */
+  | { kind: 'glow'; colour: string; blur: number; opacity: number }
+  /** Raised lettering, "3-D" buttons, the metallic plaque: lit on one side, shaded on the other. */
+  | {
+      kind: 'bevel';
+      depth: number;
+      blur: number;
+      angle: number;
+      light: string;
+      shadow: string;
+      opacity: number;
+    }
+  /** A soft-edged shape. */
+  | { kind: 'blur'; radius: number };
+
+export type FilterKind = ObjectFilter['kind'];
+
+/**
+ * GV4 (M19): an envelope bends an object's box into another shape; kept live (the object stays
+ * editable) until it is applied, which makes plain paths. Points are fractions of the box (0, 0 =
+ * its top left; they may lie outside it). A preset bends by `bend` % (−100 to 100); perspective
+ * moves the four corners; a custom envelope's four sides are Bézier curves, each from its first
+ * corner to the next going round (top: top left → top right; right: → bottom right; bottom:
+ * bottom left → bottom right; left: top left → bottom left), with two control points each.
+ */
+export type Envelope =
+  | { kind: 'preset'; preset: EnvelopePreset; bend: number }
+  | { kind: 'perspective'; corners: [EnvPoint, EnvPoint, EnvPoint, EnvPoint] }
+  | { kind: 'custom'; sides: EnvelopeSides };
+
+export type EnvelopePreset = 'arch' | 'arc' | 'bulge' | 'flag' | 'wave' | 'rise' | 'squeeze';
+
+export interface EnvPoint {
+  x: number;
+  y: number;
+}
+
+/** GV4: a side from corner a to corner b with control points c1 and c2 (box fractions). */
+export interface EnvelopeSide {
+  a: EnvPoint;
+  c1: EnvPoint;
+  c2: EnvPoint;
+  b: EnvPoint;
+}
+
+export interface EnvelopeSides {
+  top: EnvelopeSide;
+  right: EnvelopeSide;
+  bottom: EnvelopeSide;
+  left: EnvelopeSide;
 }
 
 /** AN9: how a tween runs from one keyframe to the next. */
@@ -148,6 +229,12 @@ interface ObjectBase {
    * about it too, and on a motion path it is this point that follows the path. Absent: the centre.
    */
   pivot?: { x: number; y: number };
+  /** G12 (M19): the fill's own opacity, 0–100 %, under the object's. Absent: 100. */
+  fillOpacity?: number;
+  /** G14 (M19): effects drawn with it, in order. Absent or empty: none. */
+  filters?: ObjectFilter[];
+  /** GV4 (M19): bent by an envelope or perspective until applied. Absent: not bent. */
+  envelope?: Envelope;
   /** AN9: keyframes, one track per animated property. Absent or empty: the object stays still. */
   tracks?: Track[];
   /**
@@ -171,7 +258,15 @@ export interface RectObject extends ObjectBase {
 
 export interface EllipseObject extends ObjectBase {
   kind: 'ellipse';
+  /**
+   * GV1 (M19): only part of the ellipse: from `start` to `end` degrees clockwise (0 at the right,
+   * as the canvas), left open (an arc's line), closed to the centre (a pie slice) or straight
+   * across (a chord). Absent: the whole ellipse.
+   */
+  arc?: { start: number; end: number; close: ArcClose };
 }
+
+export type ArcClose = 'open' | 'pie' | 'chord';
 
 export interface StarObject extends ObjectBase {
   kind: 'star';
@@ -193,7 +288,14 @@ export interface PathPoint {
   in?: { x: number; y: number };
   /** The control point of the curve leaving here. */
   out?: { x: number; y: number };
+  /**
+   * GV3 (M19): how its handles move together: cusp (each on its own), smooth (in line, each its
+   * own length; asymmetrical), symmetrical (in line and equal). Absent: cusp, as before.
+   */
+  type?: NodeType;
 }
+
+export type NodeType = 'cusp' | 'smooth' | 'symmetrical';
 
 /** AN3: a line (two points), a pen or brush path. Points stay inside the box; resizing scales them. */
 export interface PathObject extends ObjectBase {
@@ -281,6 +383,11 @@ export interface Layer {
   /** AN12: a mask: its shapes restrict what is seen of the layer directly beneath it. */
   mask?: boolean;
   /**
+   * GV8 (M19): a template to draw over (Chip.png, Plane.jpg): shown faded, locked, and never
+   * exported or sent to Animation mode.
+   */
+  template?: boolean;
+  /**
    * AN14: a frame-by-frame layer: the frames where a new drawing starts, sorted, the first 0.
    * Each drawing (the objects whose `drawing` is that frame) is held until the next one.
    */
@@ -345,6 +452,8 @@ export interface ViewSettings {
   rulers: boolean;
   grid: { show: boolean; size: number; over: boolean };
   snap: { grid: boolean; guides: boolean; objects: boolean; pixels: boolean };
+  /** GV7 (M19): View ▸ Outline: every shape as a thin line, no fills. Absent: off. */
+  wireframe?: boolean;
 }
 
 /** G1, G6 (Graphics mode, M18): the units sizes are typed and shown in. */
@@ -363,9 +472,10 @@ export interface GraphicSettings {
 export interface AnimationDoc {
   /**
    * 2 since M14 (keyframes), 3 since M15 (paths, morphs, masks), 4 since M16 (buttons, stop
-   * motion and frame-by-frame layers); older apps refuse newer files.
+   * motion and frame-by-frame layers), 5 since M19 (patterns, effects, envelopes, arcs, node
+   * types, template layers); older apps refuse newer files.
    */
-  schemaVersion: 4;
+  schemaVersion: 5;
   name: string;
   stage: Stage;
   /** G1 (M18): present in a Graphics mode image, absent in an animation. */

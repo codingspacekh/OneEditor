@@ -157,3 +157,56 @@ test('M/22 HeronV10cm: a 10 cm image exports as a 10 cm SVG and a 300 dpi PNG; S
   await expect(page.getByText(/One object from Untitled added/)).toBeVisible();
   await app.close();
 });
+
+test('M19: a drop shadow and a pattern drawn by the real canvas; a PDF of the image at its size', async () => {
+  test.setTimeout(120_000);
+  const { app, window: page } = await launchApp();
+  await page
+    .getByRole('navigation', { name: 'Mode' })
+    .getByRole('button', { name: 'Graphics' })
+    .click();
+  await newImage(page, 'Logo 200 × 200 px');
+  await drawEllipse(page);
+  await type(page, 'X', '50');
+  await type(page, 'Y', '50');
+  await type(page, 'W', '100');
+  await type(page, 'H', '100');
+  const props = page.getByRole('complementary', { name: 'Properties' });
+  const colour = props.getByRole('textbox', { name: 'Colour', exact: true }).first();
+  await colour.fill('#FF0000');
+  await colour.press('Tab');
+
+  // G14: a drop shadow (6 px across and down, soft, half black) falls below and to the right.
+  await props.getByLabel('Add', { exact: true }).selectOption('dropShadow');
+  await props.getByRole('button', { name: 'Add filter' }).click();
+  const shadowed = join(dir, 'Shadow.png');
+  await answerDialogs(app, { exportTo: shadowed });
+  await exportAs(page, /PNG/);
+  expect(await pixel(shadowed, 100, 100, 200)).toEqual([255, 0, 0, 255]);
+  const [r = 0, g = 0, b = 0] = await pixel(shadowed, 141, 141, 200);
+  expect(r).toBeLessThan(235);
+  expect(Math.abs(r - g)).toBeLessThan(4);
+  expect(Math.abs(g - b)).toBeLessThan(4);
+  // No shadow above and to the left.
+  expect(await pixel(shadowed, 58, 58, 200)).toEqual([255, 255, 255, 255]);
+
+  // G12: a pattern fill: down the middle of the shape the (level) stripes change colour.
+  await props.getByLabel('Fill', { exact: true }).selectOption('pattern');
+  await props.getByLabel('Pattern', { exact: true }).selectOption('stripes');
+  const striped = join(dir, 'Stripes.png');
+  await answerDialogs(app, { exportTo: striped });
+  await exportAs(page, /PNG/);
+  const row = await Promise.all(
+    [70, 76, 82, 88, 94, 100, 106, 112, 118, 124, 130].map((y) => pixel(striped, 100, y, 200)),
+  );
+  expect(new Set(row.map((p) => p.join(','))).size).toBeGreaterThan(1);
+
+  // G11: PDF, the page 200 px at 96 dpi = 2.08 in = 150 pt square.
+  const pdf = join(dir, 'Logo.pdf');
+  await answerDialogs(app, { exportTo: pdf });
+  await exportAs(page, /PDF/);
+  const text = (await readFile(pdf)).toString('latin1');
+  expect(text.startsWith('%PDF')).toBe(true);
+  expect(text).toMatch(/\/MediaBox\s*\[\s*0\s+0\s+150(\.\d+)?\s+150(\.\d+)?\s*\]/);
+  await app.close();
+});

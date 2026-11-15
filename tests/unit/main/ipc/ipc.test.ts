@@ -87,6 +87,7 @@ describe('P2 main-process IPC handlers', () => {
         saveAnimation: async () => null,
         exportAnimation: async () => null,
         openGraphic: async () => '/g/Logo.mveg',
+        openSvg: async () => '/g/ChipLeg.svg',
         saveGraphic: async (name) => `/g/${name}.mveg`,
         exportGraphic: async (name, format) => `/g/${name}.${format}`,
       },
@@ -94,6 +95,8 @@ describe('P2 main-process IPC handlers', () => {
     expect(await api.invoke('dialog:openExport')).toEqual({ ok: true, value: ['/e/Task4.html'] });
     // G1, G11 (M18): Graphics mode's files.
     expect(await api.invoke('dialog:openGraphic')).toEqual({ ok: true, value: '/g/Logo.mveg' });
+    // GV6 (M19): an SVG to import.
+    expect(await api.invoke('dialog:openSvg')).toEqual({ ok: true, value: '/g/ChipLeg.svg' });
     expect(await api.invoke('dialog:saveGraphic', 'Logo')).toEqual({
       ok: true,
       value: '/g/Logo.mveg',

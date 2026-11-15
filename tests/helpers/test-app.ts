@@ -80,6 +80,8 @@ export function testApp(
       async (path) => `data:audio/mpeg;base64,${btoa(path)}`,
     ),
     openTest: vi.fn<PageAssets['openTest']>(async () => {}),
+    /** G11 (M19): a PDF's first bytes. */
+    svgToPdf: vi.fn<PageAssets['svgToPdf']>(async () => new TextEncoder().encode('%PDF-1.7')),
   };
   /** AN28: the speakers Animation mode plays its sounds on: what was played, and stops. */
   const animationAudio = {

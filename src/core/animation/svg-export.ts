@@ -4,7 +4,8 @@
 // a path (its fill and outline on one element), gradients, text as text, pictures inside as data,
 // masks as clip paths. Pure: no DOM.
 import { drawStage, type CanvasGradientLike, type StageCanvas } from './draw.ts';
-import type { AnimationDoc, Id } from './types.ts';
+import type { AnimationDoc, Id, ObjectFilter } from './types.ts';
+import { bevelShadows, shadowDeviation, type PatternTile } from './appearance.ts';
 import { fontFaceRule, genericFamily, type FontFile } from '../text/fonts.ts';
 
 type Matrix = [number, number, number, number, number, number];
@@ -87,6 +88,110 @@ class Gradient implements CanvasGradientLike {
   }
 }
 
+/**
+ * G12 (M19): a pattern fill as an SVG <pattern>: its tile's elements, repeated in stage space
+ * (the tile's matrix after the transform where it was made), or, for text, in the text's own.
+ */
+class Pattern {
+  readonly id: string;
+  private readonly size: { width: number; height: number };
+  private readonly content: string;
+  private readonly base: Matrix;
+  private element: Matrix | null = null;
+  constructor(id: string, size: { width: number; height: number }, content: string, base: Matrix) {
+    this.id = id;
+    this.size = size;
+    this.content = content;
+    this.base = base;
+  }
+  /** As a gradient's: read in the text's space, copied under `id` for another transform. */
+  forElement(m: Matrix, id: () => string): Pattern {
+    if (this.element === null) {
+      this.element = m;
+      return this;
+    }
+    if (sameMatrix(this.element, m)) return this;
+    const copy = new Pattern(id(), this.size, this.content, this.base);
+    copy.element = m;
+    return copy;
+  }
+  toString(): string {
+    const back = this.element ? inverse(this.element) : null;
+    const m = back ? times(back, this.base) : this.base;
+    return (
+      `<pattern id="${this.id}" patternUnits="userSpaceOnUse" width="${n(this.size.width)}" height="${n(this.size.height)}"` +
+      ` patternTransform="matrix(${m.map(n).join(' ')})">${this.content}</pattern>`
+    );
+  }
+}
+
+/**
+ * G14 (M19): the effects as SVG filter primitives, each on the result of the one before (as the
+ * stage draws them). Shadows and glows go under what they are cast from; inner shadows and the
+ * bevel's light and shade over it, inside its edge only. In sRGB, as a canvas mixes colours.
+ */
+function filterSvg(id: string, filters: readonly ObjectFilter[], width: number, height: number) {
+  const parts: string[] = [];
+  let input = 'SourceGraphic';
+  const flood = (colour: string, opacity: number, result: string) =>
+    `<feFlood flood-color="${escape(colour)}" flood-opacity="${n(opacity / 100)}" result="${result}"/>`;
+  const shadow = (
+    r: string,
+    f: { colour: string; dx: number; dy: number; blur: number; opacity: number },
+  ) => {
+    parts.push(
+      `<feGaussianBlur in="${input}" stdDeviation="${n(shadowDeviation(f.blur))}" result="${r}b"/>`,
+      `<feOffset in="${r}b" dx="${n(f.dx)}" dy="${n(f.dy)}" result="${r}o"/>`,
+      flood(f.colour, f.opacity, `${r}c`),
+      `<feComposite in="${r}c" in2="${r}o" operator="in" result="${r}s"/>`,
+      `<feMerge result="${r}"><feMergeNode in="${r}s"/><feMergeNode in="${input}"/></feMerge>`,
+    );
+    input = r;
+  };
+  const inner = (
+    r: string,
+    f: { colour: string; dx: number; dy: number; blur: number; opacity: number },
+  ) => {
+    parts.push(
+      flood(f.colour, f.opacity, `${r}c`),
+      `<feComposite in="${r}c" in2="${input}" operator="out" result="${r}i"/>`,
+      `<feGaussianBlur in="${r}i" stdDeviation="${n(shadowDeviation(f.blur))}" result="${r}b"/>`,
+      `<feOffset in="${r}b" dx="${n(f.dx)}" dy="${n(f.dy)}" result="${r}o"/>`,
+      `<feComposite in="${r}o" in2="${input}" operator="in" result="${r}s"/>`,
+      `<feMerge result="${r}"><feMergeNode in="${input}"/><feMergeNode in="${r}s"/></feMerge>`,
+    );
+    input = r;
+  };
+  filters.forEach((f, i) => {
+    const r = `r${i + 1}`;
+    switch (f.kind) {
+      case 'blur':
+        parts.push(`<feGaussianBlur in="${input}" stdDeviation="${n(f.radius)}" result="${r}"/>`);
+        input = r;
+        break;
+      case 'dropShadow':
+        shadow(r, f);
+        break;
+      case 'glow':
+        shadow(r, { ...f, dx: 0, dy: 0 });
+        break;
+      case 'innerShadow':
+        inner(r, f);
+        break;
+      case 'bevel': {
+        const [light, shade] = bevelShadows(f);
+        inner(`${r}l`, light);
+        inner(r, shade);
+        break;
+      }
+    }
+  });
+  return (
+    `<filter id="${id}" filterUnits="userSpaceOnUse" x="0" y="0" width="${n(width)}" height="${n(height)}"` +
+    ` color-interpolation-filters="sRGB">${parts.join('')}</filter>`
+  );
+}
+
 /** The drawing's picture: what options.image gives drawStage for a picture with data. */
 interface Href {
   href: string;
@@ -123,9 +228,12 @@ class SvgCanvas implements StageCanvas {
   private groups = 0;
   private readonly gradients: Gradient[] = [];
   private readonly clips: string[] = [];
+  /** G12, G14 (M19): the pattern fills, and the effects (written once the stage's size is known). */
+  private readonly patterns: Pattern[] = [];
+  private readonly filters: ((width: number, height: number) => string)[] = [];
   private readonly body: string[] = [];
   /** A filled path waiting for its outline, so both go on one element. */
-  private pending: { d: string; attrs: string } | null = null;
+  private pending: { d: string; attrs: string; fill?: string; alpha?: number } | null = null;
 
   // ---- state ----
 
@@ -311,7 +419,9 @@ class SvgCanvas implements StageCanvas {
   }
 
   private paint(style: string | object): string {
-    return style instanceof Gradient ? `url(#${style.id})` : escape(String(style));
+    return style instanceof Gradient || style instanceof Pattern
+      ? `url(#${style.id})`
+      : escape(String(style));
   }
 
   private opacity(): string {
@@ -335,14 +445,17 @@ class SvgCanvas implements StageCanvas {
   fill(rule?: 'nonzero' | 'evenodd'): void {
     this.flush();
     const evenodd = rule === 'evenodd' ? ' fill-rule="evenodd"' : '';
-    this.pending = {
-      d: this.d,
-      attrs: ` fill="${this.paint(this.fillStyle)}"${evenodd}${this.opacity()}`,
-    };
+    const fill = ` fill="${this.paint(this.fillStyle)}"${evenodd}`;
+    this.pending = { d: this.d, attrs: `${fill}${this.opacity()}`, fill, alpha: this.globalAlpha };
   }
 
   stroke(): void {
-    if (this.pending?.d === this.d) this.pending.attrs += this.strokeAttrs();
+    const { pending } = this;
+    if (pending?.d === this.d && pending.fill !== undefined && pending.alpha !== this.globalAlpha) {
+      // G12 (M19): the fill and the outline each with its own opacity, still on one element.
+      const own = (what: string, a: number | undefined) => (a === 1 ? '' : ` ${what}="${n(a!)}"`);
+      pending.attrs = `${pending.fill}${own('fill-opacity', pending.alpha)}${own('stroke-opacity', this.globalAlpha)}${this.strokeAttrs()}`;
+    } else if (pending?.d === this.d) pending.attrs += this.strokeAttrs();
     else {
       this.flush();
       this.pending = { d: this.d, attrs: ` fill="none"${this.opacity()}${this.strokeAttrs()}` };
@@ -367,6 +480,35 @@ class SvgCanvas implements StageCanvas {
     draw(this);
     this.restore();
     this.body.push('</g>');
+  }
+
+  /** G14 (M19): the object in a <g> with its effects as one SVG filter. */
+  withFilters(filters: readonly ObjectFilter[], draw: (layer: StageCanvas) => void): void {
+    this.flush();
+    const id = `f${this.filters.length + 1}`;
+    const list = [...filters];
+    this.filters.push((width, height) => filterSvg(id, list, width, height));
+    this.body.push(`<g filter="url(#${id})">`);
+    this.save();
+    draw(this);
+    this.restore();
+    this.body.push('</g>');
+  }
+
+  private newPatternId(): string {
+    return `p${this.patterns.length + 1}`;
+  }
+
+  /** G12 (M19): a pattern fill: its tile drawn as SVG elements inside a <pattern>. */
+  patternOf(tile: PatternTile): object {
+    const inside = new SvgCanvas();
+    tile.draw(inside);
+    inside.flush();
+    const content = inside.body.join('');
+    const size = { width: tile.width, height: tile.height };
+    const pattern = new Pattern(this.newPatternId(), size, content, times(this.m, tile.matrix));
+    this.patterns.push(pattern);
+    return pattern;
   }
 
   // ---- rectangles, text and pictures ----
@@ -440,8 +582,11 @@ class SvgCanvas implements StageCanvas {
     const style =
       this.fillStyle instanceof Gradient
         ? this.fillStyle.forElement([...this.m], () => this.newGradientId())
-        : this.fillStyle;
+        : this.fillStyle instanceof Pattern
+          ? this.fillStyle.forElement([...this.m], () => this.newPatternId())
+          : this.fillStyle;
     if (style instanceof Gradient && !this.gradients.includes(style)) this.gradients.push(style);
+    if (style instanceof Pattern && !this.patterns.includes(style)) this.patterns.push(style);
     this.text(text, x, y, ` fill="${this.paint(style)}"`);
   }
 
@@ -514,7 +659,13 @@ class SvgCanvas implements StageCanvas {
     this.flush();
     for (; this.groups > 0; this.groups--) this.body.push('</g>');
     const style = styles.length ? [`<style>${styles.join('\n')}</style>`] : [];
-    const defs = [...style, ...this.gradients.map(String), ...this.clips];
+    const defs = [
+      ...style,
+      ...this.gradients.map(String),
+      ...this.patterns.map(String),
+      ...this.filters.map((f) => f(width, height)),
+      ...this.clips,
+    ];
     return (
       `<svg xmlns="http://www.w3.org/2000/svg" width="${shown.width}" height="${shown.height}" viewBox="0 0 ${width} ${height}">\n` +
       (defs.length ? `<defs>${defs.join('')}</defs>\n` : '') +

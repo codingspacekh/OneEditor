@@ -1,7 +1,7 @@
 // Graphics mode's own actions (M18): a new image of a chosen size, the image settings (canvas,
 // resolution, units, background), cropping the canvas (G8), align and distribute (G5, in
-// Animation mode too), exporting PNG, JPG and SVG at a size and of the chosen objects (G11), and
-// what is sent to Animation mode (GL3).
+// Animation mode too), exporting PNG, JPG, SVG and PDF (M19) at a size and of the chosen objects
+// (G11), and what is sent to Animation mode (GL3).
 import * as cmd from '../animation-commands.ts';
 import { findObject, pictureIdsOf } from '../../core/animation/layers.ts';
 import type { AnimObject, AnimationDoc, Picture } from '../../core/animation/types.ts';
@@ -28,8 +28,10 @@ import {
   svgDimensions,
   type GraphicExportOptions,
 } from '../../core/graphics/export.ts';
+import { pdfPageLabel, pdfPageSize } from '../../core/graphics/pdf.ts';
 import { jpegWithDpi, pngWithDpi } from '../../core/image/dpi.ts';
 import { stateAt } from '../../core/animation/state.ts';
+import { withoutTemplates } from '../../core/animation/template.ts';
 import { EditError } from '../../core/model/errors.ts';
 import { fileNameOf } from '../../core/project/relocate.ts';
 import type { AnimationContext } from './context.ts';
@@ -72,6 +74,12 @@ export function graphicActions(
     if (options.format === 'svg') {
       const { svg, missing } = await svgDocument(ctx, doc, 0, svgDimensions(doc, options.size));
       return { text: svg, size, missing };
+    }
+    if (options.format === 'pdf') {
+      // G11 (M19): the same SVG, printed by the main process on a page of its printed size.
+      const page = pdfPageSize(doc, options.size);
+      const { svg, missing } = await svgDocument(ctx, doc, 0, svgDimensions(doc, options.size));
+      return { bytes: await ctx.services.pageAssets.svgToPdf(svg, page), size, missing };
     }
     if (options.format === 'jpg') {
       const jpeg = await renderer.renderJpeg(doc, {
@@ -146,7 +154,8 @@ export function graphicActions(
      */
     async exportImage(options: GraphicExportOptions): Promise<string[] | null> {
       if (store.get().busy) return null;
-      const doc = present();
+      // GV8 (M19): a template layer is never exported.
+      const doc = withoutTemplates(present());
       const what = options.what ?? 'image';
       const ids = liveSelection();
       const info = FORMAT_INFO[options.format];
@@ -166,6 +175,9 @@ export function graphicActions(
               ];
         // The sizes are checked before any save box.
         for (const p of parts) exportPixels(p.doc.stage, graphicOf(doc).dpi, options.size);
+        // G11 (M19): and a PDF's page.
+        if (options.format === 'pdf')
+          for (const p of parts) pdfPageSize({ ...p.doc, graphic: graphicOf(doc) }, options.size);
         if (options.format === 'jpg') jpegQuality(options.quality);
       } catch (error) {
         showError(error);
@@ -199,10 +211,17 @@ export function graphicActions(
           else await files.writeBytes(outputs[i]!, file.bytes!);
         }
         const names = outputs.map((o) => fileNameOf(o));
+        const page = () =>
+          pdfPageLabel(
+            pdfPageSize({ ...parts[0]!.doc, graphic: graphicOf(doc) }, options.size),
+            graphicOf(doc).units,
+          );
         const sized =
-          parts.length === 1 && made
-            ? ` (${made.width} × ${made.height} px${options.format === 'svg' ? '' : `, ${made.dpi} dpi`})`
-            : '';
+          parts.length !== 1 || !made
+            ? ''
+            : options.format === 'pdf'
+              ? ` (a ${page()} page)`
+              : ` (${made.width} × ${made.height} px${options.format === 'svg' ? '' : `, ${made.dpi} dpi`})`;
         const lost = missing.size ? ` without ${[...missing].join(', ')}: could not be read` : '';
         patch({
           message: {
@@ -242,7 +261,8 @@ export function graphicActions(
      * with the pictures they show. Null when there is nothing.
      */
     toSend(): { objects: AnimObject[]; pictures: Picture[] } | null {
-      const doc = present();
+      // GV8 (M19): a template stays behind.
+      const doc = withoutTemplates(present());
       const ids = liveSelection();
       const objects = ids.length
         ? ids.flatMap((id) => {

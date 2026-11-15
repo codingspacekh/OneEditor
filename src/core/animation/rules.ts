@@ -2,7 +2,7 @@
 // coursebook's common aspect ratios (Table 19.1) as presets.
 import { EditError } from '../model/errors.ts';
 import { FONTS } from '../text/fonts.ts';
-import type { AnimObject, Paint, Stage } from './types.ts';
+import type { AnimObject, Paint, PatternName, Stage } from './types.ts';
 
 export const MIN_STAGE = 16;
 export const MAX_STAGE = 4096;
@@ -91,10 +91,35 @@ export function validateStage(stage: Stage, max = MAX_STAGE): void {
     throw new EditError('Choose whether the animation loops or plays once.');
 }
 
+/** G12 (M19): the built-in pattern tiles, and a picture tiled. */
+export const PATTERN_NAMES: readonly PatternName[] = [
+  'weave',
+  'checks',
+  'stripes',
+  'dots',
+  'hatching',
+  'crosshatch',
+  'bricks',
+  'picture',
+];
+
 function validatePaint(paint: Paint, what: string): void {
   if (paint.kind === 'none') return;
   if (paint.kind === 'solid') {
     if (!isColour(paint.colour)) throw new EditError(colourMessage(`The ${what} colour`));
+    return;
+  }
+  if (paint.kind === 'pattern') {
+    // G12 (M19): a tile in a colour on a background (or see-through), or a picture tiled.
+    if (!PATTERN_NAMES.includes(paint.pattern)) throw new EditError('Choose one of the patterns.');
+    if (!isColour(paint.colour) || !isStageBackground(paint.background))
+      throw new EditError(colourMessage(`The ${what} pattern's colour`));
+    if (!(Number.isFinite(paint.size) && paint.size >= 2 && paint.size <= 1000))
+      throw new EditError('A pattern tile is from 2 to 1000 px.');
+    if (paint.angle !== undefined && !Number.isFinite(paint.angle))
+      throw new EditError('The pattern angle must be a number of degrees.');
+    if (paint.pattern === 'picture' && !paint.pictureId)
+      throw new EditError('Choose the picture to tile.');
     return;
   }
   if (!isColour(paint.from) || !isColour(paint.to))
@@ -114,6 +139,69 @@ function validatePaint(paint: Paint, what: string): void {
       (paint.cy !== undefined && !percent(paint.cy)))
   )
     throw new EditError('The centre of a radial gradient must be from 0 to 100 % of the box.');
+}
+
+/** G14 (M19): the most effects one object has, the furthest a shadow is moved, the most blur. */
+export const MAX_FILTERS = 10;
+export const MAX_FILTER_OFFSET = 1000;
+export const MAX_FILTER_BLUR = 250;
+export const MAX_BEVEL_DEPTH = 100;
+
+const percentage = (n: unknown): boolean =>
+  typeof n === 'number' && Number.isFinite(n) && n >= 0 && n <= 100;
+
+/** G12, G14 (M19): the fill's and outline's own opacity, and the effects' numbers and colours. */
+function validateAppearance(object: AnimObject): void {
+  if (object.fillOpacity !== undefined && !percentage(object.fillOpacity))
+    throw new EditError('The fill opacity must be between 0 and 100 %.');
+  if (object.stroke?.opacity !== undefined && !percentage(object.stroke.opacity))
+    throw new EditError('The outline opacity must be between 0 and 100 %.');
+  const filters = object.filters ?? [];
+  if (filters.length > MAX_FILTERS)
+    throw new EditError(`An object can have up to ${MAX_FILTERS} filters.`);
+  const within = (v: number, low: number, high: number) =>
+    Number.isFinite(v) && v >= low && v <= high;
+  const blur = (v: number) => {
+    if (!within(v, 0, MAX_FILTER_BLUR))
+      throw new EditError(`A blur must be from 0 to ${MAX_FILTER_BLUR} px.`);
+  };
+  const opacity = (v: number) => {
+    if (!percentage(v)) throw new EditError("A filter's opacity must be between 0 and 100 %.");
+  };
+  const colour = (c: string) => {
+    if (!isColour(c)) throw new EditError(colourMessage("A filter's colour"));
+  };
+  for (const f of filters)
+    switch (f.kind) {
+      case 'dropShadow':
+      case 'innerShadow':
+        if (![f.dx, f.dy].every((d) => within(d, -MAX_FILTER_OFFSET, MAX_FILTER_OFFSET)))
+          throw new EditError(`A shadow can be moved up to ${MAX_FILTER_OFFSET} px each way.`);
+        colour(f.colour);
+        blur(f.blur);
+        opacity(f.opacity);
+        break;
+      case 'glow':
+        colour(f.colour);
+        blur(f.blur);
+        opacity(f.opacity);
+        break;
+      case 'bevel':
+        if (!within(f.depth, 0, MAX_BEVEL_DEPTH))
+          throw new EditError(`A bevel's depth must be from 0 to ${MAX_BEVEL_DEPTH} px.`);
+        if (!Number.isFinite(f.angle))
+          throw new EditError("The light's angle must be a number of degrees.");
+        colour(f.light);
+        colour(f.shadow);
+        blur(f.blur);
+        opacity(f.opacity);
+        break;
+      case 'blur':
+        blur(f.radius);
+        break;
+      default:
+        throw new EditError('Choose one of the filters: shadow, glow, bevel or blur.');
+    }
 }
 
 /** AN25: the most an object can be skewed, either way (degrees). */
@@ -154,9 +242,17 @@ export function validateObject(object: AnimObject): void {
     atLeastZero(object.stroke.width, 'The outline width');
     if (!isColour(object.stroke.colour)) throw new EditError(colourMessage('The outline colour'));
   }
+  validateAppearance(object);
   switch (object.kind) {
     case 'rect':
       atLeastZero(object.radius, 'The corner radius');
+      break;
+    case 'ellipse':
+      // GV1 (M19): an arc's ends are angles; it is open, a pie slice or a chord.
+      if (object.arc && ![object.arc.start, object.arc.end].every(Number.isFinite))
+        throw new EditError('The start and end of an arc must be numbers of degrees.');
+      if (object.arc && !['open', 'pie', 'chord'].includes(object.arc.close))
+        throw new EditError('Choose how the arc is closed: open, a pie slice or a chord.');
       break;
     case 'star':
       if (!Number.isInteger(object.points) || object.points < 3)

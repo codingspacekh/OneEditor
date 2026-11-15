@@ -13,6 +13,8 @@ export type AnimDialog =
   /** M18, Graphics mode: a new image, and the image settings (canvas, resolution, background). */
   | 'newImage'
   | 'image'
+  /** GV2 (M19): Step and repeat… for the selection. */
+  | 'stepRepeat'
   | null;
 
 export const animUi = $state({
@@ -25,7 +27,7 @@ export const animUi = $state({
   /** AN15: the format last chosen in the export dialog (MP4 at first). */
   exportFormat: 'mp4' as AnimationFormat,
   /** G11 (M18): the format last chosen in Graphics mode's export dialog (PNG at first). */
-  graphicFormat: 'png' as 'png' | 'jpg' | 'svg',
+  graphicFormat: 'png' as 'png' | 'jpg' | 'svg' | 'pdf',
   /** The Properties panel's W / H lock. */
   lockRatio: false,
   /** A text object was just made: the Properties panel focuses its words. */

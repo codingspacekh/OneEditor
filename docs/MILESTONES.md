@@ -825,7 +825,21 @@ M21 Bitmap core ─► M22 Retouch & adjust ─► M23 Formats, theory & hardeni
 
 ### M19 — Vector toolkit
 
-GV1–GV8 (arcs, spirals, node types and alignment, convert to curves, step and repeat, envelope and perspective, trace in black and white, SVG opened as shapes, wireframe, template layers), G4 Exclude / Combine / Join, G12 pattern fills, G14 shadow, glow, bevel and blur, PDF export. Gate: J/20 meter, J/21 shield and bolt, O/N/21 cloud and bolt, J/24 cake, O/N/25 apple, M/23 rocket, M/26 chip with ChipLeg.svg, J/19 monitor, O/N/22 plane.
+**Goal:** every vector skill of syllabus 19.2 and the common skills still missing from 19.1, so that each vector paper task can be drawn as asked: arcs and spirals, nodes of every kind, shapes turned into curves and repeated evenly, bent by envelopes and perspective, filled with patterns, given depth with shadows, glows and bevels, a given SVG opened as shapes, a photo traced over or in black and white, and the result saved as PDF too.
+
+**Build order** (started 2026-11-15 on the `m19` branch, off `m18` at 0525616; file version 5)
+1. **File format**: version 5 — pattern fills, fill and outline opacity (G12), effects (G14), envelopes (GV4), arcs (GV1), node types (GV3), template layers (GV8), the outline view (GV7); version 4 files open.
+2. **Shapes, replication and Boolean shapes** (GV1, GV2, G4): the arc (open, pie, chord) as part of an ellipse, the spiral and the polyline tools; *Convert to curves* for any shape; *Step and repeat* (n copies moved and / or turned about a point), *Duplicate* repeating the last move, *Paste in place*, *Mirror copy*; *Exclude*, *Combine* (one path, holes even-odd) and *Join* beside Union, Cut out and Intersect.
+3. **Nodes** (GV3): node types cusp, smooth and symmetrical; segment to line or curve; many nodes chosen; align and distribute nodes; simplify; break, join, close / open, reverse.
+4. **Envelope and perspective** (GV4, G3): the presets with a bend %, perspective by four corners, a custom envelope of four Bézier sides; live (still editable) until *Apply*; drawn, exported to SVG and PNG.
+5. **Appearance** (G12, G14): pattern fills (the 7 tiles and a picture), fill and outline opacity, drop shadow, inner shadow, glow, bevel and blur — on the stage, in PNG / JPG and in SVG as filters.
+6. **Files and views** (GV5–GV8, G11): SVG opened and imported as editable objects; trace in black and white and of the selection only, the picture kept hidden underneath; *View ▸ Outline*; template layers; PDF export (vector, the page at the image's size).
+7. The papers' steps done in the app; `npm run check`; CI on the three platforms.
+8. Version 1.6.0, `whats-new.json`, the guides; the teacher's check.
+
+**Exit gate**
+- Each step's tests green; `npm run check` green; CI green on the three platforms.
+- Done in the app (gate record `docs/acceptance/M19.md`): J/20 meter (each part as SVG and PNG, the bitmap 600 px wide, not transparent); J/21 shield and bolt (gold and silver gradients, studs, a shadow); O/N/21 cloud and bolt (blooms, shading); J/24 cake and a slice cut out; O/N/25 apple seen in the outline view, bites cut out; M/23 rocket; M/26 chip with ChipLeg.svg imported, legs evenly spaced, no bitmap in the SVG, 10 cm × 6 cm at 15°; J/19 monitor (1 cm grid, each group saved apart); O/N/22 plane traced over a template.
 
 ### M20 — Text
 

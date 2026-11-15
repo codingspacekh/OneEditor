@@ -188,6 +188,7 @@ describe('X3 native menus', () => {
       ['Show / Hide Right Panel', 'CmdOrCtrl+Alt+2'],
       ['Show / Hide Timeline', 'CmdOrCtrl+Alt+3'],
       ['Reset Layout', undefined],
+      ['Outline', 'Ctrl+Shift+Y'],
     ]);
     for (const i of ours) (i.click as () => void)();
     expect(send.mock.calls.map((c) => c[0])).toEqual([
@@ -195,6 +196,35 @@ describe('X3 native menus', () => {
       'toggleRight',
       'toggleBottom',
       'resetLayout',
+      'outline',
     ]);
+  });
+
+  it('GV7: View ▸ Outline is ⌘Y on a Mac, as in Illustrator (Ctrl+Y is Redo on Windows)', () => {
+    const outline = items(
+      find(
+        menuTemplate('darwin', () => {}, false),
+        'View',
+      ),
+    ).find((i) => i.label === 'Outline')!;
+    expect(outline.accelerator).toBe('Cmd+Y');
+  });
+
+  it('GV8: File ▸ Place Template… sends "placeTemplate" to the page', () => {
+    const send = vi.fn<(a: MenuAction) => void>();
+    const item = items(find(menuTemplate('win32', send, false), 'File')).find(
+      (i) => i.label === 'Place Template…',
+    )!;
+    (item.click as () => void)();
+    expect(send).toHaveBeenCalledWith('placeTemplate');
+  });
+
+  it('GV6: File ▸ Import SVG… sends "importSvg" to the page', () => {
+    const send = vi.fn<(a: MenuAction) => void>();
+    const item = items(find(menuTemplate('darwin', send, false), 'File')).find(
+      (i) => i.label === 'Import SVG…',
+    )!;
+    (item.click as () => void)();
+    expect(send).toHaveBeenCalledWith('importSvg');
   });
 });

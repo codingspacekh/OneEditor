@@ -91,4 +91,50 @@ describe('menu actions follow the mode', () => {
     expect(app.layout.store.get().hidden).toEqual([]);
     ui.mode = 'Video';
   });
+
+  it('GV7 View ▸ Outline turns the outline view on and off in the drawing modes only', () => {
+    const { app } = testApp();
+    const actions = menuActions(app);
+    const wire = (a: typeof app.graphics) => a.store.get().history.present.view.wireframe;
+    ui.mode = 'Graphics';
+    actions.outline();
+    expect(wire(app.graphics)).toBe(true);
+    ui.mode = 'Animation';
+    actions.outline();
+    expect(wire(app.animation)).toBe(true);
+    ui.mode = 'Video';
+    actions.outline();
+    expect(wire(app.animation)).toBe(true);
+    expect(wire(app.graphics)).toBe(true);
+  });
+
+  it('GV8 File ▸ Place Template… places it in the drawing mode showing, else in Graphics mode', async () => {
+    const { app } = testApp();
+    const actions = menuActions(app);
+    const animPlace = vi.spyOn(app.animation, 'placeTemplate');
+    const graphicsPlace = vi.spyOn(app.graphics, 'placeTemplate');
+    ui.mode = 'Animation';
+    await actions.placeTemplate();
+    expect(animPlace).toHaveBeenCalledTimes(1);
+    ui.mode = 'Video';
+    await actions.placeTemplate();
+    expect(ui.mode).toBe('Graphics');
+    expect(graphicsPlace).toHaveBeenCalledTimes(1);
+    ui.mode = 'Video';
+  });
+
+  it('GV6 File ▸ Import SVG… imports into the drawing mode showing, else into Graphics mode', async () => {
+    const { app } = testApp();
+    const actions = menuActions(app);
+    const animImport = vi.spyOn(app.animation, 'importSvg');
+    const graphicsImport = vi.spyOn(app.graphics, 'importSvg');
+    ui.mode = 'Animation';
+    await actions.importSvg();
+    expect(animImport).toHaveBeenCalledTimes(1);
+    ui.mode = 'Video';
+    await actions.importSvg();
+    expect(ui.mode).toBe('Graphics');
+    expect(graphicsImport).toHaveBeenCalledTimes(1);
+    ui.mode = 'Video';
+  });
 });

@@ -23,6 +23,7 @@ export function createElectronDialogs(api: MveApi): Dialogs {
     saveAnimation: (name) => unwrap(api.invoke('dialog:saveAnimation', name)),
     exportAnimation: (name, format) => unwrap(api.invoke('dialog:exportAnimation', name, format)),
     openGraphic: () => unwrap(api.invoke('dialog:openGraphic')),
+    openSvg: () => unwrap(api.invoke('dialog:openSvg')),
     saveGraphic: (name) => unwrap(api.invoke('dialog:saveGraphic', name)),
     exportGraphic: (name, format) => unwrap(api.invoke('dialog:exportGraphic', name, format)),
   };

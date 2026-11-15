@@ -1,17 +1,17 @@
 // G11 (M18): exporting an image — SVG (vector), PNG and JPG (bitmaps) — at the canvas size or
 // another one, and the whole image or only the objects chosen, each in a file of its own if
 // asked (9626/04 J/19: "save the grouped objects separately as Casing, MetalInsert and Grid";
-// J/20: each part "in both .svg and a transparent bitmap format"). BMP, GIF, TIFF and PDF come
-// in M23.
+// J/20: each part "in both .svg and a transparent bitmap format"). PDF (M19) is the SVG printed
+// on a page of the image's printed size (pdf.ts). BMP, GIF and TIFF come in M23.
 import { EditError } from '../model/errors.ts';
 import { TRANSPARENT } from '../animation/rules.ts';
 import type { AnimationDoc, AnimObject, Id } from '../animation/types.ts';
 import { canvasAround, drawingBounds, graphicOf } from './document.ts';
 import { roundIn, toPx, type Unit } from './units.ts';
 
-export type GraphicFormat = 'png' | 'jpg' | 'svg';
+export type GraphicFormat = 'png' | 'jpg' | 'svg' | 'pdf';
 
-export const GRAPHIC_FORMATS: readonly GraphicFormat[] = ['png', 'jpg', 'svg'];
+export const GRAPHIC_FORMATS: readonly GraphicFormat[] = ['png', 'jpg', 'svg', 'pdf'];
 
 export interface FormatInfo {
   label: string;
@@ -50,6 +50,16 @@ export const FORMAT_INFO: Readonly<Record<GraphicFormat, FormatInfo>> = {
     transparency: false,
     about:
       'Pixels, compressed by losing detail you hardly see: small files for photographs. No transparency (see-through parts become the background colour); edges and text can blur.',
+  },
+  // G11 (M19): the workbook's "save as PDF".
+  pdf: {
+    label: 'PDF (Portable Document Format)',
+    extension: 'pdf',
+    kind: 'vector',
+    compression: 'lossless',
+    transparency: false,
+    about:
+      'A page to print or send: the shapes stay vector (sharp at any zoom), it prints at the exact size of the image, and it opens everywhere (browsers, phones, print shops). Not for editing the drawing again; see-through parts print as white paper.',
   },
 };
 

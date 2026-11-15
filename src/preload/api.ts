@@ -99,6 +99,8 @@ export interface Channels {
   };
   /** G1, G11 (M18): Graphics mode's files and exports. */
   'dialog:openGraphic': { args: []; result: string | null };
+  /** GV6 (M19): an SVG to import as shapes. */
+  'dialog:openSvg': { args: []; result: string | null };
   'dialog:saveGraphic': { args: [suggestedName: string]; result: string | null };
   'dialog:exportGraphic': {
     args: [suggestedName: string, format: GraphicExportFormat];
@@ -126,6 +128,8 @@ export interface Channels {
     args: [html: string, title: string, width: number, height: number];
     result: null;
   };
+  /** G11 (M19): an image's SVG printed as a PDF on a page this many inches wide and high. */
+  'page:pdf': { args: [svg: string, width: number, height: number]; result: Uint8Array };
   /** M17a U1–U5: updates; each answers with the state as it is then. */
   'updates:get': { args: []; result: UpdateState };
   'updates:check': { args: []; result: UpdateState };
@@ -183,6 +187,7 @@ export const CHANNELS: readonly Channel[] = [
   'dialog:saveAnimation',
   'dialog:exportAnimation',
   'dialog:openGraphic',
+  'dialog:openSvg',
   'dialog:saveGraphic',
   'dialog:exportGraphic',
   'app:closeAnswer',
@@ -198,6 +203,7 @@ export const CHANNELS: readonly Channel[] = [
   'page:sound',
   'page:font',
   'page:test',
+  'page:pdf',
   'updates:get',
   'updates:check',
   'updates:download',
@@ -235,6 +241,9 @@ export type MenuAction =
   | 'newImage'
   | 'openImage'
   | 'exportImage'
+  | 'placeTemplate'
+  | 'importSvg'
+  | 'outline'
   | 'learnInspect'
   | 'learnFormats'
   | 'learnAnimation'

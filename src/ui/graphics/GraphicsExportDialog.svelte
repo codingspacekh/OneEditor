@@ -1,5 +1,5 @@
 <script lang="ts">
-  // G11 (M18): Export image: SVG, PNG or JPG with what each is good for; the whole image, the
+  // G11 (M18): Export image: SVG, PNG, JPG or PDF (M19) with what each is good for; the whole image, the
   // selected objects, or each selected object in a file of its own; the size (the canvas, a width
   // or height in px, a %, or a printed width at a resolution); JPG quality and background.
   import { untrack } from 'svelte';
@@ -15,6 +15,8 @@
     type ExportWhat,
     type GraphicFormat,
   } from '../../core/graphics/export.ts';
+  import { pdfPageLabel, pdfPageSize } from '../../core/graphics/pdf.ts';
+  import { bitmapParts, bitmapWarning } from '../../core/graphics/bitmap-parts.ts';
   import { UNITS, type Unit } from '../../core/graphics/units.ts';
   import { EditError } from '../../core/model/errors.ts';
   import Dialog from '../Dialog.svelte';
@@ -59,12 +61,21 @@
   const result = $derived.by(() => {
     try {
       const base = what === 'selection' && selected ? imageOfObjects(doc, opened.selection) : doc;
-      return { ...exportPixels(base.stage, settings.dpi, size), error: null };
+      // G11 (M19): a PDF's page, the image's printed size.
+      const page = format === 'pdf' ? pdfPageLabel(pdfPageSize(base, size), settings.units) : '';
+      return { ...exportPixels(base.stage, settings.dpi, size), page, error: null };
     } catch (e) {
-      return { width: 0, height: 0, dpi: 0, error: e instanceof EditError ? e.message : String(e) };
+      const error = e instanceof EditError ? e.message : String(e);
+      return { width: 0, height: 0, dpi: 0, page: '', error };
     }
   });
   const info = $derived(FORMAT_INFO[format]);
+  /** G11: an SVG or PDF with pictures inside is flagged (M/26: "must not contain bitmap elements"). */
+  const bitmaps = $derived(
+    info.kind === 'vector'
+      ? bitmapWarning(bitmapParts(doc, what === 'image' ? undefined : opened.selection))
+      : null,
+  );
 
   async function run(): Promise<void> {
     animUi.graphicFormat = format;
@@ -97,6 +108,9 @@
     {/each}
   </div>
   <p class="about"><b>{info.label}.</b> {info.about}</p>
+  {#if bitmaps}
+    <p class="bitmaps" role="note">{bitmaps}</p>
+  {/if}
 
   <div class="field">
     <label for="export-what">Export</label>
@@ -184,6 +198,9 @@
   <p class="made" aria-live="polite">
     {#if result.error}
       <span class="error">{result.error}</span>
+    {:else if format === 'pdf'}
+      Vector shapes on {what === 'each' ? 'pages' : `a ${result.page} page`}, no margins: prints at
+      exactly that size.
     {:else if format === 'svg'}
       Vector shapes{sizeBy === 'print'
         ? `, ${printWidth} ${printUnit} wide`
@@ -206,9 +223,14 @@
 </Dialog>
 
 <style>
+  .bitmaps {
+    margin: 0 0 8px;
+    font-size: 12px;
+    color: var(--warn, #e8590c);
+  }
   .formats {
     display: grid;
-    grid-template-columns: repeat(3, 1fr);
+    grid-template-columns: repeat(4, 1fr);
     gap: 6px;
     margin-bottom: 6px;
   }

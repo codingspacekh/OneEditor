@@ -13,6 +13,7 @@ import { soundEffect } from '../../core/audio/sound-effects.ts';
 import { dirOf, fileNameOf, uniqueFileName } from '../../core/project/relocate.ts';
 import type { AnimationContext } from './context.ts';
 import { saveSoundEffect } from './sounds.ts';
+import { isSvgPath, svgAsImage } from './svg-files.ts';
 import { isAnimationDirty } from './state.ts';
 
 export function fileActions(ctx: AnimationContext) {
@@ -189,6 +190,13 @@ export function fileActions(ctx: AnimationContext) {
       const path = await kind.open(dialogs);
       if (!path) return;
       try {
+        // GV6 (M19): an SVG opens as a new image of its shapes (not saved yet: no file of its own).
+        if (kind.kind === 'graphic' && isSvgPath(path)) {
+          const { doc, message } = await svgAsImage(ctx, path);
+          load(doc, null);
+          patch({ message: { kind: 'info', text: message } });
+          return;
+        }
         const doc = animationFromDisk(deserializeAnimation(await files.read(path)), dirOf(path));
         await loadChecked(doc, path);
       } catch (error) {

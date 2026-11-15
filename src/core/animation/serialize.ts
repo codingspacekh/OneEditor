@@ -6,7 +6,7 @@ import { fromProjectPath, toProjectPath } from '../project/paths.ts';
 import { isColour, isStageBackground } from './rules.ts';
 import type { AnimationDoc, ObjectKind } from './types.ts';
 
-export const ANIMATION_SCHEMA = 4;
+export const ANIMATION_SCHEMA = 5;
 export const ANIMATION_DAMAGED = 'This file is not a OneEditor animation, or it is damaged.';
 
 /** Add an entry whenever the animation format changes (see core/project/migrate.ts). */
@@ -17,6 +17,11 @@ export const ANIMATION_MIGRATIONS: Record<number, Migration> = {
   2: (v2) => ({ ...v2, schemaVersion: 3 }),
   /** Version 4 (M16): buttons (AN18), stop motion and frame-by-frame layers (AN14); a v3 file has none. */
   3: (v3) => ({ ...v3, schemaVersion: 4 }),
+  /**
+   * Version 5 (M19): pattern fills, fill and outline opacity, effects, envelopes, arcs, node
+   * types, template layers and the outline view; a v4 file has none.
+   */
+  4: (v4) => ({ ...v4, schemaVersion: 5 }),
 };
 
 export function serializeAnimation(doc: AnimationDoc): string {
@@ -76,6 +81,65 @@ const KINDS: ObjectKind[] = [
 
 const ACTIONS = ['pause', 'continue', 'restart', 'goto'];
 
+/** G12 (M19): the built-in pattern tiles and a picture tiled. */
+const PATTERNS = [
+  'weave',
+  'checks',
+  'stripes',
+  'dots',
+  'hatching',
+  'crosshatch',
+  'bricks',
+  'picture',
+];
+const PRESETS = ['arch', 'arc', 'bulge', 'flag', 'wave', 'rise', 'squeeze'];
+const ARC_CLOSES = ['open', 'pie', 'chord'];
+const NODE_TYPES = ['cusp', 'smooth', 'symmetrical'];
+
+const optional = (v: unknown, check: (v: unknown) => boolean) => v === undefined || check(v);
+const isPoint = (v: unknown) => isObject(v) && has(v, ['x', 'y'], isNumber);
+
+/** G14 (M19): an effect and its numbers. */
+function isFilter(f: Obj): boolean {
+  switch (f.kind) {
+    case 'dropShadow':
+    case 'innerShadow':
+      return isColour(f.colour) && has(f, ['dx', 'dy', 'blur', 'opacity'], isNumber);
+    case 'glow':
+      return isColour(f.colour) && has(f, ['blur', 'opacity'], isNumber);
+    case 'bevel':
+      return (
+        has(f, ['depth', 'blur', 'angle', 'opacity'], isNumber) &&
+        isColour(f.light) &&
+        isColour(f.shadow)
+      );
+    case 'blur':
+      return isNumber(f.radius);
+    default:
+      return false;
+  }
+}
+
+/** GV4 (M19): a side of a custom envelope. */
+const isSide = (v: unknown) => isObject(v) && ['a', 'c1', 'c2', 'b'].every((k) => isPoint(v[k]));
+
+function isEnvelope(e: unknown): boolean {
+  if (!isObject(e)) return false;
+  switch (e.kind) {
+    case 'preset':
+      return PRESETS.includes(e.preset as string) && isNumber(e.bend);
+    case 'perspective':
+      return Array.isArray(e.corners) && e.corners.length === 4 && e.corners.every(isPoint);
+    case 'custom':
+      return (
+        isObject(e.sides) &&
+        ['top', 'right', 'bottom', 'left'].every((k) => isSide((e.sides as Obj)[k]))
+      );
+    default:
+      return false;
+  }
+}
+
 /** AN6: a gradient's colours between from and to, each at a % of the way. */
 const isStops = (v: unknown) =>
   v === undefined || listOf(v, (s) => isNumber(s.at) && isColour(s.colour));
@@ -97,6 +161,17 @@ function isPaint(p: unknown): boolean {
         // AN6: its centre, in % of the box.
         ['cx', 'cy'].every((k) => p[k] === undefined || isNumber(p[k]))
       );
+    case 'pattern':
+      // G12 (M19): a tile in a colour on a background (or see-through), or a picture tiled.
+      return (
+        PATTERNS.includes(p.pattern as string) &&
+        isColour(p.colour) &&
+        isStageBackground(p.background) &&
+        isNumber(p.size) &&
+        optional(p.angle, isNumber) &&
+        optional(p.pictureId, isString) &&
+        (p.pattern !== 'picture' || isString(p.pictureId))
+      );
     default:
       return false;
   }
@@ -116,7 +191,14 @@ const isTrack = (t: Obj): boolean =>
   ) &&
   (t.repeat === undefined || t.repeat === 'end' || isNumber(t.repeat));
 
-const isPathPoints = (v: unknown) => listOf(v, (p) => has(p, ['x', 'y'], isNumber));
+const isPathPoints = (v: unknown) =>
+  listOf(
+    v,
+    (p) =>
+      has(p, ['x', 'y'], isNumber) &&
+      // GV3 (M19): how its handles move together.
+      optional(p.type, (t) => NODE_TYPES.includes(t as string)),
+  );
 
 const isMotion = (m: unknown): boolean =>
   isObject(m) &&
@@ -133,7 +215,13 @@ function isAnimObject(o: Obj): boolean {
   if (o.stroke !== undefined) {
     if (!isObject(o.stroke) || !isColour(o.stroke.colour) || !isNumber(o.stroke.width))
       return false;
+    // G12 (M19): the outline's own opacity.
+    if (!optional(o.stroke.opacity, isNumber)) return false;
   }
+  // G12, G14, GV4 (M19): the fill's own opacity, effects, an envelope.
+  if (!optional(o.fillOpacity, isNumber)) return false;
+  if (!optional(o.filters, (v) => listOf(v, isFilter))) return false;
+  if (!optional(o.envelope, isEnvelope)) return false;
   if (o.tracks !== undefined && !listOf(o.tracks, isTrack)) return false;
   if (o.paths !== undefined && !(Array.isArray(o.paths) && o.paths.every(isMotion))) return false;
   if (o.drawing !== undefined && !isNumber(o.drawing)) return false;
@@ -153,6 +241,15 @@ function isAnimObject(o: Obj): boolean {
   switch (o.kind) {
     case 'rect':
       return isNumber(o.radius);
+    case 'ellipse':
+      // GV1 (M19): part of the ellipse.
+      return optional(
+        o.arc,
+        (a) =>
+          isObject(a) &&
+          has(a, ['start', 'end'], isNumber) &&
+          ARC_CLOSES.includes(a.close as string),
+      );
     case 'star':
       return isNumber(o.points) && isNumber(o.inner);
     case 'polygon':
@@ -160,7 +257,7 @@ function isAnimObject(o: Obj): boolean {
     case 'path':
       return (
         isBoolean(o.closed) &&
-        listOf(o.points, (p) => has(p, ['x', 'y'], isNumber)) &&
+        isPathPoints(o.points) &&
         (o.holes === undefined || (Array.isArray(o.holes) && o.holes.every(isPathPoints)))
       );
     case 'text':
@@ -211,6 +308,8 @@ function isAnimation(doc: ProjectDocument): doc is ProjectDocument & AnimationDo
         has(l, ['id', 'name'], isString) &&
         has(l, ['visible', 'locked'], isBoolean) &&
         (l.mask === undefined || isBoolean(l.mask)) &&
+        // GV8 (M19): a template to draw over.
+        optional(l.template, isBoolean) &&
         (l.drawings === undefined ||
           (Array.isArray(l.drawings) && l.drawings.length > 0 && l.drawings.every(isNumber))) &&
         listOf(l.objects, isAnimObject),
@@ -231,6 +330,8 @@ function isAnimation(doc: ProjectDocument): doc is ProjectDocument & AnimationDo
     Array.isArray(guides.y) &&
     isObject(view) &&
     isObject(view.grid) &&
-    isObject(view.snap)
+    isObject(view.snap) &&
+    // GV7 (M19): the outline view.
+    optional(view.wireframe, isBoolean)
   );
 }

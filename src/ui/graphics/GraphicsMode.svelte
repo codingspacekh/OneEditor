@@ -4,7 +4,8 @@
   // keyboard is Animation mode's without the timeline's keys: V R E S G L P B T I choose tools,
   // Delete, arrows nudge (Shift: 10 px), Ctrl/Cmd + D duplicates, G groups, Shift + G
   // ungroups, 0 fits, + / − zoom, K the library; cut, copy and paste work on the selection and
-  // between Graphics and Animation modes (one clipboard).
+  // between Graphics and Animation modes (one clipboard). M19: C O Y the arc, spiral and
+  // polyline; Ctrl/Cmd + Shift + V pastes in place.
   import type { App } from '../../app/app.ts';
   import type { Tool } from '../../app/animation.ts';
   import { shortcutAllowed } from '../keys.ts';
@@ -33,6 +34,10 @@
     s: 'star',
     g: 'polygon',
     l: 'line',
+    // GV1 (M19): the arc, spiral and polyline.
+    c: 'arc',
+    o: 'spiral',
+    y: 'polyline',
     p: 'pen',
     b: 'brush',
     t: 'text',
@@ -55,6 +60,10 @@
       if (key === 'd') {
         e.preventDefault();
         g.duplicate();
+      } else if (key === 'v' && e.shiftKey) {
+        // GV2 (M19): Paste in place.
+        e.preventDefault();
+        g.pasteInPlace();
       } else if (key === 'g') {
         e.preventDefault();
         if (e.shiftKey) g.ungroup();

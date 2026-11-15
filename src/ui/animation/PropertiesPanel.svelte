@@ -31,7 +31,14 @@
   import { animUi } from './animation-ui.svelte.ts';
   import ColourField from './ColourField.svelte';
   import EffectsSection from './EffectsSection.svelte';
+  import FiltersSection from './FiltersSection.svelte';
+  import PatternFill from './PatternFill.svelte';
   import AlignSection from './AlignSection.svelte';
+  import EnvelopeSection from './EnvelopeSection.svelte';
+  import NodeSection from './NodeSection.svelte';
+  import ArcSection from './ArcSection.svelte';
+  import ShapeToolsSection from './ShapeToolsSection.svelte';
+  import SpiralSection from './SpiralSection.svelte';
   import { graphicOf } from '../../core/graphics/document.ts';
   import { DECIMALS, fromPx, toPx, UNIT_NAMES } from '../../core/graphics/units.ts';
   import { textBox } from './measure.ts';
@@ -66,7 +73,14 @@
     ['union', 'Union', 'Make one shape of the selected shapes'],
     ['cutOut', 'Cut out', 'Cut the shapes in front out of the one at the back (a bite)'],
     ['intersect', 'Intersect', 'Keep only where the selected shapes overlap'],
+    // G4 (M19): beside them, Exclude and Combine; Join is for two open lines.
+    ['exclude', 'Exclude', 'Keep only where the shapes do not overlap'],
+    ['combine', 'Combine', 'Make one path of all the outlines: where two overlap is a hole'],
   ];
+  /** G4 (M19): two open lines (paths, arcs, spirals) can be joined at their nearest ends. */
+  const canJoin = $derived(
+    found.length === 2 && found.every((f) => isShape(f.object) && !isClosed(f.object)),
+  );
   /** The other objects a path or a morph can be taken from (shapes only for a morph). */
   const others = (id: string, shapesOnly: boolean): AnimObject[] =>
     doc.layers.flatMap((l) => l.objects).filter((o) => o.id !== id && (!shapesOnly || isShape(o)));
@@ -123,7 +137,7 @@
     if (!first) return;
     const current = first.fill;
     const base =
-      current.kind === 'solid'
+      current.kind === 'solid' || current.kind === 'pattern'
         ? current.colour
         : current.kind === 'linear' || current.kind === 'radial'
           ? current.from
@@ -141,7 +155,16 @@
           ? { kind: 'solid', colour: base }
           : kind === 'linear'
             ? { kind: 'linear', from: base, to, angle: 0, ...stops }
-            : { kind: 'radial', from: base, to, ...stops };
+            : kind === 'pattern'
+              ? // G12 (M19): stripes in the colour it had, on white, to change from there.
+                {
+                  kind: 'pattern',
+                  pattern: 'stripes',
+                  colour: base,
+                  background: '#ffffff',
+                  size: 16,
+                }
+              : { kind: 'radial', from: base, to, ...stops };
     set({ fill });
   }
   /** AN6: a gradient changed as a whole (a colour between added, changed or taken off). */
@@ -186,6 +209,8 @@
   <div class="panel-h">Properties</div>
   <PropertySearch bind:value={search} found={matching} />
   <div class="body" {@attach propertyFilter(search, (n) => (matching = n))}>
+    <!-- GV1 (M19): the Spiral tool's options (and the spiral just drawn). -->
+    <SpiralSection {app} />
     {#if !first}
       <p class="hint">
         Click an object on the stage, or draw one with a tool from the strip on the left.
@@ -390,6 +415,7 @@
               <option value="solid">Solid colour</option>
               <option value="linear">Gradient (linear)</option>
               <option value="radial">Gradient (radial)</option>
+              <option value="pattern">Pattern</option>
             </select>
           </div>
           {#if first.fill.kind === 'solid'}
@@ -460,6 +486,22 @@
                 />
               </div>
             {/if}
+          {:else if first.fill.kind === 'pattern'}
+            <PatternFill
+              fill={first.fill}
+              pictures={doc.pictures}
+              commit={setFill}
+              choosePicture={() => anim.tilePicture()}
+            />
+          {/if}
+          {#if first.fill.kind !== 'none'}
+            <!-- G12 (M19): the fill's own opacity, under the object's (workbook: 50 %). -->
+            <NumField
+              label="Fill opacity"
+              value={first.fillOpacity ?? 100}
+              unit="%"
+              commit={(v) => set({ fillOpacity: v === 100 ? undefined : v })}
+            />
           {/if}
         </div>
         <div class="sec">
@@ -503,6 +545,13 @@
                 </select>
               </div>
             </div>
+            <!-- G12 (M19): the outline's own opacity, under the object's. -->
+            <NumField
+              label="Outline opacity"
+              value={first.stroke.opacity ?? 100}
+              unit="%"
+              commit={(v) => strokePatch({ opacity: v === 100 ? undefined : v })}
+            />
           {/if}
         </div>
       {/if}
@@ -534,6 +583,8 @@
             />
           </div>
         </div>
+      {:else if first.kind === 'ellipse' && found.every((f) => f.object.kind === 'ellipse')}
+        <ArcSection {app} ellipse={first} />
       {:else if first.kind === 'polygon'}
         <div class="sec">
           <h4>Polygon</h4>
@@ -801,8 +852,15 @@
         {/if}
       {/if}
 
+      <!-- GV3 (M19): the node bar while a pen path's nodes are edited (its own, not a morph's). -->
+      {#if !many && first.kind === 'path' && $store.tool === 'select' && findObject($store.history.present, first.id)?.object.kind === 'path'}
+        <NodeSection {app} path={first} />
+      {/if}
+      <FiltersSection filters={first.filters ?? []} commit={(filters) => set({ filters })} />
       {#if !editor.still}<EffectsSection {app} />{/if}
       <AlignSection {app} count={found.length} />
+      <ShapeToolsSection {app} objects={found.map((f) => f.object)} />
+      <EnvelopeSection {app} />
       <div class="sec arrange">
         <h4>Arrange</h4>
         <div class="line">
@@ -914,6 +972,12 @@
                 onclick={() => (combineError = anim.combine(how))}>{label}</button
               >
             {/each}
+            <button
+              class="sm"
+              title="Join two open lines where their ends are nearest (closed if the other ends meet too)"
+              disabled={!canJoin}
+              onclick={() => (combineError = anim.combine('join'))}>Join</button
+            >
           </div>
         </div>
         {#if combineError}<p class="error" role="alert">{combineError}</p>{/if}
