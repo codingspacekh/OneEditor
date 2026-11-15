@@ -52,7 +52,8 @@ describe('G11 the PDF printer (main process)', () => {
     expect([...bytes]).toEqual([37, 80, 68, 70]);
     expect(bytes).toBeInstanceOf(Uint8Array);
     const [file] = s.win.loadFile.mock.calls[0]!;
-    expect(file).toMatch(/^\/user\/pdf\/.+\.html$/);
+    // Joined by the platform's separator (\ on Windows).
+    expect(file.replaceAll('\\', '/')).toMatch(/^\/user\/pdf\/.+\.html$/);
     expect(s.disk.get(file)).toBe('<!DOCTYPE html><svg></svg>');
     // The bundled fonts in the SVG are loaded before it is printed.
     expect(s.win.webContents.executeJavaScript).toHaveBeenCalledWith(
