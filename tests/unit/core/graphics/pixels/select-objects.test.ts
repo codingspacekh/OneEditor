@@ -24,14 +24,22 @@ const noLetters = (): GroupObject => {
 };
 
 describe('M21 GB2: selection from shapes and text', () => {
-  it('hard edges: two ellipses that meet share no pixel; soft ones share their edge', () => {
+  it('hard edges: pieces that meet share no pixel; soft ones share their edge', () => {
     const a = createEllipse({ x: 0, y: 0, width: 20, height: 20 });
-    const b = createEllipse({ x: 10.3, y: 0, width: 20, height: 20 });
     const hard = (o: typeof a) => objectsMask(40, 20, [o], noLetters, false);
     const soft = (o: typeof a) => objectsMask(40, 20, [o], noLetters);
     const values = (m: ReturnType<typeof hard>) => new Set(readRegion(m));
     expect([...values(hard(a))].sort((x, y) => x - y)).toEqual([0, 255]);
     expect(values(soft(a)).size).toBeGreaterThan(2);
+    // Two pieces meeting along x = 10.3: hard, no pixel is in both; soft, the edge is shared.
+    const left = createRect({ x: 0, y: 0, width: 10.3, height: 20 });
+    const right = createRect({ x: 10.3, y: 0, width: 19.7, height: 20 });
+    const both = (m: Uint8ClampedArray, n: Uint8ClampedArray) =>
+      m.some((v, i) => v > 0 && n[i]! > 0);
+    const masks = (anti: boolean) =>
+      [left, right].map((o) => readRegion(objectsMask(40, 20, [o], noLetters, anti)));
+    expect(both(...(masks(false) as [Uint8ClampedArray, Uint8ClampedArray]))).toBe(false);
+    expect(both(...(masks(true) as [Uint8ClampedArray, Uint8ClampedArray]))).toBe(true);
   });
 
   it('selects a rectangle’s area, turned with it', () => {
