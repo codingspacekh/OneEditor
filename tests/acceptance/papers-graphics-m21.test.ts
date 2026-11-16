@@ -336,3 +336,55 @@ describe.skipIf(!hasPapers)('9626/04 J/22 Task 1: Balloon1', () => {
     expect(kept.width).toBeGreaterThan(1200);
   });
 });
+
+// The workbook's own photos (Task3_Canal.jpeg, Task4_Stadium.jpg) are not among the papers'
+// files: the papers' photos of the same kind stand in for them.
+describe.skipIf(!hasPapers)('Workbook Chapter 6 Task 3.5: the resolution for emailing', () => {
+  it('the photo made 640 px wide, the height in proportion, saved as a JPG', async () => {
+    const s = await graphics(['2023_11_November/Castle.jpg']);
+    await s.open('2023_11_November/Castle.jpg');
+    const { width, height } = s.doc().stage;
+    const h = Math.round((640 * height) / width);
+    expect(s.g.resizeImage({ width: 640, height: h, method: 'bicubic' })).toBeNull();
+    expect(s.doc().stage).toMatchObject({ width: 640, height: h });
+    expect(s.pixels().bitmap).toMatchObject({ width: 640, height: h });
+    await s.exportTo('/out/Chapter06_Task3_5.jpg', { format: 'jpg', quality: 80 });
+    expect(s.stageRenderer.renderJpeg).toHaveBeenCalled();
+    const doc = s.stageRenderer.renderJpeg.mock.calls.at(-1)![0];
+    expect([doc.stage.width, doc.stage.height]).toEqual([640, h]);
+  });
+});
+
+describe.skipIf(!hasPapers)('Workbook Chapter 6 Task 4: the circular club logo', () => {
+  it('the stadium photo seen through a circle (a clipping mask), words round part of it, saved as SVG', async () => {
+    const s = await graphics(['2023_11_November/Ocean.jpg']);
+    await s.open('2023_11_November/Ocean.jpg');
+    const photo = s.layer().id;
+    // The circle on a vector layer below the photo; the photo clipped to it.
+    s.g.addLayer();
+    const circleLayer = s.layer().id;
+    s.g.moveLayer(circleLayer, 0);
+    s.g.addShape('ellipse', { x: 1100, y: 200, width: 1900, height: 1900 });
+    expect(s.g.setLayerLook(photo, { clip: true })).toBeNull();
+    const clipped = s.doc().layers.find((l) => l.id === photo)!;
+    expect(clipped.clip).toBe(true);
+    // The words round the top of a second circle (text on a path, shown hidden).
+    s.g.addLayer();
+    s.g.addShape('ellipse', { x: 1000, y: 100, width: 2100, height: 2100 });
+    const arc = s.layer().objects.at(-1)!;
+    s.g.addText({ x: 1200, y: 100 }, 'The Greatest Team in Football');
+    const words = s.layer().objects.at(-1)!;
+    s.g.select([words.id, arc.id]);
+    expect(s.g.putOnPath(false)).toBeNull();
+    const svg = new TextDecoder().decode(
+      await s.exportTo('/out/Chapter06_Task4.svg', { format: 'svg' }),
+    );
+    // The photo is in the SVG as a picture, cut by the circle; the words follow the circle.
+    expect(svg).toContain('data:image/png;base64,');
+    expect(svg).toMatch(/<mask|clip-path/);
+    // Text on a path is written letter by letter, each turned to follow the circle.
+    expect((svg.match(/<text\b/g) ?? []).length).toBeGreaterThanOrEqual(
+      'TheGreatestTeaminFootball'.length,
+    );
+  });
+});
