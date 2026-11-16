@@ -12,9 +12,11 @@ import { colourStops, radialCentre } from './gradient.ts';
 import { patternTileOf, timesMatrix, type PatternTile } from './appearance.ts';
 import { TRANSPARENT } from './rules.ts';
 import { stateAt } from './state.ts';
+import type { Bitmap, Mask } from '../graphics/pixels/raster.ts';
 import type {
   AnimObject,
   AnimationDoc,
+  BlendMode,
   ButtonObject,
   EllipseObject,
   Layer,
@@ -98,7 +100,34 @@ export interface StageCanvas {
    * stage pixels, their offsets the stage's directions. A canvas without it draws no effects.
    */
   withFilters?(filters: readonly ObjectFilter[], draw: (layer: StageCanvas) => void): void;
+  /**
+   * G2 (M21): how what is drawn next mixes with what is there ('source-over', 'multiply'…). A
+   * canvas without it draws every layer normally.
+   */
+  globalCompositeOperation?: string;
+  /**
+   * G2, GB1 (M21): draws a pixel layer's bitmap with its top left at (x, y) in the current space,
+   * at globalAlpha, seen only where its layer mask (the bitmap's size) shows it. `key` names the
+   * layer: the canvas keeps one picture per key and puts into it only the tiles that are not the
+   * very ones it drew last time (tiles never change once made), so a brush stroke costs the tiles
+   * it changed. A canvas without it (the HTML player: pixel layers are Graphics mode's) draws no
+   * pixels.
+   */
+  drawBitmap?(bitmap: Bitmap, x: number, y: number, key: string, mask?: Mask): void;
 }
+
+/** G2 (M21): the canvas's name for each blend mode. */
+export const COMPOSITE_OPERATION: Record<BlendMode, string> = {
+  normal: 'source-over',
+  multiply: 'multiply',
+  screen: 'screen',
+  overlay: 'overlay',
+  darken: 'darken',
+  lighten: 'lighten',
+  colour: 'color',
+  luminosity: 'luminosity',
+  difference: 'difference',
+};
 
 export interface CanvasGradientLike {
   addColorStop(offset: number, colour: string): void;
@@ -675,6 +704,18 @@ function drawTemplate(ctx: StageCanvas, layer: Layer, options: DrawOptions): voi
   for (const object of layer.objects) drawObject(ctx, object, plain, TEMPLATE_OPACITY);
 }
 
+/** G2, GB1 (M21): a pixel layer's pixels where it lies, at its opacity and in its blend mode. */
+function drawPixels(ctx: StageCanvas, layer: Layer): void {
+  const content = layer.pixels;
+  if (!content || !ctx.drawBitmap) return;
+  ctx.save();
+  ctx.globalAlpha = layer.opacity ?? 1;
+  if (layer.blend && layer.blend !== 'normal')
+    ctx.globalCompositeOperation = COMPOSITE_OPERATION[layer.blend];
+  ctx.drawBitmap(content.bitmap, content.x, content.y, layer.id, content.mask);
+  ctx.restore();
+}
+
 /** Draws the whole stage at its own size: background, then every visible layer in order. */
 export function drawStage(ctx: StageCanvas, doc: AnimationDoc, given: DrawOptions = {}): void {
   // G12 (M19): a picture tiled in a pattern fill takes its proportions from the doc's pictures.
@@ -706,6 +747,7 @@ export function drawStage(ctx: StageCanvas, doc: AnimationDoc, given: DrawOption
   layers.forEach((layer, i) => {
     if (!layer.visible || masking(layer)) return;
     if (layer.template) return drawTemplate(ctx, layer, options);
+    if (layer.pixels) return drawPixels(ctx, layer);
     const mask = layers[i + 1];
     if (!mask || !masking(mask)) {
       skin(layer);

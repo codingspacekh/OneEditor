@@ -2,6 +2,7 @@
 // view settings. Plain, immutable, JSON-serialisable data, like the video project (ARCHITECTURE
 // §5). Coordinates are stage pixels with (0, 0) at the top left, as the coursebook's rulers;
 // an object's x and y are its top-left corner and it turns about its centre.
+import type { Bitmap, Mask } from '../graphics/pixels/raster.ts';
 import type { Id } from '../model/types.ts';
 
 export type { Id };
@@ -445,6 +446,57 @@ export interface Layer {
   drawings?: number[];
   /** Drawing order: the first object is at the back. */
   objects: AnimObject[];
+  /** G2 (M21): how strongly the whole layer is drawn, 0–1, as one picture. Absent: 1. */
+  opacity?: number;
+  /** G2 (M21): how the layer's colours mix with what is below it. Absent: normal. */
+  blend?: BlendMode;
+  /**
+   * G2 (M21): a clipping mask: the layer is seen only where the nearest layer below it that is
+   * not itself clipped (its base) has something drawn (the photo inside the circle).
+   */
+  clip?: boolean;
+  /**
+   * G2, GB1 (M21): a pixel layer (Graphics mode only): its pixels, where its top left lies on the
+   * image, and its layer mask. A pixel layer has no objects; Send to Animation makes it a picture.
+   */
+  pixels?: PixelContent;
+}
+
+/** G2 (M21): the blend modes of the Layers panel, named as the canvas names them where it can. */
+export type BlendMode =
+  | 'normal'
+  | 'multiply'
+  | 'screen'
+  | 'overlay'
+  | 'darken'
+  | 'lighten'
+  | 'colour'
+  | 'luminosity'
+  | 'difference';
+
+export const BLEND_MODES: readonly BlendMode[] = [
+  'normal',
+  'multiply',
+  'screen',
+  'overlay',
+  'darken',
+  'lighten',
+  'colour',
+  'luminosity',
+  'difference',
+];
+
+/** G2, GB1, GB2 (M21): what a pixel layer holds. */
+export interface PixelContent {
+  bitmap: Bitmap;
+  /** Where the bitmap's top-left pixel is on the image, in whole image px (may be outside it). */
+  x: number;
+  y: number;
+  /**
+   * GB2: the layer mask, the bitmap's size and at its place (it moves with the layer): 255 shows
+   * the pixel, 0 hides it, between: partly. Absent: all shown.
+   */
+  mask?: Mask;
 }
 
 export interface LayerFolder {

@@ -4,6 +4,7 @@ import type { History } from '../history.ts';
 import type { AnimationFormat } from '../../core/animation/export.ts';
 import type { AnimationDoc, Id } from '../../core/animation/types.ts';
 import type { SpiralOptions } from '../../core/graphics/shapes.ts';
+import type { Mask } from '../../core/graphics/pixels/raster.ts';
 import type {
   AppPaths,
   Dialogs,
@@ -31,7 +32,42 @@ export type Tool =
   | 'brush'
   | 'text'
   | 'picture'
-  | 'button';
+  | 'button'
+  /** GB2 (M21): selections on pixel layers (Graphics mode). */
+  | 'select-rect'
+  | 'select-ellipse'
+  | 'lasso'
+  | 'polygon-lasso'
+  | 'magnetic-lasso'
+  | 'magic-wand'
+  | 'colour-select'
+  /** GB4, GB3 (M21): painting on a pixel layer or its mask; the paint bucket and gradient. */
+  | 'paintbrush'
+  | 'pencil'
+  | 'eraser'
+  | 'airbrush'
+  | 'bucket'
+  | 'gradient'
+  /** GB1 (M21): pan (also Space held) and zoom by clicking. */
+  | 'hand'
+  | 'zoom';
+
+/** M21: the tools that work on a pixel layer's pixels (Graphics mode only). */
+export const PIXEL_TOOLS: readonly Tool[] = [
+  'select-rect',
+  'select-ellipse',
+  'lasso',
+  'polygon-lasso',
+  'magnetic-lasso',
+  'magic-wand',
+  'colour-select',
+  'paintbrush',
+  'pencil',
+  'eraser',
+  'airbrush',
+  'bucket',
+  'gradient',
+];
 
 export type ShapeKind = 'rect' | 'ellipse' | 'star' | 'polygon' | 'arc' | 'spiral';
 
@@ -53,6 +89,14 @@ export interface AnimationState {
   tool: Tool;
   /** GV1 (M19): how the Spiral tool draws its next spiral (absent: 3 even turns from the middle). */
   spiral?: SpiralOptions;
+  /**
+   * GB2 (M21): the pixels selected, on the whole image (its size, image px): 255 selected, 0 not,
+   * between: partly (feathered). Not part of the document: not saved, and not an undo step of
+   * its own, so Undo undoes the last change to the picture. Absent: none.
+   */
+  pixelSelection?: Mask;
+  /** GB2 (M21): paint on the current pixel layer's mask instead of its pixels. */
+  editingMask?: boolean;
   /** 1 = 100 %; 'fit' fills the window. */
   zoom: number | 'fit';
   /** AN8: the playhead, 0 to the stage's length (the end shows the last pose). */

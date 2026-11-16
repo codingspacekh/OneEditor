@@ -41,8 +41,11 @@
   import SelectionHandles from './SelectionHandles.svelte';
   import StageGuides from './StageGuides.svelte';
   import StageRulers from './StageRulers.svelte';
+  import PixelOverlay from '../graphics/PixelOverlay.svelte';
+  import { pixelToolOf } from '../graphics/pixel-pointer.ts';
   import {
     drawnShape,
+    isDrawTool,
     marqueeBox,
     objectCorners,
     objectsInBox,
@@ -108,7 +111,11 @@
   /** The document as it looks during the drag. */
   /** GV4 (M19): an envelope's corner or handle being dragged. */
   let bending: Parameters<typeof previewEnvelope>[1] = $state(null);
-  const shown = $derived(previewEnvelope(previewDoc(doc, drag, $store.layerId), bending));
+  /** M21: what a pixel tool shows while its drag goes on (a stroke as it is painted). */
+  let pixelPreview: typeof doc | null = $state(null);
+  const shown = $derived(
+    pixelPreview ?? previewEnvelope(previewDoc(doc, drag, $store.layerId), bending),
+  );
 
   // ---- pictures (AN5): loaded once each; the stage is drawn again when one arrives ----
   // A plain cache, not state: the stage is drawn again through `loaded` when a picture arrives.
@@ -217,6 +224,22 @@
   function onpointerdown(e: PointerEvent): void {
     if (e.button !== 0) return;
     const tool = $store.tool;
+    // M21: the pixel tools (Graphics mode) are handlers of their own.
+    const pixelTool = pixelToolOf(tool);
+    if (pixelTool) {
+      pixelTool.down(e, {
+        anim,
+        at,
+        zoom,
+        track: (move, up) =>
+          track(move, (u) => {
+            up(u);
+            pixelPreview = null;
+          }),
+        preview: (d) => (pixelPreview = d),
+      });
+      return;
+    }
     const raw = at(e);
     if (tool === 'select') {
       const hit = pickObject(doc, raw);
@@ -321,6 +344,7 @@
       return;
     }
     // Shapes and lines are dragged out (AN3).
+    if (!isDrawTool(tool)) return;
     const start = snapPoint(raw, e.altKey);
     drag = {
       kind: 'draw',
@@ -674,7 +698,7 @@
         viewBox="0 0 {stage.width} {stage.height}"
         width={stage.width * zoom}
         height={stage.height * zoom}
-        style:cursor={CURSORS[$store.tool] ?? 'crosshair'}
+        style:cursor={pixelToolOf($store.tool)?.cursor ?? CURSORS[$store.tool] ?? 'crosshair'}
         {onpointerdown}
         {onpointermove}
         onpointerleave={() => (animUi.pointer = null)}
@@ -771,6 +795,7 @@
             />
           {/each}
         {/if}
+        <PixelOverlay {anim} {zoom} />
       </svg>
     </div>
   </div>

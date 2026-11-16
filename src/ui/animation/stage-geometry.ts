@@ -31,6 +31,18 @@ import { createArc, createSpiral, type SpiralOptions } from '../../core/graphics
 
 export type DrawTool = 'rect' | 'ellipse' | 'star' | 'polygon' | 'line' | 'arc' | 'spiral';
 
+const DRAW_TOOLS: readonly string[] = [
+  'rect',
+  'ellipse',
+  'star',
+  'polygon',
+  'line',
+  'arc',
+  'spiral',
+];
+/** The tools that drag out a shape or a line (AN3). */
+export const isDrawTool = (tool: string): tool is DrawTool => DRAW_TOOLS.includes(tool);
+
 /** What the pointer is doing on the stage, from pointer down to pointer up. */
 export type StageDrag =
   | { kind: 'move'; start: Point; ids: Id[]; union: Bounds; dx: number; dy: number }

@@ -3,9 +3,10 @@
 // down at the group's opacity, so where the parts overlap the group is no darker. Chromium has
 // no canvas layers (beginLayer) yet. One layer per depth of groups, kept for the next frame.
 // G12, G14 (M19): pattern fills and effects are added too (appearance.ts), with their own
-// layers per depth.
+// layers per depth. G2, GB1 (M21): pixel layers too (bitmaps.ts).
 import type { StageCanvas } from '../../core/animation/draw.ts';
 import { canvasPattern, drawFiltered } from './appearance.ts';
+import { pageBitmaps } from './bitmaps.ts';
 
 type Context2D = CanvasRenderingContext2D | OffscreenCanvasRenderingContext2D;
 
@@ -51,5 +52,14 @@ function addLayers<C extends Context2D>(
       (layer) => addLayers(layer, depth + 1, pool, scratch) as unknown as StageCanvas,
     );
   const patternOf: StageCanvas['patternOf'] = (tile) => canvasPattern(ctx, tile);
-  return Object.assign(ctx, { withLayer, withFilters, patternOf });
+  // G2, GB1 (M21): a pixel layer, from the page's one picture per layer.
+  const drawBitmap: StageCanvas['drawBitmap'] = (bitmap, x, y, key, mask) =>
+    ctx.drawImage(
+      pageBitmaps().picture(bitmap, key, mask) as unknown as CanvasImageSource,
+      x,
+      y,
+      bitmap.width,
+      bitmap.height,
+    );
+  return Object.assign(ctx, { withLayer, withFilters, patternOf, drawBitmap });
 }
