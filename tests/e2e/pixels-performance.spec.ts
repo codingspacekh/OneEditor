@@ -214,12 +214,10 @@ test('GN2 a filter and an adjustment are applied to a 12-megapixel photo in 3 s'
     'Saturation value',
     '40',
   );
-  test
-    .info()
-    .annotations.push({
-      type: 'GN2 apply',
-      description: `blur ${blur} s, hue/saturation ${hue} s`,
-    });
+  test.info().annotations.push({
+    type: 'GN2 apply',
+    description: `blur ${blur} s, hue/saturation ${hue} s`,
+  });
   expect(blur).toBeLessThanOrEqual(3 * SLOW);
   expect(hue).toBeLessThanOrEqual(3 * SLOW);
   await app.close();
