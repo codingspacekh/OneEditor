@@ -381,6 +381,20 @@ export const SYLLABUS: readonly SyllabusPoint[] = [
     'Graphics ▸ Image ▸ Image size… (px, %, cm, in at a resolution; bicubic, bilinear or nearest; or the resolution alone), Canvas size… (anchor), Reduce colours… (2, 16, 256, greyscale; dithering)',
     ['19.3 resizing the image and canvas'],
   ),
+  p(
+    '19.3',
+    BITMAP_TOOLS,
+    'working with colour: solid and gradient fills; convert to black and white, greyscale; adjust brightness, contrast, colour balance, shadows and highlights',
+    'Graphics ▸ the Paint bucket and Gradient tools on a pixel layer; Image ▸ Adjustments ▸ Brightness / Contrast…, Levels…, Exposure…, Shadows / Highlights…, Hue / Saturation… (Colourise), Colour Balance…, Temperature / Tint…, Replace Colour… (click the colour in the image), Black and White…, Greyscale, Invert — on the layer, its mask or inside the selection, with a live preview',
+    ['19.3 working with colour'],
+  ),
+  p(
+    '19.3',
+    BITMAP_TOOLS,
+    'tools/filters to alter parts of an image: distort, clone, erase, blur, smudge, sharpen, red eye removal',
+    'Graphics ▸ Filter ▸ Blur (Gaussian, Motion, Zoom), Twirl…, Sharpen… and Distort ▸ Bulge / Pinch…, Perspective…, Warp… on a pixel layer, its mask or inside the selection, with a live preview (click the image for the centre; drag the corners or the mesh); the Eraser on the tool strip; the tool strip on a pixel layer: Clone stamp and Heal (Alt-click, Option-click on a Mac, the source; Properties ▸ Aligned, Copy from), Blur, Sharpen and Smudge brushes (Properties ▸ Strength), Red eye (click the eye or drag a box over it; Pupil size, Darken)',
+    ['19.3 tools/filters to alter parts of an image'],
+  ),
   // ---- 19.5 Text (M20) ----
   p(
     '19.5',

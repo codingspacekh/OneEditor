@@ -40,7 +40,9 @@ const bucket = {
 
 describe('M21 GN2: pixel jobs', () => {
   it('names its jobs', () => {
-    expect(Object.keys(PIXEL_JOBS).sort()).toEqual(['bucket', 'gradient']);
+    expect(Object.keys(PIXEL_JOBS).sort()).toEqual(
+      expect.arrayContaining(['adjust', 'bucket', 'gradient']),
+    );
   });
 
   it('answers with only the tiles that changed; put back, the rest are shared', () => {

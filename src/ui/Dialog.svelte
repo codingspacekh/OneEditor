@@ -1,7 +1,9 @@
 <script lang="ts">
   // A modal dialog: the dimmed backdrop, the box with its title and the syllabus point it teaches,
   // the content, and the buttons along the bottom. Escape closes it, but not while it is busy
-  // (saving, exporting). A new dialog only writes its own content.
+  // (saving, exporting). A new dialog only writes its own content. M22: `clear` leaves the
+  // editor undimmed with the box at the right, for a live preview on the stage; clicks beside the
+  // box go to `onbackdrop` (an eyedropper) and nowhere else.
   import type { Snippet } from 'svelte';
 
   let {
@@ -9,6 +11,8 @@
     syllabus,
     width = 520,
     busy = false,
+    clear = false,
+    onbackdrop,
     onclose,
     children,
     buttons,
@@ -20,6 +24,10 @@
     width?: number;
     /** Working (saving, exporting): Escape is ignored, so work is never left half done. */
     busy?: boolean;
+    /** M22: the editor not dimmed and the box at the right (a live preview shows beside it). */
+    clear?: boolean;
+    /** M22: a press beside the box (the backdrop is still there: nothing else gets it). */
+    onbackdrop?: (e: PointerEvent) => void;
     onclose: () => void;
     children: Snippet;
     buttons?: Snippet;
@@ -28,7 +36,12 @@
 
 <svelte:window onkeydown={(e) => e.key === 'Escape' && !busy && onclose()} />
 
-<div class="backdrop">
+<div
+  class="backdrop"
+  class:clear
+  role="presentation"
+  onpointerdown={(e) => e.target === e.currentTarget && onbackdrop?.(e)}
+>
   <div class="dialog" role="dialog" aria-modal="true" aria-label={label} style:width="{width}px">
     <h2>
       {label}{#if syllabus}<span class="syl">{syllabus}</span>{/if}
@@ -49,6 +62,12 @@
     /* Above the panels and their menus (20); tooltips (10000) stay on top. */
     z-index: 30;
   }
+  .backdrop.clear {
+    background: transparent;
+    justify-content: flex-end;
+    align-items: flex-start;
+    padding: 64px 16px 0 0;
+  }
   .dialog {
     max-width: calc(100vw - 32px);
     max-height: calc(100vh - 48px);
@@ -60,6 +79,10 @@
     border: 1px solid var(--line-strong);
     border-radius: var(--radius-l);
     padding: 18px 20px;
+  }
+  .clear .dialog {
+    max-height: calc(100vh - 96px);
+    box-shadow: 0 8px 28px rgba(0, 0, 0, 0.45);
   }
   h2 {
     margin: 0 0 2px;

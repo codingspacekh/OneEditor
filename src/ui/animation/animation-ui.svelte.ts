@@ -19,6 +19,10 @@ export type AnimDialog =
   | 'imageSize'
   | 'canvasSize'
   | 'reduceColours'
+  /** GB3 (M22), Graphics mode: an adjustment (Image ▸ Adjustments), the one in adjustUi. */
+  | 'adjust'
+  /** GB5 (M22), Graphics mode: a filter (the Filter menu), the one in filterUi. */
+  | 'filter'
   | null;
 
 export const animUi = $state({

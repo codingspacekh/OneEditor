@@ -16,6 +16,7 @@
   import { shortcutAllowed } from '../keys.ts';
   import { readClipboardPicture } from '../../adapters/canvas/clipboard-picture.ts';
   import { BRUSH_TOOLS, isBrushTool } from '../../core/graphics/pixels/presets.ts';
+  import { isRetouchBrushTool } from '../../core/graphics/pixels/retouch-options.ts';
   import PanelSlot from '../PanelSlot.svelte';
   import { animUi } from '../animation/animation-ui.svelte.ts';
   // GB1 (M21): Graphics mode zooms to 3200 %.
@@ -35,6 +36,8 @@
   import CanvasSizeDialog from './CanvasSizeDialog.svelte';
   import ImageSizeDialog from './ImageSizeDialog.svelte';
   import ReduceColoursDialog from './ReduceColoursDialog.svelte';
+  import AdjustmentDialog from './AdjustmentDialog.svelte';
+  import FilterDialog from './FilterDialog.svelte';
 
   /** GB4, GB3 (M21): the tools that paint with the foreground and background colours. */
   const PAINT_KEYS_TOOLS: Tool[] = [...BRUSH_TOOLS, 'bucket', 'gradient'];
@@ -157,10 +160,17 @@
       else g.resetPaintColours();
       return true;
     }
-    if ((key !== '[' && key !== ']') || !isBrushTool(tool)) return false;
-    const size = g.paintOptions().brushes[tool].size;
+    if (key !== '[' && key !== ']') return false;
+    // M22 (GB5): the retouching brushes too.
+    const retouch = isRetouchBrushTool(tool);
+    if (!isBrushTool(tool) && !retouch) return false;
+    const size = retouch
+      ? g.retouchOptions().brushes[tool].size
+      : g.paintOptions().brushes[tool as (typeof BRUSH_TOOLS)[number]].size;
     const step = size < 10 ? 1 : size < 50 ? 5 : size < 200 ? 10 : 50;
-    g.setBrush({ size: Math.min(2500, Math.max(1, key === ']' ? size + step : size - step)) });
+    const next = Math.min(2500, Math.max(1, key === ']' ? size + step : size - step));
+    if (retouch) g.setRetouchBrush({ size: next });
+    else g.setBrush({ size: next });
     return true;
   }
 
@@ -212,6 +222,12 @@
     <CanvasSizeDialog {app} onclose={() => (animUi.dialog = null)} />
   {:else if animUi.dialog === 'reduceColours'}
     <ReduceColoursDialog {app} onclose={() => (animUi.dialog = null)} />
+  {:else if animUi.dialog === 'adjust'}
+    <!-- GB3 (M22): Image ▸ Adjustments. -->
+    <AdjustmentDialog {app} onclose={() => (animUi.dialog = null)} />
+  {:else if animUi.dialog === 'filter'}
+    <!-- GB5 (M22): the Filter menu. -->
+    <FilterDialog {app} onclose={() => (animUi.dialog = null)} />
   {:else if animUi.dialog === 'export'}
     <GraphicsExportDialog {app} onclose={() => (animUi.dialog = null)} />
   {:else if animUi.dialog === 'trace'}

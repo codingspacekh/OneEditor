@@ -2,7 +2,7 @@
 // coursebook's common aspect ratios (Table 19.1) as presets.
 import { EditError } from '../model/errors.ts';
 import { FONTS } from '../text/fonts.ts';
-import type { AnimObject, Paint, PatternName, Stage } from './types.ts';
+import type { AnimObject, ObjectFilter, Paint, PatternName, Stage } from './types.ts';
 
 export const MIN_STAGE = 16;
 export const MAX_STAGE = 4096;
@@ -156,9 +156,16 @@ function validateAppearance(object: AnimObject): void {
     throw new EditError('The fill opacity must be between 0 and 100 %.');
   if (object.stroke?.opacity !== undefined && !percentage(object.stroke.opacity))
     throw new EditError('The outline opacity must be between 0 and 100 %.');
-  const filters = object.filters ?? [];
+  validateFilters(object.filters ?? [], 'An object');
+}
+
+/**
+ * G14 (M19): effects' numbers and colours, on an object or (M22) a pixel layer (`owner`: "An
+ * object", "A layer").
+ */
+export function validateFilters(filters: readonly ObjectFilter[], owner: string): void {
   if (filters.length > MAX_FILTERS)
-    throw new EditError(`An object can have up to ${MAX_FILTERS} filters.`);
+    throw new EditError(`${owner} can have up to ${MAX_FILTERS} filters.`);
   const within = (v: number, low: number, high: number) =>
     Number.isFinite(v) && v >= low && v <= high;
   const blur = (v: number) => {

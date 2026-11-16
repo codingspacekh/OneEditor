@@ -6,6 +6,7 @@ import type { AnimationDoc, Id, PixelContent } from '../../core/animation/types.
 import type { SpiralOptions } from '../../core/graphics/shapes.ts';
 import type { Mask } from '../../core/graphics/pixels/raster.ts';
 import type { PaintOptions } from '../../core/graphics/pixels/presets.ts';
+import type { RetouchOptions } from '../../core/graphics/pixels/retouch-options.ts';
 import type {
   AppPaths,
   Dialogs,
@@ -122,6 +123,12 @@ export interface AnimationState {
    * brush tool's brush, the bucket's and the gradient's options (absent: DEFAULT_PAINT). Not saved.
    */
   paint?: PaintOptions;
+  /**
+   * GB5 (M22): the retouching tools' settings — their brushes, aligned, what they copy from, the
+   * strengths, red eye's pupil size and darkening — and the clone source (absent: DEFAULT_RETOUCH).
+   * Not saved.
+   */
+  retouch?: RetouchOptions;
   /** 1 = 100 %; 'fit' fills the window. */
   zoom: number | 'fit';
   /** AN8: the playhead, 0 to the stage's length (the end shows the last pose). */

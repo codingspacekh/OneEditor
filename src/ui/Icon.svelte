@@ -159,6 +159,17 @@
       '<path d="m4 11 7-7 8 8-7 7a2 2 0 0 1-2.8 0L4 13.8a2 2 0 0 1 0-2.8z"/><path d="M4 12h15"/><path d="M20 15s2 2.5 2 4a2 2 0 0 1-4 0c0-1.5 2-4 2-4z"/>',
     gradient:
       '<rect x="3" y="3" width="18" height="18" rx="2"/><path d="M7 3v18" stroke-opacity=".9"/><path d="M11 3v18" stroke-opacity=".6"/><path d="M15 3v18" stroke-opacity=".35"/><path d="M19 3v18" stroke-opacity=".15"/>',
+    // GB5 (M22): the retouching tools — a rubber stamp, a plaster, a drop, a sharp point, a
+    // smudging finger and an eye.
+    cloneStamp:
+      '<path d="M9 3h6v4l-1.5 3h-3L9 7z"/><path d="M5 14a2 2 0 0 1 2-2h10a2 2 0 0 1 2 2v2H5z"/><path d="M4 20h16"/>',
+    heal: '<rect x="2.5" y="8.5" width="19" height="7" rx="3.5" transform="rotate(-45 12 12)"/><path d="M10 10v.01M14 10v.01M10 14v.01M14 14v.01"/>',
+    blurDrop: '<path d="M12 3s6 6.5 6 11a6 6 0 0 1-12 0c0-4.5 6-11 6-11z"/>',
+    sharpen: '<path d="M12 3 20 20H4z"/><path d="M12 9v6"/>',
+    smudge:
+      '<path d="M9 13V5a1.5 1.5 0 0 1 3 0v6"/><path d="M12 11V9.5a1.5 1.5 0 0 1 3 0V12"/><path d="M15 12a1.5 1.5 0 0 1 3 0v3a6 6 0 0 1-6 6h-1a5 5 0 0 1-4.2-2.3L5 16a1.5 1.5 0 0 1 2.5-1.6L9 16"/>',
+    redEye:
+      '<path d="M2 12s3.5-6 10-6 10 6 10 6-3.5 6-10 6S2 12 2 12z"/><circle cx="12" cy="12" r="3" fill="currentColor" stroke="none"/>',
   } as const;
   export type IconName = keyof typeof ICONS;
 </script>

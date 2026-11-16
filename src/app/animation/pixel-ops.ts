@@ -67,6 +67,23 @@ export function pixelOpActions(ctx: AnimationContext) {
   const withRaster = (p: PixelContent, mask: boolean, raster: Raster): PixelContent =>
     mask ? { ...p, mask: raster as Mask } : { ...p, bitmap: raster as PixelContent['bitmap'] };
 
+  /** GN2: the last reduced copy, kept while the layer's pixels and mask are the same. */
+  let lastReduced: {
+    bitmap: PixelContent['bitmap'];
+    mask: Mask | undefined;
+    x: number;
+    y: number;
+    small: ReturnType<typeof reducedCopy>;
+  } | null = null;
+  function reduced(pixels: PixelContent, mask: Mask | undefined) {
+    const l = lastReduced;
+    if (l && l.bitmap === pixels.bitmap && l.mask === mask && l.x === pixels.x && l.y === pixels.y)
+      return l.small;
+    const small = reducedCopy({ ...pixels, ...(mask ? { mask } : {}) }, PREVIEW_PIXELS);
+    lastReduced = { bitmap: pixels.bitmap, mask, x: pixels.x, y: pixels.y, small };
+    return small;
+  }
+
   /** Each preview asked for has a number: an answer for an older one is dropped. */
   let asked = 0;
 
@@ -123,11 +140,9 @@ export function pixelOpActions(ctx: AnimationContext) {
       } catch {
         return;
       }
-      // The layer and its mask reduced together; the operation done on the one it works on.
-      const small = reducedCopy(
-        { ...t.pixels, ...(t.mask ? { mask: t.raster as Mask } : {}) },
-        PREVIEW_PIXELS,
-      );
+      // The layer and its mask reduced together (once while they stay the same: a slider moved
+      // again previews at once); the operation done on the one it works on.
+      const small = reduced(t.pixels, t.mask ? (t.raster as Mask) : undefined);
       const scale = small.scale ?? 1;
       const source: Raster = t.mask ? small.mask! : small.bitmap;
       let done: Raster;

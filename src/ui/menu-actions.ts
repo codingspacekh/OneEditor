@@ -6,6 +6,10 @@ import type { MenuAction } from '../preload/api.ts';
 import { animUi } from './animation/animation-ui.svelte.ts';
 import { openLearn, ui } from './ui-state.svelte.ts';
 import { selUi } from './graphics/selection-ui.svelte.ts';
+import { adjustUi } from './graphics/adjust-ui.svelte.ts';
+import { filterUi } from './graphics/filter-ui.svelte.ts';
+import type { FilterKind } from '../core/graphics/pixels/filter-specs.ts';
+import type { AdjustmentKind } from '../core/graphics/pixels/adjust.ts';
 
 const inTextBox = () => {
   const el = document.activeElement;
@@ -26,6 +30,18 @@ export function menuActions(app: App): Record<MenuAction, () => unknown> {
   const inGraphics = (act: () => unknown) => {
     ui.mode = 'Graphics';
     return act();
+  };
+  /** GB3 (M22): an adjustment's dialog, in Graphics mode. */
+  const adjustment = (kind: AdjustmentKind) => () => {
+    ui.mode = 'Graphics';
+    adjustUi.kind = kind;
+    animUi.dialog = 'adjust';
+  };
+  /** GB5 (M22): a filter's dialog, in Graphics mode. */
+  const filter = (kind: FilterKind) => () => {
+    ui.mode = 'Graphics';
+    filterUi.kind = kind;
+    animUi.dialog = 'filter';
   };
   /** N16: the panel on that edge of the editor that is showing (none in Learn). */
   const toggleEdge = (edge: 'left' | 'right' | 'bottom') =>
@@ -86,6 +102,18 @@ export function menuActions(app: App): Record<MenuAction, () => unknown> {
       ui.mode = 'Graphics';
       animUi.dialog = 'reduceColours';
     },
+    // GB3 (M22): Image ▸ Adjustments; Greyscale and Invert have nothing to set: done at once.
+    adjustBrightnessContrast: adjustment('brightnessContrast'),
+    adjustLevels: adjustment('levels'),
+    adjustExposure: adjustment('exposure'),
+    adjustShadowsHighlights: adjustment('shadowsHighlights'),
+    adjustHueSaturation: adjustment('hueSaturation'),
+    adjustColourBalance: adjustment('colourBalance'),
+    adjustTemperatureTint: adjustment('temperatureTint'),
+    adjustReplaceColour: adjustment('replaceColour'),
+    adjustThreshold: adjustment('threshold'),
+    adjustGreyscale: () => inGraphics(() => g.adjust('greyscale', {})),
+    adjustInvert: () => inGraphics(() => g.adjust('invert', {})),
     /** GB1 (M21): a photo as a new image (Graphics mode shown first). */
     openPictureAsImage: () => {
       ui.mode = 'Graphics';
@@ -112,6 +140,15 @@ export function menuActions(app: App): Record<MenuAction, () => unknown> {
     shrinkSelection: () => inGraphics(() => g.growPixelSelection(-selUi.amount)),
     smoothSelection: () => inGraphics(() => g.smoothPixelSelection(selUi.amount)),
     fadeSelection: () => inGraphics(() => g.fadePixelSelection(selUi.fade)),
+    // GB5 (M22): the Filter menu.
+    filterGaussianBlur: filter('gaussian'),
+    filterMotionBlur: filter('motion'),
+    filterZoomBlur: filter('zoom'),
+    filterTwirl: filter('twirl'),
+    filterSharpen: filter('sharpen'),
+    filterBulge: filter('bulge'),
+    filterPerspective: filter('perspective'),
+    filterWarp: filter('warp'),
     /** GB1 (M21): View ▸ Pixel Grid (Graphics mode, from 800 %). */
     pixelGrid: () => {
       animUi.pixelGrid = !animUi.pixelGrid;

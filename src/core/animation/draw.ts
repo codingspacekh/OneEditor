@@ -802,9 +802,24 @@ export function drawStage(ctx: StageCanvas, doc: AnimationDoc, given: DrawOption
     for (const object of layer.objects) drawObject(target, object, options, fade);
     target.restore();
   };
-  /** A layer at full strength, inside a picture of its own. */
-  const drawPlain = (target: StageCanvas, layer: Layer, i: number): void =>
-    layer.pixels ? drawPixels(target, layer, true) : drawVectors(target, layer, i);
+  /**
+   * G14 (M22): a pixel layer's effects (none in the outline view, or on a canvas that cannot
+   * draw them).
+   */
+  const effectsOf = (layer: Layer): readonly ObjectFilter[] =>
+    layer.pixels && layer.effects?.length && ctx.withFilters && !options.wireframe
+      ? layer.effects
+      : [];
+  /**
+   * A layer at full strength, inside a picture of its own; a pixel layer with its effects (G14),
+   * made from its pixels as its mask shows them, unless `bare`.
+   */
+  const drawPlain = (target: StageCanvas, layer: Layer, i: number, bare = false): void => {
+    const effects = bare ? [] : effectsOf(layer);
+    if (effects.length && target.withFilters)
+      return target.withFilters(effects, (inner) => drawPixels(inner, layer, true));
+    return layer.pixels ? drawPixels(target, layer, true) : drawVectors(target, layer, i);
+  };
   layers.forEach((layer, i) => {
     if (!layer.visible || masking(layer)) return;
     if (layer.template) return drawTemplate(ctx, layer, options);
@@ -818,20 +833,36 @@ export function drawStage(ctx: StageCanvas, doc: AnimationDoc, given: DrawOption
     );
     if (clipped.length > 0 && ctx.withLayer) {
       // The base and the layers clipped to it make one picture, put down as the base is.
+      const content = (group: StageCanvas): void => {
+        drawPlain(group, layer, i, true);
+        for (const c of clipped) {
+          const how = { ...howOf(c.layer), clip: true };
+          group.withLayer!(c.layer.opacity ?? 1, (top) => drawPlain(top, c.layer, c.j), how);
+        }
+      };
+      // G14 (M22): the base's effects are made from the whole group (the photo clipped inside
+      // the circle is bevelled with it; its shadow is the circle's), as Photoshop's "blend
+      // clipped layers as group". The clipped layers are seen only where the base itself is
+      // drawn: inside a picture of its own within the effects (so the SVG masks by it alone).
+      const effects = effectsOf(layer);
       ctx.withLayer(
         opacity,
-        (group) => {
-          drawPlain(group, layer, i);
-          for (const c of clipped) {
-            const how = { ...howOf(c.layer), clip: true };
-            group.withLayer!(c.layer.opacity ?? 1, (top) => drawPlain(top, c.layer, c.j), how);
-          }
-        },
+        (group) =>
+          effects.length && group.withFilters
+            ? group.withFilters(effects, (inner) => inner.withLayer!(1, content))
+            : content(group),
         howOf(layer),
       );
       return;
     }
-    if (layer.pixels) return drawPixels(ctx, layer);
+    if (layer.pixels) {
+      // G14 (M22): the effects belong to the layer's own picture, faded and blended with it.
+      const effects = effectsOf(layer);
+      if (!effects.length) return drawPixels(ctx, layer);
+      if ((opacity < 1 || layer.blend) && ctx.withLayer)
+        return ctx.withLayer(opacity, (one) => drawPlain(one, layer, i), howOf(layer));
+      return drawPlain(ctx, layer, i);
+    }
     // G2: a see-through or blended vector layer is faded and mixed as one picture.
     if ((opacity < 1 || layer.blend) && ctx.withLayer) {
       ctx.withLayer(opacity, (one) => drawVectors(one, layer, i), howOf(layer));

@@ -8,7 +8,9 @@
 // airbrush keeps adding while it is held still. Painting stays inside the selection (weighted by
 // it) and on the layer's bitmap where the layer is on the image. Only the tiles under the dabs are
 // made again, so a stroke on a 12-megapixel photo follows the pointer (GN2) and its undo step
-// keeps only those tiles (GN1).
+// keeps only those tiles (GN1). M22 (GB5): the retouching brushes use the same engine — a
+// `painter` lays copied, blurred or sharpened pixels instead of one colour, `onDab` hears each dab
+// (the smudge brush), and a stroke tells its weights and can be painted again (the heal brush).
 import { EditError } from '../../model/errors.ts';
 import { blendPixel, greyOf, isEmpty, selectionOver } from './paint.ts';
 import { TILE, tileRect, tilesAcross, tilesDown, type Mask, type Raster } from './raster.ts';
@@ -120,6 +122,29 @@ export interface StrokePoint {
   pressure?: number;
 }
 
+/**
+ * M22 (GB5): lays `a` (0–1) of something other than one colour on the pixel at byte `k` of a tile
+ * copy (which holds the pixel as it was before the stroke); (x, y) is the pixel on the target.
+ */
+export type PixelPainter = (
+  out: Uint8ClampedArray,
+  k: number,
+  x: number,
+  y: number,
+  a: number,
+) => void;
+
+/** M22 (GB5): how much of a stroke (0–1: opacity × coverage × selection) is on each pixel of a box. */
+export interface StrokeWeights {
+  /** The box on the target, target px. */
+  x: number;
+  y: number;
+  width: number;
+  height: number;
+  /** Row by row. */
+  values: Float32Array;
+}
+
 export interface StrokeOptions {
   /** What is painted: a pixel layer's bitmap, or its layer mask. */
   target: Raster;
@@ -137,6 +162,10 @@ export interface StrokeOptions {
   selection?: Mask;
   /** The scatter's random throws (the same seed scatters the same way). */
   seed?: number;
+  /** M22 (GB5): lays something other than `colour` (the clone stamp, the blur brush…). */
+  painter?: PixelPainter;
+  /** M22 (GB5): told of each dab before it is laid, its centre on the target and its size. */
+  onDab?: (cx: number, cy: number, size: number) => void;
 }
 
 export interface Stroke {
@@ -148,6 +177,10 @@ export interface Stroke {
   result(): Raster;
   /** How many dabs were laid (a scattered dab counts once). */
   readonly dabs: number;
+  /** M22 (GB5): the stroke's weights over the box it covers, or null before it covers a pixel. */
+  weights(): StrokeWeights | null;
+  /** M22 (GB5): the whole stroke laid again with another painter at the next result. */
+  repaint(painter: PixelPainter): void;
 }
 
 /** The airbrush adds a dab this often while held still. */
@@ -172,6 +205,7 @@ function random(seed: number): () => number {
 /** Starts a stroke with a dab at `first`. */
 export function createStroke(options: StrokeOptions, first: StrokePoint): Stroke {
   const { target, brush, colour, selection } = options;
+  let painter = options.painter;
   const erase = options.erase ?? false;
   const aliased = options.aliased ?? false;
   const channels = target.channels;
@@ -265,6 +299,7 @@ export function createStroke(options: StrokeOptions, first: StrokePoint): Stroke
     const flow = flowAt(p);
     const cx = p.x - options.x;
     const cy = p.y - options.y;
+    options.onDab?.(cx, cy, size);
     if (brush.shape !== 'scatter') {
       stamp(brush.shape, cx, cy, size, flow);
       return;
@@ -295,7 +330,7 @@ export function createStroke(options: StrokeOptions, first: StrokePoint): Stroke
     const shown = current.tiles[i] ?? null;
     const cov = coverage.get(i)!;
     const sel = selectionFor(i);
-    const width = tileRect(target, i).width;
+    const { width, x: ax, y: ay } = tileRect(target, i);
     const out = shown ? shown.slice() : new Uint8ClampedArray(cov.length * channels);
     let any = false;
     for (let y = y0; y < y1; y++)
@@ -307,13 +342,14 @@ export function createStroke(options: StrokeOptions, first: StrokePoint): Stroke
         const k = p * channels;
         if (before) for (let ch = 0; ch < channels; ch++) out[k + ch] = before[k + ch]!;
         else out.fill(0, k, k + channels);
-        blendPixel(out, k, channels, colour, grey, a, erase);
+        if (painter) painter(out, k, ax + p - y * width, ay + y, a);
+        else blendPixel(out, k, channels, colour, grey, a, erase);
         any = true;
       }
     if (any) painted.add(i);
     if (!painted.has(i)) return before;
     // Only taking paint away (the eraser, black on a mask) can empty a tile.
-    return (erase || channels === 1) && isEmpty(out) ? null : out;
+    return (erase || channels === 1 || painter) && isEmpty(out) ? null : out;
   }
 
   dab(first);
@@ -359,6 +395,54 @@ export function createStroke(options: StrokeOptions, first: StrokePoint): Stroke
     },
     get dabs() {
       return dabs;
+    },
+    weights() {
+      let [x0, y0, x1, y1] = [Infinity, Infinity, -Infinity, -Infinity];
+      for (const i of coverage.keys()) {
+        const at = tileRect(target, i);
+        x0 = Math.min(x0, at.x);
+        y0 = Math.min(y0, at.y);
+        x1 = Math.max(x1, at.x + at.width);
+        y1 = Math.max(y1, at.y + at.height);
+      }
+      if (x0 === Infinity) return null;
+      const width = x1 - x0;
+      const values = new Float32Array(width * (y1 - y0));
+      let [bx0, by0, bx1, by1] = [Infinity, Infinity, -Infinity, -Infinity];
+      for (const [i, cov] of coverage) {
+        const at = tileRect(target, i);
+        const sel = selectionFor(i);
+        for (let y = 0; y < at.height; y++)
+          for (let x = 0; x < at.width; x++) {
+            const p = y * at.width + x;
+            const w = opacity * cov[p]! * (sel ? sel[p]! / 255 : 1);
+            if (w <= 0) continue;
+            const gx = at.x + x;
+            const gy = at.y + y;
+            values[(gy - y0) * width + gx - x0] = w;
+            bx0 = Math.min(bx0, gx);
+            by0 = Math.min(by0, gy);
+            bx1 = Math.max(bx1, gx + 1);
+            by1 = Math.max(by1, gy + 1);
+          }
+      }
+      if (bx0 === Infinity) return null;
+      // Cut down to the pixels the stroke is on.
+      const w = bx1 - bx0;
+      const cut = new Float32Array(w * (by1 - by0));
+      for (let y = by0; y < by1; y++)
+        cut.set(
+          values.subarray((y - y0) * width + bx0 - x0, (y - y0) * width + bx1 - x0),
+          (y - by0) * w,
+        );
+      return { x: bx0, y: by0, width: w, height: by1 - by0, values: cut };
+    },
+    repaint(next) {
+      painter = next;
+      for (const i of coverage.keys()) {
+        const at = tileRect(target, i);
+        dirty.set(i, [0, 0, at.width, at.height]);
+      }
     },
   };
 }

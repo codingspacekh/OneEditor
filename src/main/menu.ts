@@ -104,6 +104,26 @@ export function menuTemplate(
         { type: 'separator' },
         item('Reduce Colours…', '', 'reduceColours'),
         { type: 'separator' },
+        // GB3 (M22): on the current pixel layer (or its mask), inside the selection, previewed.
+        {
+          label: 'Adjustments',
+          submenu: [
+            item('Brightness / Contrast…', '', 'adjustBrightnessContrast'),
+            item('Levels…', '', 'adjustLevels'),
+            item('Exposure…', '', 'adjustExposure'),
+            item('Shadows / Highlights…', '', 'adjustShadowsHighlights'),
+            { type: 'separator' },
+            item('Hue / Saturation…', '', 'adjustHueSaturation'),
+            item('Colour Balance…', '', 'adjustColourBalance'),
+            item('Temperature / Tint…', '', 'adjustTemperatureTint'),
+            item('Replace Colour…', '', 'adjustReplaceColour'),
+            { type: 'separator' },
+            item('Black and White…', '', 'adjustThreshold'),
+            item('Greyscale', '', 'adjustGreyscale'),
+            item('Invert', '', 'adjustInvert'),
+          ],
+        },
+        { type: 'separator' },
         // GB2, G8 (M21): the image cut down to the selected pixels.
         item('Crop to Selection', '', 'cropToSelection'),
       ],
@@ -141,6 +161,32 @@ export function menuTemplate(
         item('Smooth', '', 'smoothSelection'),
         { type: 'separator' },
         item('Fade Selected Pixels', '', 'fadeSelection'),
+      ],
+    },
+    {
+      // GB5 (M22): Graphics mode's filters, on the current pixel layer (or its mask), inside the
+      // selection, previewed live (from another mode: Graphics mode).
+      label: 'Filter',
+      submenu: [
+        {
+          label: 'Blur',
+          submenu: [
+            item('Gaussian Blur…', '', 'filterGaussianBlur'),
+            item('Motion Blur…', '', 'filterMotionBlur'),
+            item('Zoom Blur…', '', 'filterZoomBlur'),
+          ],
+        },
+        item('Twirl…', '', 'filterTwirl'),
+        item('Sharpen…', '', 'filterSharpen'),
+        { type: 'separator' },
+        {
+          label: 'Distort',
+          submenu: [
+            item('Bulge / Pinch…', '', 'filterBulge'),
+            item('Perspective…', '', 'filterPerspective'),
+            item('Warp…', '', 'filterWarp'),
+          ],
+        },
       ],
     },
     {

@@ -41,6 +41,7 @@
   import TextPathSection from './TextPathSection.svelte';
   import SpiralSection from './SpiralSection.svelte';
   import PaintSection from '../graphics/PaintSection.svelte';
+  import RetouchSection from '../graphics/RetouchSection.svelte';
   import PixelTransformSection from '../graphics/PixelTransformSection.svelte';
   import { graphicOf } from '../../core/graphics/document.ts';
   import { DECIMALS, fromPx, toPx, UNIT_NAMES } from '../../core/graphics/units.ts';
@@ -67,6 +68,10 @@
     }),
   );
   const first = $derived(found[0]?.object ?? null);
+  /** G14 (M22): the current layer when it is a pixel layer (Graphics mode), for its effects. */
+  const pixelLayer = $derived(
+    editor.still ? doc.layers.find((l) => l.id === $store.layerId && l.pixels) : undefined,
+  );
   /** G1, G6 (M18): Graphics mode shows lengths in the image's units (px in Animation mode). */
   const image = $derived(editor.still ? graphicOf(doc) : { units: 'px' as const, dpi: 96 });
   const lengthDecimals = $derived(image.units === 'px' ? 2 : DECIMALS[image.units]);
@@ -265,12 +270,24 @@
     <SpiralSection {app} />
     <!-- GB4, GB3 (M21): the painting tools' colours, brush, bucket and gradient. -->
     <PaintSection {app} />
+    <!-- GB5 (M22): the retouching tools' source, brush, strength and red eye's settings. -->
+    <RetouchSection {app} />
     <!-- G3 (M21): the current pixel layer (or the selected pixels) moved, scaled, turned. -->
     <PixelTransformSection {app} />
     {#if !first}
       <p class="hint">
         Click an object on the stage, or draw one with a tool from the strip on the left.
       </p>
+      {#if pixelLayer}
+        <!-- G14 (M22): the current pixel layer's effects (the halo, light blooms, a bevel). -->
+        <FiltersSection
+          heading="Effects on {pixelLayer.name}"
+          owner="the layer"
+          quick
+          filters={pixelLayer.effects ?? []}
+          commit={(effects) => anim.setLayerEffects(pixelLayer.id, effects)}
+        />
+      {/if}
       {#if editor.still}
         <!-- G1, G10 (M18): the image: its canvas, printed size, resolution and background. -->
         <div class="sec">

@@ -166,3 +166,21 @@ describe('M22 GN2: the live preview', () => {
     expect(s.g.pixelPreview()).toBeUndefined();
   });
 });
+
+describe('M22 GN2: the reduced copy is made once', () => {
+  it('a second preview of the same big layer uses the same reduced pixels', async () => {
+    const s = setup({ width: 2000, height: 1500 });
+    const seen: Raster[] = [];
+    const keep = (r: Raster) => {
+      seen.push(r);
+      return r;
+    };
+    await s.g.previewPixelOperation(keep);
+    await s.g.previewPixelOperation(keep);
+    expect(seen[1]).toBe(seen[0]);
+    // Once the layer changes, a new copy.
+    await s.g.applyPixelOperation('Invert', invert);
+    await s.g.previewPixelOperation(keep);
+    expect(seen[2]).not.toBe(seen[0]);
+  });
+});

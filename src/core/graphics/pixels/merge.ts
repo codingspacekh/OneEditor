@@ -4,7 +4,11 @@
 // the layers clipped to it (each seen only where that picture has something drawn, at its own
 // opacity and blend), the picture then put down at the base's opacity and blend. A vector layer
 // is drawn into pixels first (the app asks the renderer: StageRenderer.renderPixels of
-// layerAlone), after which its shapes can no longer be edited one by one.
+// layerAlone), after which its shapes can no longer be edited one by one. G14 (M22): a pixel
+// layer with effects is drawn into pixels by the renderer too, with them (the canvas's shadows and
+// blur cannot be worked here exactly as the stage draws them): on its own, or, when it is the base
+// of a clipping group, with the layers merged that are clipped to it (its effects are made from
+// the whole group, as the stage draws it), so those are not put down again.
 import { hexToRgb } from '../../colour.ts';
 import { TRANSPARENT } from '../../animation/rules.ts';
 import type { AnimationDoc, BlendMode, Id, Layer, PixelContent } from '../../animation/types.ts';
@@ -130,7 +134,16 @@ export interface MergePlan {
   ids: Id[];
   /** The vector layers among them, to be drawn into pixels first (canvas-sized, at 0, 0). */
   vector: Id[];
+  /**
+   * G14 (M22): the pixel layers among them with effects, drawn into pixels with them first
+   * (canvas-sized, at 0, 0: layerAlone with the plan's ids; what lies off the canvas is cut off,
+   * as for a vector layer).
+   */
+  effects: Id[];
 }
+
+/** G14 (M22): a pixel layer whose effects are drawn with it. */
+const hasEffects = (l: Layer): boolean => l.pixels !== undefined && (l.effects?.length ?? 0) > 0;
 
 const layerOf = (doc: AnimationDoc, id: Id): Layer => {
   const layer = doc.layers.find((l) => l.id === id);
@@ -169,14 +182,17 @@ export function mergePlan(doc: AnimationDoc, how: MergeHow, layerId: Id): MergeP
   return {
     ids: layers.map((l) => l.id),
     vector: layers.filter((l) => !l.pixels).map((l) => l.id),
+    effects: layers.filter(hasEffects).map((l) => l.id),
   };
 }
 
 /**
  * A layer on its own, as a document to draw into pixels: only it (and the mask layer above it,
- * AN12), at full strength, in normal mode, unclipped, on a transparent stage at frame 0.
+ * AN12), at full strength, in normal mode, unclipped, on a transparent stage at frame 0. G14
+ * (M22): a pixel layer with effects keeps them, and the layers clipped to it that are `merged`
+ * and shown come with it, as they are (its effects are made from the group).
  */
-export function layerAlone(doc: AnimationDoc, id: Id): AnimationDoc {
+export function layerAlone(doc: AnimationDoc, id: Id, merged: readonly Id[] = []): AnimationDoc {
   const at = doc.layers.findIndex((l) => l.id === id);
   const layer = doc.layers[at];
   if (!layer) throw new EditError('That layer no longer exists.');
@@ -185,11 +201,17 @@ export function layerAlone(doc: AnimationDoc, id: Id): AnimationDoc {
   delete plain.opacity;
   delete plain.blend;
   delete plain.clip;
-  return {
+  const alone: AnimationDoc = {
     ...doc,
     stage: { ...doc.stage, background: TRANSPARENT, length: 1 },
     layers: mask?.mask && mask.visible ? [plain, { ...mask, locked: true }] : [plain],
   };
+  if (!hasEffects(layer)) return alone;
+  const group = new Set(merged);
+  const clipped = doc.layers.filter(
+    (l, j) => j > at && l.visible && group.has(l.id) && clipBaseIndex(doc.layers, j) === at,
+  );
+  return clipped.length ? { ...alone, layers: [plain, ...clipped] } : alone;
 }
 
 /**
@@ -211,10 +233,11 @@ export function mergeLayers(
   const drawn: DrawnLayer[] = layers.map((l) => {
     const bitmap = rastered[l.id];
     const index = doc.layers.indexOf(l);
-    if (!l.pixels && !bitmap)
+    if ((!l.pixels || hasEffects(l)) && !bitmap)
       throw new EditError('The layers changed while they were being merged. Try again.');
     return {
-      pixels: l.pixels ?? { bitmap: bitmap!, x: 0, y: 0 },
+      // G14 (M22): a layer with effects as the renderer drew it, its mask and effects in it.
+      pixels: l.pixels && !hasEffects(l) ? l.pixels : { bitmap: bitmap!, x: 0, y: 0 },
       opacity: l.opacity ?? 1,
       blend: l.blend ?? 'normal',
       // Clipped to a layer that is merged with it, else drawn as an ordinary layer.
@@ -228,12 +251,18 @@ export function mergeLayers(
     drawn[0] = { ...drawn[0]!, blend: 'normal', clip: false };
     if (bottom.clip) drawn[1] = { ...drawn[1]!, clip: false };
   }
+  // G14 (M22): a layer clipped to a merged base with effects is in that base's pixels already.
+  const inGroup = (l: Layer): boolean => {
+    const base = doc.layers[clipBaseIndex(doc.layers, doc.layers.indexOf(l))];
+    return base !== undefined && hasEffects(base) && plan.ids.includes(base.id);
+  };
+  const put = drawn.filter((_, k) => !inGroup(layers[k]!));
   // What it covers: the canvas when flattening, else every pixel layer's place and the canvas
   // for a vector layer.
   const area =
     how === 'flatten'
       ? canvas
-      : drawn
+      : put
           .map((d) => placeOf(d.pixels))
           .reduce((a, b) => {
             const x = Math.min(a.x, b.x);
@@ -245,7 +274,7 @@ export function mergeLayers(
               height: Math.max(a.y + a.height, b.y + b.height) - y,
             };
           });
-  const bitmap = compositeLayers(drawn, area, how === 'flatten' ? doc.stage.background : undefined);
+  const bitmap = compositeLayers(put, area, how === 'flatten' ? doc.stage.background : undefined);
   const merged: Layer = {
     id: bottom.id,
     name: how === 'flatten' ? 'Background' : bottom.name,

@@ -7,7 +7,7 @@
 // createImageBitmap and a canvas; a fake in the tests).
 import type { AnimCommand } from '../animation-commands.ts';
 import type { Pixels } from '../../core/animation/trace.ts';
-import type { AnimationDoc, Id } from '../../core/animation/types.ts';
+import type { AnimationDoc, Id, ObjectFilter } from '../../core/animation/types.ts';
 import { createGraphic } from '../../core/graphics/document.ts';
 import {
   layerAlone,
@@ -27,6 +27,7 @@ import {
   type LayerLook,
 } from '../../core/graphics/pixels/pixel-layers.ts';
 import { pixelLayerOf } from '../../core/graphics/pixels/layers.ts';
+import { setLayerEffects } from '../../core/graphics/pixels/layer-effects.ts';
 import { bitmapFromRGBA, type Bitmap } from '../../core/graphics/pixels/raster.ts';
 import { jpegDpi, pngDpi } from '../../core/image/dpi.ts';
 import { EditError } from '../../core/model/errors.ts';
@@ -97,11 +98,18 @@ export function pixelLayerActions(
     return ok;
   }
 
-  /** The vector layers of a merge drawn into pixels by the renderer (canvas-sized, at 0, 0). */
-  async function rasterise(doc: AnimationDoc, ids: readonly Id[]): Promise<Record<Id, Bitmap>> {
+  /**
+   * The vector layers of a merge, and (G14, M22) its pixel layers with effects, drawn into pixels
+   * by the renderer (canvas-sized, at 0, 0); `merged`: the plan's layers.
+   */
+  async function rasterise(
+    doc: AnimationDoc,
+    ids: readonly Id[],
+    merged: readonly Id[],
+  ): Promise<Record<Id, Bitmap>> {
     const out: Record<Id, Bitmap> = {};
     for (const id of ids) {
-      out[id] = bitmapOf(await renderer.renderPixels(layerAlone(doc, id)));
+      out[id] = bitmapOf(await renderer.renderPixels(layerAlone(doc, id, merged)));
     }
     return out;
   }
@@ -208,6 +216,14 @@ export function pixelLayerActions(
     },
 
     /**
+     * G14 (M22): a pixel layer's effects (shadows, glow, bevel, blur; none: undefined); or why
+     * not (for Properties ▸ Filters).
+     */
+    setLayerEffects(id: Id, effects: ObjectFilter[] | undefined): string | null {
+      return edit(command('Layer effects', (doc) => setLayerEffects(doc, id, effects)));
+    },
+
+    /**
      * GB2: a layer mask on a pixel layer: from the selection when there is one (selected parts
      * shown), else showing everything.
      */
@@ -263,7 +279,7 @@ export function pixelLayerActions(
       }
       patch({ busy: `${MERGE_LABELS[how]}…` });
       try {
-        const rastered = await rasterise(doc, plan.vector);
+        const rastered = await rasterise(doc, [...plan.vector, ...plan.effects], plan.ids);
         const bottom = plan.ids[0]!;
         if (!run(command(MERGE_LABELS[how], (d) => mergeLayers(d, how, layerId, rastered)))) return;
         const names = plan.vector.map((id) => doc.layers.find((l) => l.id === id)!.name);

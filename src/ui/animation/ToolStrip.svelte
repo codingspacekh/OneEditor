@@ -165,6 +165,51 @@
       withWhy('Gradient: drag a line to fill the layer or the selection', 'graphicFill'),
     ],
   ];
+  /** GB5 (M22): retouching a pixel layer (Graphics mode); their options are in Properties. */
+  const RETOUCH_TOOLS: [Tool, string, IconName, string][] = [
+    [
+      'clone',
+      'Clone stamp',
+      'cloneStamp',
+      withWhy(
+        'Clone stamp: Alt-click (Option-click on a Mac) where to copy from, then paint over what to remove',
+        'graphicClone',
+      ),
+    ],
+    [
+      'heal',
+      'Heal',
+      'heal',
+      withWhy(
+        'Heal: as the clone stamp, then the colour and light are matched to the surroundings (sky, sea, walls)',
+        'graphicClone',
+      ),
+    ],
+    [
+      'blur-brush',
+      'Blur brush',
+      'blurDrop',
+      withWhy('Blur brush: soften the places painted', 'graphicRetouch'),
+    ],
+    [
+      'sharpen-brush',
+      'Sharpen brush',
+      'sharpen',
+      withWhy('Sharpen brush: bring out the detail in the places painted', 'graphicRetouch'),
+    ],
+    [
+      'smudge',
+      'Smudge',
+      'smudge',
+      withWhy('Smudge: drag colour along the stroke, as a finger in wet paint', 'graphicRetouch'),
+    ],
+    [
+      'red-eye',
+      'Red eye',
+      'redEye',
+      withWhy('Red eye: click the middle of a red eye, or drag a box over it', 'graphicRetouch'),
+    ],
+  ];
   const snapping = $derived(
     view.snap.grid || view.snap.guides || view.snap.objects || view.snap.pixels,
   );
@@ -214,6 +259,18 @@
     <!-- GB4, GB3 (M21): Graphics mode's painting tools. -->
     {#if editor.still}
       {#each PAINT_TOOLS as [tool, label, icon, title] (tool)}
+        <button
+          class="tbtn"
+          aria-label={label}
+          aria-pressed={$store.tool === tool}
+          {title}
+          onclick={() => anim.setTool(tool)}><Icon name={icon} /></button
+        >
+      {/each}
+    {/if}
+    <!-- GB5 (M22): Graphics mode's retouching tools. -->
+    {#if editor.still}
+      {#each RETOUCH_TOOLS as [tool, label, icon, title] (tool)}
         <button
           class="tbtn"
           aria-label={label}

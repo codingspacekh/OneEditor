@@ -158,6 +158,16 @@ export const WHY = {
     'The paint bucket fills an area of one colour with another in one click (a sea recoloured light blue, land made green): the tolerance says how alike the colours must be, and contiguous fills only the pixels joined to the one clicked. The gradient tool fills the layer or the selection with colours that blend into each other along a line dragged across it, straight (linear) or out from a centre (radial), for a sky, a light, or a logo fading from light to dark.',
   graphicTransform:
     'Transforming a photo or part of one places it exactly where it is needed: moved so its edge sits on a line, scaled to fit a gap (with its proportions kept, so it is not stretched), turned to line up with the picture behind it, flipped to face the other way, or skewed to lean. Typed numbers are exact where dragging is not. Every change to a bitmap makes new pixels from the old (resampling): bicubic keeps photos smooth and sharp, nearest neighbour keeps the hard edges of pixel art; quarter turns and flips only move pixels, so nothing is lost.',
+  graphicAdjust:
+    'Adjustments change the colours and light of a whole photo (or the selected part) at once, as a photographer would: greyscale or black and white for an old or a dramatic look, brightness and contrast or levels to rescue a dull or dark photo, exposure to give it more or less light, shadows and highlights to show detail in the dark and bright parts without spoiling the rest, colour balance or temperature and tint to warm a cold picture or take away a colour cast, hue and saturation to make colours stronger or recolour something (colourise turns a grey Moon gold), and replace colour to change one colour only (the darker colours made brighter). Each is previewed before it is applied, is one undo step, and on a layer mask changes how much of the layer shows.',
+  graphicBlur:
+    'Blurring and sharpening change how much detail shows. A Gaussian blur softens a whole photo or the selected part: a background made soft so the subject stands out, a face or a number plate hidden, a harsh edge smoothed. Motion blur streaks the picture along a line, so something still looks as if it is moving fast; zoom blur streaks it out from a point, as if rushing towards it. Sharpen (an unsharp mask) makes edges crisper by making each side of an edge a little darker or lighter: the amount says how much, the radius how wide the edges are, and the threshold leaves small differences such as skin and noise alone. Too much blur loses detail that cannot be got back; too much sharpening shows bright halos.',
+  graphicDistort:
+    'Distorting moves the pixels of a photo instead of changing their colours. A twirl turns the middle of a circle round its centre, most at the centre and less towards the edge, for a swirl or a whirlpool; a bulge magnifies the inside of a circle like a lens or a magnifying glass (a pinch shrinks it). Perspective moves the four corners so the picture looks flat on a wall or a screen seen at an angle, or straightens a building photographed from below; a warp bends the picture with a mesh of points, to fit it round a mug or a flag. Done inside a selection only that part changes, and each is one undo step.',
+  graphicClone:
+    'The clone stamp and the heal brush take unwanted things out of a photo by painting over them with another part of the same photo: Alt-click (Option-click on a Mac) a clean place to copy from, such as empty sky, sea, sand or wall, then paint over the bin, the post, the wires or the person. The clone stamp copies the pixels exactly, so it suits patterns, edges and busy textures such as leaves; the heal brush copies them and then matches the colour and light of the place around the stroke, so the repair blends in on smooth surfaces such as sky, sea and skin, where a copy from a lighter or darker place would show. Aligned keeps the same distance between the brush and the source from stroke to stroke; a selection round the part to repair keeps the heal from borrowing colour from what is next to it. A good repair cannot be seen: the papers ask for the rubbish, posts and wires removed without cropping the picture.',
+  graphicRetouch:
+    'The blur, sharpen and smudge brushes change only the places they are painted on, not the whole photo: the blur brush softens a hard edge, a blemish or a distracting detail; the sharpen brush brings out detail in one part, such as the eyes in a portrait; the smudge brush drags colour along the stroke as a finger drags wet paint, to blend a join or give a soft, painted look. The strength says how much each stroke does, and going over again does more. Red eye removal fixes the red pupils a camera flash makes: click the middle of the eye, or drag a box over it, and only the red there is made dark and grey, so the skin and the white of the eye stay as they were.',
   animSound:
     'Sound is a secondary component of an animation: an alarm ringing, a door slamming or music under the action tells the audience what is happening and when. Each sound starts at a frame, so it is heard in time with the movement; a fade in or out stops it starting or ending suddenly. An MP4, AVI, MOV or web page carries the sounds; a GIF and pictures cannot.',
 } as const;
@@ -277,6 +287,19 @@ export const TOOLS: Tool[] = [
   tool('graphicPaint', 'Brush, pencil, airbrush and eraser', '19.3 brush, pencil and pen tools'),
   tool('graphicFill', 'Paint bucket and gradient', '19.1 changing solid and gradient fills'),
   tool('graphicTransform', 'Transform pixels', '19.3 creating and editing bitmap images'),
+  tool('graphicAdjust', 'Adjustments', '19.3 working with colour'),
+  tool('graphicClone', 'Clone stamp and heal', '19.3 tools/filters to alter parts of an image'),
+  tool(
+    'graphicRetouch',
+    'Blur, sharpen and smudge brushes, red eye',
+    '19.3 tools/filters to alter parts of an image',
+  ),
+  tool('graphicBlur', 'Blur and sharpen', '19.3 tools/filters to alter parts of an image'),
+  tool(
+    'graphicDistort',
+    'Twirl, bulge, perspective and warp',
+    '19.3 tools/filters to alter parts of an image',
+  ),
 ];
 
 export function toolById(id: ToolId): Tool {

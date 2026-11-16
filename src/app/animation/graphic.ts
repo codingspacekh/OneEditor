@@ -302,7 +302,10 @@ export function graphicActions(
           objects.push({
             ...createPicture(picture, { x, y }),
             name: layer.name,
-            opacity: layer.opacity ?? 1,
+            // A layer's opacity is 0–1; an object's is 0–100 %.
+            opacity: Math.round((layer.opacity ?? 1) * 100),
+            // G14 (M22): its effects go with it, as the picture's filters.
+            ...(layer.effects?.length ? { filters: layer.effects } : {}),
           });
         }
       if (objects.length === 0) return null;

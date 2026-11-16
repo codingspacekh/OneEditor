@@ -390,7 +390,8 @@ describe('M21 G2: Send to Animation', () => {
       y: 0,
       width: 100,
       height: 80,
-      opacity: 0.5,
+      // The layer's 0.5 is the picture's 50 %.
+      opacity: 50,
     });
     const picture = anim.pictures.at(-1)!;
     expect(picture.path).toMatch(/^\/cache\/text\/layer-[\w-]+\.png$/);

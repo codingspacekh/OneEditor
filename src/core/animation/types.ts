@@ -460,6 +460,12 @@ export interface Layer {
    * image, and its layer mask. A pixel layer has no objects; Send to Animation makes it a picture.
    */
   pixels?: PixelContent;
+  /**
+   * G14 (M22): a pixel layer's effects (Photoshop's layer styles): the same shadows, glows,
+   * bevels and blur objects have, drawn from its pixels (after its layer mask), in order, before
+   * its opacity and blend mode are applied to the result. Only on a pixel layer.
+   */
+  effects?: ObjectFilter[];
 }
 
 /** G2 (M21): the blend modes of the Layers panel, named as the canvas names them where it can. */

@@ -292,7 +292,11 @@ describe('M21 G2: merge down, merge visible, flatten', () => {
     const below = pixelLayer('Sky', blue(), { blend: 'screen', opacity: 0.5 });
     const top = pixelLayer('Castle', red(3, 3), { opacity: 0.5 });
     const doc = withLayers([createLayer('Back'), below, top]);
-    expect(mergePlan(doc, 'down', top.id)).toEqual({ ids: [below.id, top.id], vector: [] });
+    expect(mergePlan(doc, 'down', top.id)).toEqual({
+      ids: [below.id, top.id],
+      vector: [],
+      effects: [],
+    });
     const merged = mergeLayers(doc, 'down', top.id, {});
     expect(merged.layers.map((l) => l.name)).toEqual(['Back', 'Sky']);
     const layer = merged.layers[1]!;

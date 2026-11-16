@@ -386,7 +386,7 @@ function blurColumns(src: Float32Array, dst: Float32Array, w: number, h: number,
 }
 
 /** Half-widths of three box blurs that together are close to a Gaussian blur of this sigma. */
-function gaussBoxes(sigma: number): number[] {
+export function gaussBoxes(sigma: number): number[] {
   const n = 3;
   const ideal = Math.sqrt((12 * sigma * sigma) / n + 1);
   let wl = Math.floor(ideal);

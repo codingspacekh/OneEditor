@@ -7,6 +7,10 @@
   import PixelGrid from './PixelGrid.svelte';
   import SelectionOutline from './SelectionOutline.svelte';
   import BrushCursor from './BrushCursor.svelte';
+  // M22 (GB5): the retouching brush's size, the clone source and red eye's box.
+  import RetouchCursor from './RetouchCursor.svelte';
+  // M22 (GB5): a filter's centre, corners or mesh while its dialog is open.
+  import FilterHandles from './FilterHandles.svelte';
 
   let {
     anim,
@@ -25,6 +29,8 @@
   <g class="pixel-overlay" pointer-events="none">
     <SelectionOutline {anim} />
     <BrushCursor {anim} />
+    <RetouchCursor {anim} {zoom} />
     {#if part}<PixelGrid {zoom} {part} />{/if}
+    <FilterHandles {zoom} />
   </g>
 {/if}

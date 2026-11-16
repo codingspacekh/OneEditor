@@ -75,7 +75,10 @@ export function reducedCopy(
   const k = Math.sqrt(maxPixels / (width * height));
   let w = Math.max(1, Math.floor(width * k));
   let h = Math.max(1, Math.floor(height * k));
-  while (w * h > maxPixels) w > h ? w-- : h--;
+  while (w * h > maxPixels) {
+    if (w > h) w--;
+    else h--;
+  }
   return {
     bitmap: resampleBitmap(content.bitmap, w, h, 'bilinear'),
     x: content.x,

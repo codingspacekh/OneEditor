@@ -7,6 +7,8 @@
 import { EditError } from '../../model/errors.ts';
 import type { PixelWorker } from '../../ports.ts';
 import { bucketFill, gradientFill, type BucketInput, type GradientInput } from './fills.ts';
+import { adjust, type AnyAdjustment } from './adjust.ts';
+import { runFilter, type FilterSpec } from './filter-specs.ts';
 import type { Raster } from './raster.ts';
 
 /** The tiles a job changed (null: emptied), for a raster of this size. */
@@ -41,6 +43,12 @@ export const PIXEL_JOBS = {
   bucket: (input: BucketInput): TilePatch => patchOf(input.target, bucketFill(input)),
   /** GB3: the gradient tool. */
   gradient: (input: GradientInput): TilePatch => patchOf(input.target, gradientFill(input)),
+  /** GB3 (M22): an adjustment on a layer's pixels or its mask; `scale`: image px a pixel covers. */
+  adjust: (input: { raster: Raster; adjustment: AnyAdjustment; scale: number }): TilePatch =>
+    patchOf(input.raster, adjust(input.raster, input.adjustment, input.scale)),
+  /** GB5 (M22): a filter (blur, sharpen, twirl, distort), placed on the pixels (filterInRaster). */
+  filter: (input: { raster: Raster; spec: FilterSpec }): TilePatch =>
+    patchOf(input.raster, runFilter(input.raster, input.spec)),
 };
 
 export type PixelJob = keyof typeof PIXEL_JOBS;

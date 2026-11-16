@@ -9,6 +9,7 @@ import type { AnimationDoc } from '../../core/animation/types.ts';
 import { HAND, ZOOM } from './view-tools.ts';
 import { SELECTION_TOOLS } from './selection-tools.ts';
 import { PAINT_TOOLS } from './paint-tools.ts';
+import { RETOUCH_TOOLS } from './retouch-tools.ts';
 
 export interface PixelPointer {
   anim: AnimationApp;
@@ -43,6 +44,8 @@ const HANDLERS: Partial<Record<Tool, PixelToolHandler>> = {
   ...SELECTION_TOOLS,
   // GB4, GB3 (M21 step 4): the painting tools, the paint bucket and the gradient.
   ...PAINT_TOOLS,
+  // GB5 (M22): the clone stamp, heal, blur, sharpen and smudge brushes, red eye.
+  ...RETOUCH_TOOLS,
   // GB1 (M21 step 5): the hand and the zoom.
   hand: HAND,
   zoom: ZOOM,

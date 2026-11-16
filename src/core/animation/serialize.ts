@@ -435,6 +435,8 @@ function isAnimation(doc: ProjectDocument): doc is ProjectDocument & AnimationDo
         optional(l.clip, isBoolean) &&
         optional(l.pixels, isPixels) &&
         (l.pixels === undefined || (Array.isArray(l.objects) && l.objects.length === 0)) &&
+        // G14 (M22): a pixel layer's effects, as an object's filters (none on a vector layer).
+        optional(l.effects, (v) => l.pixels !== undefined && listOf(v, isFilter)) &&
         (l.drawings === undefined ||
           (Array.isArray(l.drawings) && l.drawings.length > 0 && l.drawings.every(isNumber))) &&
         listOf(l.objects, isAnimObject),

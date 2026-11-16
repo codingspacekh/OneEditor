@@ -2,7 +2,9 @@
   // G14 (M19): Properties ▸ Filters — shadow, glow, bevel and blur on the selected objects, in
   // Graphics and Animation mode (not AN20's one-click Effects, which add keyframes). Filters are
   // drawn in order, each on what the ones before made: added from a list, their numbers and
-  // colours typed, moved up or down, removed. Each change is one undo step.
+  // colours typed, moved up or down, removed. Each change is one undo step. G14 (M22): the same
+  // for the current pixel layer's effects (Graphics mode, nothing selected), with the gate's
+  // effects one click away: a glow (the halo, the light blooms), a drop shadow, a bevel.
   import { FILTER_KINDS, FILTER_LABELS, newFilter } from '../../core/animation/appearance.ts';
   import type { FilterKind, ObjectFilter } from '../../core/animation/types.ts';
   import Why from '../Why.svelte';
@@ -12,11 +14,26 @@
   let {
     filters,
     commit,
+    heading = 'Filters',
+    owner = 'the selected objects',
+    quick = false,
   }: {
     filters: readonly ObjectFilter[];
     /** Sets the selected objects' filters (none: an empty list); returns why not. */
     commit: (filters: ObjectFilter[] | undefined) => string | null;
+    /** M22: the section's name ("Effects on Moon"). */
+    heading?: string;
+    /** M22: what is given the filters, in the buttons' tips ("the layer"). */
+    owner?: string;
+    /** M22: a button each for a glow, a drop shadow and a bevel. */
+    quick?: boolean;
   } = $props();
+  /** M22: the effects the papers ask for most, added in one click. */
+  const QUICK: { kind: FilterKind; label: string; tip: string }[] = [
+    { kind: 'glow', label: 'Glow', tip: 'A soft colour all round: a halo, a light bloom' },
+    { kind: 'dropShadow', label: 'Shadow', tip: 'A drop shadow, below and to the right' },
+    { kind: 'bevel', label: 'Bevel', tip: 'Raised edges, lit from the top left: depth, metal' },
+  ];
 
   let adding: FilterKind = $state('dropShadow');
   let error: string | null = $state(null);
@@ -40,7 +57,7 @@
 </script>
 
 <div class="sec filters">
-  <h4>Filters <span class="syl">shadow, glow, bevel, blur</span></h4>
+  <h4>{heading} <span class="syl">shadow, glow, bevel, blur</span></h4>
   {#each filters as f, i (i)}
     {@const name = nameOf(i)}
     <div class="filter" role="group" aria-label={name}>
@@ -157,6 +174,17 @@
       {/if}
     </div>
   {/each}
+  {#if quick}
+    <div class="quick" role="group" aria-label="Add quickly">
+      {#each QUICK as q (q.kind)}
+        <button
+          class="sm"
+          title="{q.tip}, on {owner}"
+          onclick={() => put([...filters, newFilter(q.kind)])}>+ {q.label}</button
+        >
+      {/each}
+    </div>
+  {/if}
   <div class="add">
     <label for="filter-kind" class="cap">Add</label>
     <select id="filter-kind" bind:value={adding}>
@@ -164,7 +192,7 @@
     </select>
     <button
       class="sm"
-      title="Give the selected objects this filter, drawn after the ones they have"
+      title="Give {owner} this filter, drawn after the ones there are"
       onclick={() => put([...filters, newFilter(adding)])}>Add filter</button
     >
   </div>
@@ -213,6 +241,12 @@
     display: grid;
     grid-template-columns: 1fr 1fr;
     column-gap: 8px;
+  }
+  .quick {
+    display: flex;
+    gap: 4px;
+    justify-content: flex-end;
+    margin-bottom: 6px;
   }
   .add {
     display: grid;

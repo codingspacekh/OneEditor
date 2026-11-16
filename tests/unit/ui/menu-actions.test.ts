@@ -264,3 +264,67 @@ describe('M21: the Layer and Select menus', () => {
     ui.mode = 'Video';
   });
 });
+
+describe('M22: Image ▸ Adjustments', () => {
+  it('M22 GB3: each opens Graphics mode and the adjustment’s dialog; Greyscale and Invert are done at once', async () => {
+    const { animUi } = await import('../../../src/ui/animation/animation-ui.svelte.ts');
+    const { adjustUi } = await import('../../../src/ui/graphics/adjust-ui.svelte.ts');
+    const { app } = testApp();
+    const actions = menuActions(app);
+    ui.mode = 'Video';
+    actions.adjustLevels();
+    expect([ui.mode, animUi.dialog, adjustUi.kind]).toEqual(['Graphics', 'adjust', 'levels']);
+    const opened = {
+      adjustBrightnessContrast: 'brightnessContrast',
+      adjustExposure: 'exposure',
+      adjustShadowsHighlights: 'shadowsHighlights',
+      adjustHueSaturation: 'hueSaturation',
+      adjustColourBalance: 'colourBalance',
+      adjustTemperatureTint: 'temperatureTint',
+      adjustReplaceColour: 'replaceColour',
+      adjustThreshold: 'threshold',
+    } as const;
+    for (const [action, kind] of Object.entries(opened)) {
+      actions[action as keyof typeof opened]();
+      expect(adjustUi.kind).toBe(kind);
+    }
+    animUi.dialog = null;
+    const adjust = vi.spyOn(app.graphics, 'adjust').mockResolvedValue(true);
+    ui.mode = 'Video';
+    await actions.adjustGreyscale();
+    expect(ui.mode).toBe('Graphics');
+    await actions.adjustInvert();
+    expect(adjust.mock.calls).toEqual([
+      ['greyscale', {}],
+      ['invert', {}],
+    ]);
+    expect(animUi.dialog).toBeNull();
+    ui.mode = 'Video';
+  });
+});
+
+describe('M22: the Filter menu', () => {
+  it('M22 GB5: each opens Graphics mode and the filter’s dialog', async () => {
+    const { animUi } = await import('../../../src/ui/animation/animation-ui.svelte.ts');
+    const { filterUi } = await import('../../../src/ui/graphics/filter-ui.svelte.ts');
+    const { app } = testApp();
+    const actions = menuActions(app);
+    const opened = {
+      filterGaussianBlur: 'gaussian',
+      filterMotionBlur: 'motion',
+      filterZoomBlur: 'zoom',
+      filterTwirl: 'twirl',
+      filterSharpen: 'sharpen',
+      filterBulge: 'bulge',
+      filterPerspective: 'perspective',
+      filterWarp: 'warp',
+    } as const;
+    for (const [action, kind] of Object.entries(opened)) {
+      ui.mode = 'Video';
+      actions[action as keyof typeof opened]();
+      expect([ui.mode, animUi.dialog, filterUi.kind]).toEqual(['Graphics', 'filter', kind]);
+    }
+    animUi.dialog = null;
+    ui.mode = 'Video';
+  });
+});

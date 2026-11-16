@@ -159,6 +159,7 @@ describe('X3 native menus', () => {
       'Image',
       'Layer',
       'Select',
+      'Filter',
       'View',
       'Learn',
       'windowMenu',
@@ -311,5 +312,74 @@ describe('M21: the Image menu', () => {
     )!;
     (item.click as () => void)();
     expect(send).toHaveBeenCalledWith('openPictureAsImage');
+  });
+});
+
+describe('M22: Image ▸ Adjustments', () => {
+  it('M22 GB3: a submenu of the adjustments, each sending its own action', () => {
+    const send = vi.fn<(a: MenuAction) => void>();
+    const image = (find(menuTemplate('win32', send, false), 'Image')!.submenu as Item[]).find(
+      (i) => i.label === 'Adjustments',
+    )!;
+    const adjustments = items(image);
+    expect(adjustments.map((i) => i.label)).toEqual([
+      'Brightness / Contrast…',
+      'Levels…',
+      'Exposure…',
+      'Shadows / Highlights…',
+      'Hue / Saturation…',
+      'Colour Balance…',
+      'Temperature / Tint…',
+      'Replace Colour…',
+      'Black and White…',
+      'Greyscale',
+      'Invert',
+    ]);
+    for (const i of adjustments) (i.click as () => void)();
+    expect(send.mock.calls.map((c) => c[0])).toEqual([
+      'adjustBrightnessContrast',
+      'adjustLevels',
+      'adjustExposure',
+      'adjustShadowsHighlights',
+      'adjustHueSaturation',
+      'adjustColourBalance',
+      'adjustTemperatureTint',
+      'adjustReplaceColour',
+      'adjustThreshold',
+      'adjustGreyscale',
+      'adjustInvert',
+    ]);
+  });
+});
+
+describe('M22: the Filter menu', () => {
+  it('M22 GB5: Filter ▸ Blur ▸ Gaussian / Motion / Zoom, Twirl…, Sharpen…, Distort ▸ Bulge / Perspective / Warp', () => {
+    const send = vi.fn<(a: MenuAction) => void>();
+    const filter = find(menuTemplate('darwin', send, false), 'Filter')!.submenu as Item[];
+    const sub = (label: string) => items(filter.find((i) => i.label === label));
+    expect(items(find(menuTemplate('darwin', send, false), 'Filter')).map((i) => i.label)).toEqual([
+      'Blur',
+      'Twirl…',
+      'Sharpen…',
+      'Distort',
+    ]);
+    expect(sub('Blur').map((i) => i.label)).toEqual([
+      'Gaussian Blur…',
+      'Motion Blur…',
+      'Zoom Blur…',
+    ]);
+    expect(sub('Distort').map((i) => i.label)).toEqual(['Bulge / Pinch…', 'Perspective…', 'Warp…']);
+    const all = [...sub('Blur'), ...filter.filter((i) => i.click), ...sub('Distort')];
+    for (const i of all) (i.click as () => void)();
+    expect(send.mock.calls.map((c) => c[0])).toEqual([
+      'filterGaussianBlur',
+      'filterMotionBlur',
+      'filterZoomBlur',
+      'filterTwirl',
+      'filterSharpen',
+      'filterBulge',
+      'filterPerspective',
+      'filterWarp',
+    ]);
   });
 });

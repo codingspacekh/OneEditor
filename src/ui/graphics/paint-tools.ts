@@ -13,13 +13,13 @@ import type { PixelPointer, PixelToolHandler } from './pixel-pointer.ts';
 import { paintUi } from './paint-ui.svelte.ts';
 
 /** Where the pointer is, with its pressure when it is a pen. */
-function strokePoint(e: PointerEvent, pointer: PixelPointer): StrokePoint {
+export function strokePoint(e: PointerEvent, pointer: PixelPointer): StrokePoint {
   const p = pointer.at(e);
   return e.pointerType === 'pen' && e.pressure > 0 ? { ...p, pressure: e.pressure } : p;
 }
 
 /** Runs `show` once on the next frame however often it is asked for meanwhile. */
-function oncePerFrame(show: () => void): { ask(): void; now(): void } {
+export function oncePerFrame(show: () => void): { ask(): void; now(): void } {
   let asked = false;
   const later =
     typeof requestAnimationFrame === 'function'
