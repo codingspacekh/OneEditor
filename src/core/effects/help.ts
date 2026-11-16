@@ -156,6 +156,8 @@ export const WHY = {
     'Painting changes the pixels of a photo or a drawing by hand: the brush paints with a soft or hard edge, the pencil sets each pixel exactly (pixel art, a 1 px line), the airbrush builds up colour gently the longer it is held (a glow, a shadow), and the eraser takes pixels away to transparent. The size, hardness, opacity, flow and spacing change how each stroke looks, and a shape such as a star or a scatter of dots paints many stars and lights in one stroke (a night scene). A preset keeps a brush to use again; on a layer mask, black hides and white shows without losing any pixels.',
   graphicFill:
     'The paint bucket fills an area of one colour with another in one click (a sea recoloured light blue, land made green): the tolerance says how alike the colours must be, and contiguous fills only the pixels joined to the one clicked. The gradient tool fills the layer or the selection with colours that blend into each other along a line dragged across it, straight (linear) or out from a centre (radial), for a sky, a light, or a logo fading from light to dark.',
+  graphicTransform:
+    'Transforming a photo or part of one places it exactly where it is needed: moved so its edge sits on a line, scaled to fit a gap (with its proportions kept, so it is not stretched), turned to line up with the picture behind it, flipped to face the other way, or skewed to lean. Typed numbers are exact where dragging is not. Every change to a bitmap makes new pixels from the old (resampling): bicubic keeps photos smooth and sharp, nearest neighbour keeps the hard edges of pixel art; quarter turns and flips only move pixels, so nothing is lost.',
   animSound:
     'Sound is a secondary component of an animation: an alarm ringing, a door slamming or music under the action tells the audience what is happening and when. Each sound starts at a frame, so it is heard in time with the movement; a fade in or out stops it starting or ending suddenly. An MP4, AVI, MOV or web page carries the sounds; a GIF and pictures cannot.',
 } as const;
@@ -274,6 +276,7 @@ export const TOOLS: Tool[] = [
   tool('textWarp', 'Warped text', '19.5 warping text'),
   tool('graphicPaint', 'Brush, pencil, airbrush and eraser', '19.3 brush, pencil and pen tools'),
   tool('graphicFill', 'Paint bucket and gradient', '19.1 changing solid and gradient fills'),
+  tool('graphicTransform', 'Transform pixels', '19.3 creating and editing bitmap images'),
 ];
 
 export function toolById(id: ToolId): Tool {

@@ -20,8 +20,11 @@ export const RESAMPLE_NAMES: Readonly<Record<ResampleMethod, string>> = {
   nearest: 'Nearest neighbour (hard edges: pixel art)',
 };
 
-/** The filters: how far each reaches (in source pixels, at 1:1) and its weight at a distance. */
-const FILTERS: Record<
+/**
+ * The filters: how far each reaches (in source pixels, at 1:1) and its weight at a distance. G3's
+ * pixel transforms (transform.ts) sample with the same ones.
+ */
+export const FILTERS: Record<
   Exclude<ResampleMethod, 'nearest'>,
   { support: number; at(x: number): number }
 > = {

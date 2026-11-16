@@ -146,7 +146,7 @@ _Made by `npm run guides` from `src/core/teaching/syllabus.ts` and the app's too
 
 | Syllabus point | Where in OneEditor | Tools |
 |---|---|---|
-| creating and editing bitmap images that meet the requirements of their intended application and audience | Graphics ▸ Layers ▸ New pixel layer or Add picture as layer; File ▸ Open a photo as an image; Image ▸ Image size…, Canvas size…, Crop to content, Trim plain edges | — |
+| creating and editing bitmap images that meet the requirements of their intended application and audience | Graphics ▸ Layers ▸ New pixel layer or Add picture as layer; File ▸ Open a photo as an image; Image ▸ Image size…, Canvas size…, Crop to content, Trim plain edges | Transform pixels |
 | selection tools to select, remove or hide parts of a bitmap image: lasso, magic wand, colour select, cut-out, crop, masking tools | Graphics ▸ the tool strip on a pixel layer: Rectangle and Ellipse select (M), Lasso, Polygonal and Magnetic lasso, Magic wand (W), Colour select; the option bar for add / subtract / intersect, tolerance and feather; Delete, Layer via copy (Ctrl+J), Crop to selection; Layers ▸ Add mask, clipping | — |
 | brush, pencil and pen tools: pre-set and customised options | Graphics ▸ the tool strip on a pixel layer: Paintbrush, Pencil, Eraser, Airbrush; Properties ▸ Paint: size, hardness, opacity, flow, spacing, shape, the presets and Save preset | Brush, pencil, airbrush and eraser |
 | resizing the image / canvas: changing colour depth, changing resolution | Graphics ▸ Image ▸ Image size… (px, %, cm, in at a resolution; bicubic, bilinear or nearest; or the resolution alone), Canvas size… (anchor), Reduce colours… (2, 16, 256, greyscale; dithering) | — |

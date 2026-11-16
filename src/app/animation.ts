@@ -16,6 +16,7 @@ import { pictureActions } from './animation/pictures.ts';
 import { pixelImageActions } from './animation/pixel-image.ts';
 import { pixelLayerActions } from './animation/pixel-layers.ts';
 import { pixelSelectionActions } from './animation/pixel-selection.ts';
+import { pixelTransformActions } from './animation/pixel-transform.ts';
 import { paintingActions } from './animation/painting.ts';
 import { shapeActions } from './animation/shapes.ts';
 import { soundActions } from './animation/sounds.ts';
@@ -37,6 +38,7 @@ export {
 } from './animation/state.ts';
 export { TRACE_MAX_SIDE, TRACE_PREVIEW_SIDE } from './animation/pictures.ts';
 export { ANIMATION_KIND, GRAPHIC_KIND, type EditorKind } from './animation/kind.ts';
+export type { PixelMove, PixelTransformChange } from './animation/pixel-transform.ts';
 
 export function createAnimationApp(deps: AnimationDeps) {
   const ctx = createAnimationContext(deps);
@@ -66,6 +68,8 @@ export function createAnimationApp(deps: AnimationDeps) {
     ...pixelSelectionActions(ctx),
     // GB4, GB3 (M21): the brushes, the paint bucket and the gradient.
     ...paintingActions(ctx),
+    // G3 (M21): a pixel layer, or the selected pixels, moved, scaled, turned, flipped, skewed.
+    ...pixelTransformActions(ctx),
     /** M18: an animation's app, or Graphics mode's. */
     kind: ctx.kind,
     dispose(): void {

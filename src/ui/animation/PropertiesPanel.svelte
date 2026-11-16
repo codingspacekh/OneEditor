@@ -41,6 +41,7 @@
   import TextPathSection from './TextPathSection.svelte';
   import SpiralSection from './SpiralSection.svelte';
   import PaintSection from '../graphics/PaintSection.svelte';
+  import PixelTransformSection from '../graphics/PixelTransformSection.svelte';
   import { graphicOf } from '../../core/graphics/document.ts';
   import { DECIMALS, fromPx, toPx, UNIT_NAMES } from '../../core/graphics/units.ts';
   import { textBox } from './measure.ts';
@@ -264,6 +265,8 @@
     <SpiralSection {app} />
     <!-- GB4, GB3 (M21): the painting tools' colours, brush, bucket and gradient. -->
     <PaintSection {app} />
+    <!-- G3 (M21): the current pixel layer (or the selected pixels) moved, scaled, turned. -->
+    <PixelTransformSection {app} />
     {#if !first}
       <p class="hint">
         Click an object on the stage, or draw one with a tool from the strip on the left.
