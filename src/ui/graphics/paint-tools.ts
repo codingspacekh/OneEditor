@@ -19,7 +19,7 @@ export function strokePoint(e: PointerEvent, pointer: PixelPointer): StrokePoint
 }
 
 /** Runs `show` once on the next frame however often it is asked for meanwhile. */
-export function oncePerFrame(show: () => void): { ask(): void; now(): void } {
+export function oncePerFrame(show: () => void): { ask(): void; now(): void; cancel(): void } {
   let asked = false;
   const later =
     typeof requestAnimationFrame === 'function'
@@ -38,6 +38,13 @@ export function oncePerFrame(show: () => void): { ask(): void; now(): void } {
     now() {
       asked = false;
       show();
+    },
+    /**
+     * M22: the frame asked for is not shown — at pointer up, so a late frame does not put the
+     * stroke's preview back on the stage after the stroke has been kept.
+     */
+    cancel() {
+      asked = false;
     },
   };
 }
@@ -70,6 +77,7 @@ function brush(airbrush: boolean): PixelToolHandler {
         (u) => {
           if (timer) clearInterval(timer);
           stroke.to(strokePoint(u, pointer));
+          frame.cancel();
           stroke.finish();
         },
       );

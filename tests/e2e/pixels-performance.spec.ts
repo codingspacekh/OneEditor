@@ -174,3 +174,53 @@ test('GN2 GN1 a brush stroke follows at 30 fps; 6 layers and 50 undo steps stay 
   expect(mb).toBeLessThan(1024);
   await app.close();
 });
+
+/** Clicks a native menu item inside a submenu: Filter ▸ Blur ▸ Gaussian Blur…. */
+async function subMenu(app: ElectronApplication, path: string[]) {
+  await app.evaluate(({ Menu, BrowserWindow }, labels) => {
+    let item = Menu.getApplicationMenu()!.items.find((i) => i.label === labels[0])!;
+    for (const label of labels.slice(1)) item = item.submenu!.items.find((i) => i.label === label)!;
+    item.click(undefined, BrowserWindow.getAllWindows()[0], undefined as never);
+  }, path);
+}
+
+test('GN2 a filter and an adjustment are applied to a 12-megapixel photo in 3 s', async () => {
+  test.setTimeout(300_000);
+  const { app, window: page } = await launchApp();
+  await openPhoto(app, page);
+  const timed = async (path: string[], dialogName: string, field: string, value: string) => {
+    await subMenu(app, path);
+    const box = page.getByRole('dialog', { name: dialogName });
+    await expect(box).toBeVisible();
+    const input = box.getByLabel(field);
+    await input.fill(value);
+    await input.press('Tab');
+    // The live preview has had its time (it is on a reduced copy).
+    await page.waitForTimeout(800);
+    const started = Date.now();
+    await box.getByRole('button', { name: 'OK' }).click();
+    await expect(box).toBeHidden({ timeout: 60_000 });
+    return (Date.now() - started) / 1000;
+  };
+  const blur = await timed(
+    ['Filter', 'Blur', 'Gaussian Blur…'],
+    'Gaussian blur',
+    'Radius value',
+    '20',
+  );
+  const hue = await timed(
+    ['Image', 'Adjustments', 'Hue / Saturation…'],
+    'Hue / saturation',
+    'Saturation value',
+    '40',
+  );
+  test
+    .info()
+    .annotations.push({
+      type: 'GN2 apply',
+      description: `blur ${blur} s, hue/saturation ${hue} s`,
+    });
+  expect(blur).toBeLessThanOrEqual(3 * SLOW);
+  expect(hue).toBeLessThanOrEqual(3 * SLOW);
+  await app.close();
+});

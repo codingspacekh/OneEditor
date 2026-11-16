@@ -149,3 +149,86 @@ test('GB1 GB2 GB3 GB4 D9: a picture opened, its background deleted with the wand
   expect(line[3]).toBe(255);
   await app.close();
 });
+
+/** Clicks a native menu item inside a submenu: Image ▸ Adjustments ▸ Brightness / Contrast…. */
+async function subMenu(app: import('@playwright/test').ElectronApplication, path: string[]) {
+  await app.evaluate(({ Menu, BrowserWindow }, labels) => {
+    let items = Menu.getApplicationMenu()!.items;
+    let item = items.find((i) => i.label === labels[0])!;
+    for (const label of labels.slice(1)) {
+      items = item.submenu!.items;
+      item = items.find((i) => i.label === label)!;
+    }
+    item.click(undefined, BrowserWindow.getAllWindows()[0], undefined as never);
+  }, path);
+}
+
+test('GB5 GB3 G14: a clone stroke, an adjustment and a filter from their dialogs, and a glow on the layer, in the exported pixels', async () => {
+  test.setTimeout(180_000);
+  const { app, window: page } = await launchApp();
+  await page
+    .getByRole('navigation', { name: 'Mode' })
+    .getByRole('button', { name: 'Graphics' })
+    .click();
+  await answerDialogs(app, { open: [picture] });
+  await menu(app, 'File', 'Open Picture as Image…');
+  await expect(page.getByText(/Opened Box\.png/)).toBeVisible();
+  // The white made see-through (the glow then shows round the boxes).
+  await tool(page, 'Magic wand');
+  await page.getByLabel('Contiguous').uncheck();
+  await clickAt(page, 5, 5);
+  await page.keyboard.press('Delete');
+  await menu(app, 'Select', 'Deselect');
+
+  // GB5: the clone stamp — Alt-click the blue box, then paint 140 px below it.
+  await tool(page, 'Clone stamp');
+  const source = await onScreen(page, 300, 90);
+  await page.keyboard.down('Alt');
+  await page.mouse.click(source.x, source.y);
+  await page.keyboard.up('Alt');
+  const from = await onScreen(page, 280, 230);
+  const to = await onScreen(page, 320, 230);
+  await page.mouse.move(from.x, from.y);
+  await page.mouse.down();
+  await page.mouse.move(to.x, to.y, { steps: 10 });
+  await page.mouse.up();
+
+  // GB3: Brightness / Contrast from the Image menu, its dialog, OK.
+  await subMenu(app, ['Image', 'Adjustments', 'Brightness / Contrast…']);
+  const adjust = page.getByRole('dialog', { name: 'Brightness / contrast' });
+  await expect(adjust).toBeVisible();
+  const brightness = adjust.getByLabel('Brightness value');
+  await brightness.fill('-60');
+  await brightness.press('Tab');
+  await adjust.getByRole('button', { name: 'OK' }).click();
+  await expect(adjust).toBeHidden({ timeout: 30_000 });
+
+  // GB5: a Gaussian blur from the Filter menu.
+  await subMenu(app, ['Filter', 'Blur', 'Gaussian Blur…']);
+  const blur = page.getByRole('dialog', { name: 'Gaussian blur' });
+  const radius = blur.getByLabel('Radius value');
+  await radius.fill('2');
+  await radius.press('Tab');
+  await blur.getByRole('button', { name: 'OK' }).click();
+  await expect(blur).toBeHidden({ timeout: 30_000 });
+
+  // G14: a glow on the pixel layer (Properties, nothing selected).
+  await page.getByRole('button', { name: '+ Glow' }).click();
+
+  const output = join(dir, 'Retouched.png');
+  await answerDialogs(app, { exportTo: output });
+  await exportPng(page);
+  // The clone: blue where it was painted.
+  const cloned = await pixel(output, 300, 230, W);
+  expect(cloned[2]).toBeGreaterThan(cloned[0]! + 40);
+  // Darker: the red box's red is well below what it was (253).
+  const red = await pixel(output, 150, 140, W);
+  expect(red[0]).toBeLessThan(220);
+  // Blurred: the box's edge is soft; and the glow shows outside it where all was see-through.
+  const edge = await pixel(output, 100, 140, W);
+  expect(edge[3]).toBeGreaterThan(0);
+  expect(edge[3]).toBeLessThan(255);
+  const glow = await pixel(output, 92, 140, W);
+  expect(glow[3]).toBeGreaterThan(0);
+  await app.close();
+});

@@ -32,6 +32,7 @@ const BRUSH: PixelToolHandler = {
       (u) => {
         stroke.to(strokePoint(u, pointer));
         retouchUi.painting = false;
+        frame.cancel();
         stroke.finish();
       },
     );
