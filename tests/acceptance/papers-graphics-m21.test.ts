@@ -388,3 +388,117 @@ describe.skipIf(!hasPapers)('Workbook Chapter 6 Task 4: the circular club logo',
     );
   });
 });
+
+describe.skipIf(!hasPapers)('9626/04 O/N/23 Task 1: Castle, Ocean and Sky as three layers', () => {
+  it('the view cut out of the castle, the ocean and the sky fitted behind it, each layer saved apart and the three combined', async () => {
+    const s = await graphics(['2023_11_November/Castle.jpg', '2023_11_November/Ocean.jpg']);
+    await s.open('2023_11_November/Castle.jpg');
+    expect(s.doc().stage).toMatchObject({ width: 3630, height: 1155 });
+    const castle = s.layer().id;
+    expect(s.g.renameLayer(castle, 'CastleLayer')).toBeNull();
+    // SkyLayer: a band of the castle's own sky, copied to a layer and stretched over the view.
+    s.g.selectRect({ x: 930, y: 0, width: 2135, height: 260 });
+    s.g.copySelectionToLayer();
+    const sky = s.layer().id;
+    expect(s.g.renameLayer(sky, 'SkyLayer')).toBeNull();
+    expect(
+      s.g.transformPixelLayer({
+        reference: 'top-left',
+        x: 930,
+        y: 0,
+        width: 2135,
+        height: 760,
+        keepProportions: false,
+      }),
+    ).toBeNull();
+    expect(s.pixels()).toMatchObject({ x: 930, y: 0 });
+    expect(s.pixels().bitmap).toMatchObject({ width: 2135, height: 760 });
+    // CastleLayer: the view between the towers selected with the polygonal lasso and deleted.
+    s.g.selectLayer(castle);
+    s.g.selectLasso([
+      { x: 930, y: 0 },
+      { x: 3065, y: 0 },
+      { x: 3065, y: 700 },
+      { x: 2600, y: 1000 },
+      { x: 1200, y: 1000 },
+      { x: 930, y: 700 },
+    ]);
+    expect(s.g.deleteSelectedPixels()).toBe(true);
+    s.g.deselectPixels();
+    expect(pixelAt(s.pixels().bitmap, 2000, 300)[3]).toBe(0);
+    expect(pixelAt(s.pixels().bitmap, 200, 300)[3]).toBe(255);
+    // OceanLayer: Ocean.jpg added, turned the right way up, scaled to the view's width.
+    await s.addLayer('2023_11_November/Ocean.jpg');
+    const ocean = s.layer().id;
+    expect(s.g.renameLayer(ocean, 'OceanLayer')).toBeNull();
+    s.g.flipPixels('vertical');
+    expect(
+      s.g.transformPixelLayer({
+        reference: 'top-left',
+        x: 930,
+        y: 480,
+        width: 2135,
+        keepProportions: true,
+      }),
+    ).toBeNull();
+    expect(s.pixels().bitmap.width).toBe(2135);
+    expect(s.pixels().bitmap.height).toBe(Math.round((2135 * 2322) / 4128));
+    // In order: the sky at the back, then the ocean, the castle in front.
+    s.g.moveLayer(sky, 0);
+    s.g.moveLayer(ocean, 1);
+    s.g.moveLayer(castle, 2);
+    expect(s.doc().layers.map((l) => l.name)).toEqual(['SkyLayer', 'OceanLayer', 'CastleLayer']);
+    // Each layer saved apart; then the three combined.
+    s.dialogs.chooseFolder.mockResolvedValueOnce('/out');
+    const files = await s.g.exportImage({ format: 'png', what: 'layers' });
+    expect(files).toHaveLength(3);
+    for (const name of ['SkyLayer', 'OceanLayer', 'CastleLayer'])
+      expect(files!.some((f) => f.includes(name))).toBe(true);
+    // CastleLayer alone: the view see-through.
+    const alone = await s.png(s.bytes.get(files!.find((f) => f.includes('CastleLayer'))!)!);
+    expect(alone.data[(300 * 3630 + 2000) * 4 + 3]).toBe(0);
+    const combined = await s.png(
+      await s.exportTo('/out/3LayerImage_ZZ999_9999.png', { format: 'png' }),
+    );
+    expect([combined.width, combined.height]).toEqual([3630, 1155]);
+    const alpha = (x: number, y: number) => combined.data[(y * 3630 + x) * 4 + 3];
+    // The hole shows the sky above and the ocean below; nothing is left see-through.
+    expect(alpha(2000, 150)).toBe(255);
+    expect(alpha(2000, 900)).toBe(255);
+    expect(clearShare(combined)).toBe(0);
+  });
+});
+
+describe.skipIf(!hasPapers)(
+  'Workbook Chapter 6 Task 3.4: edited images as layers on the canal',
+  () => {
+    it('two pictures added as layers, placed, turned and made partly see-through', async () => {
+      const s = await graphics([
+        '2023_11_November/Castle.jpg',
+        '2019_11_November/Pearl.jpg',
+        '2021_03_March/WorldMap.png',
+      ]);
+      await s.open('2023_11_November/Castle.jpg');
+      await s.addLayer('2019_11_November/Pearl.jpg');
+      const pearl = s.layer().id;
+      expect(
+        s.g.transformPixelLayer({ reference: 'top-left', x: 200, y: 150, rotate: -12 }),
+      ).toBeNull();
+      expect(s.g.setLayerLook(pearl, { opacity: 0.7 })).toBeNull();
+      await s.addLayer('2021_03_March/WorldMap.png');
+      const map = s.layer().id;
+      s.g.rotatePixels(20);
+      expect(s.g.setLayerLook(map, { opacity: 0.5 })).toBeNull();
+      const layers = s.doc().layers;
+      expect(layers.map((l) => l.opacity ?? 1)).toEqual([1, 0.7, 0.5]);
+      // Turned: each picture's box is larger than the picture, its corners see-through.
+      const turned = layers[2]!.pixels!.bitmap;
+      expect(turned.width).toBeGreaterThan(832);
+      expect(pixelAt(turned, 0, 0)[3]).toBe(0);
+      const placed = layers[1]!.pixels!;
+      expect(placed.bitmap.width).toBeGreaterThan(300);
+      const file = await s.png(await s.exportTo('/out/Chapter06_Task3_4.png', { format: 'png' }));
+      expect([file.width, file.height]).toEqual([3630, 1155]);
+    });
+  },
+);
