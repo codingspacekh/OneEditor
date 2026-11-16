@@ -53,6 +53,20 @@ async function clickAt(page: Page, x: number, y: number) {
   await page.mouse.click(p.x, p.y);
 }
 
+/** One image pixel as the stage's canvas shows it (what the student sees). */
+async function stagePixel(page: Page, x: number, y: number): Promise<number[]> {
+  return page.evaluate(
+    ([px, py, w, h]) => {
+      const canvas = document.querySelector<HTMLCanvasElement>('.paper canvas')!;
+      const ctx = canvas.getContext('2d', { willReadFrequently: true })!;
+      const cx = Math.floor(((px! + 0.5) * canvas.width) / w!);
+      const cy = Math.floor(((py! + 0.5) * canvas.height) / h!);
+      return [...ctx.getImageData(cx, cy, 1, 1).data];
+    },
+    [x, y, W, H],
+  );
+}
+
 async function tool(page: Page, name: string) {
   await page.getByRole('button', { name, exact: true }).click();
 }
@@ -133,7 +147,8 @@ test('GB1 GB2 GB3 GB4 D9: a picture opened, its background deleted with the wand
   await answerDialogs(app, { open: [saved] });
   await menu(app, 'File', 'Open Image…');
 
-  const output = join(dir, 'Box.png');
+  // Not Box.png: that is the picture the next test opens.
+  const output = join(dir, 'Box-exported.png');
   await answerDialogs(app, { exportTo: output });
   await exportPng(page);
   // The white is gone; red stays; the blue box is green; the pencil line is drawn.
@@ -192,6 +207,13 @@ test('GB5 GB3 G14: a clone stroke, an adjustment and a filter from their dialogs
   await page.mouse.down();
   await page.mouse.move(to.x, to.y, { steps: 10 });
   await page.mouse.up();
+  // The stroke is on the stage (blue copied there) before the next step, as a student sees it.
+  await expect
+    .poll(async () => {
+      const [r, , b] = await stagePixel(page, 300, 230);
+      return b! - r!;
+    })
+    .toBeGreaterThan(40);
 
   // GB3: Brightness / Contrast from the Image menu, its dialog, OK.
   await subMenu(app, ['Image', 'Adjustments', 'Brightness / Contrast…']);
