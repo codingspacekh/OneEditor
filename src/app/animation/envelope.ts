@@ -9,6 +9,7 @@ import { validateObject } from '../../core/animation/rules.ts';
 import type { AnimObject, Envelope, Id } from '../../core/animation/types.ts';
 import { applyEnvelope, withEnvelope } from '../../core/graphics/warp.ts';
 import type { AnimationContext } from './context.ts';
+import { withLetters } from './letters-wait.ts';
 
 const LABELS: Record<Envelope['kind'], string> = {
   preset: 'Envelope',
@@ -62,9 +63,12 @@ export function envelopeActions(ctx: AnimationContext) {
       if (refused) patch({ message: { kind: 'error', text: refused } });
     },
 
-    /** GV4 *Apply*: the selected bent objects become plain paths that look the same. */
+    /**
+     * GV4 *Apply*: the selected bent objects become plain paths that look the same (GT5: bent
+     * text its bent letters, once its font's outlines are read).
+     */
     applyEnvelope(ids: readonly Id[] = liveSelection()): string | null {
-      return change('Apply envelope', ids, applyEnvelope);
+      return withLetters(ctx, ids, () => change('Apply envelope', ids, applyEnvelope));
     },
   };
 }

@@ -18,6 +18,7 @@ import { soundActions } from './animation/sounds.ts';
 import type { AnimationDeps } from './animation/state.ts';
 import { svgActions } from './animation/svg-files.ts';
 import { templateActions } from './animation/templates.ts';
+import { textPathActions } from './animation/text-paths.ts';
 import { timelineActions } from './animation/timeline.ts';
 
 export {
@@ -51,6 +52,7 @@ export function createAnimationApp(deps: AnimationDeps) {
     ...graphicActions(ctx, files.startWith),
     ...templateActions(ctx),
     ...svgActions(ctx),
+    ...textPathActions(ctx),
     ...appearanceActions(ctx),
     /** M18: an animation's app, or Graphics mode's. */
     kind: ctx.kind,

@@ -3,9 +3,9 @@
   // selected shapes and groups of shapes: a preset (arch, arc, bulge, flag, wave, rise, squeeze)
   // with its bend typed in %, Perspective (its four corners dragged on the stage) or Custom (the
   // corners and the sides' handles dragged); Apply makes plain paths, Remove takes the bend off.
-  // The bend stays live until applied: the shape underneath can still be changed.
+  // The bend stays live until applied: the shape underneath can still be changed. GT5 (M20): text
+  // too, bent as its letters' outlines while its words, font and size can still be changed.
   import type { App } from '../../app/app.ts';
-  import { isShape } from '../../core/animation/geometry.ts';
   import { findObject } from '../../core/animation/layers.ts';
   import type { AnimObject, Envelope, EnvelopePreset } from '../../core/animation/types.ts';
   import {
@@ -21,6 +21,7 @@
   import Why from '../Why.svelte';
   import { editorOf } from './editor.ts';
   import NumField from './NumField.svelte';
+  import { whyNotBendable } from '../../core/graphics/warp.ts';
 
   let { app }: { app: App } = $props();
   const editor = editorOf(() => app);
@@ -33,9 +34,10 @@
       return f ? [f.object] : [];
     }),
   );
-  /** Shown for shapes and groups (text, pictures and buttons cannot be bent). */
-  const bendable = (o: AnimObject) => isShape(o) || o.kind === 'group';
+  /** Shown for shapes, text (GT5) and groups of them (pictures and buttons cannot be bent). */
+  const bendable = (o: AnimObject) => whyNotBendable(o) === null;
   const shown = $derived(chosen.length > 0 && chosen.every(bendable));
+  const words = $derived(chosen.some((o) => o.kind === 'text'));
   const envelope = $derived(chosen[0]?.envelope ?? null);
   type Choice = 'none' | EnvelopePreset | 'perspective' | 'custom';
   const choice: Choice = $derived(
@@ -121,7 +123,7 @@
       >
     </div>
     {#if error}<p class="error" role="alert">{error}</p>{/if}
-    <Why tool="graphicEnvelope" />
+    <Why tool={words ? 'textWarp' : 'graphicEnvelope'} />
   </div>
 {/if}
 

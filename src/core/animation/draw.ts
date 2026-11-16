@@ -3,6 +3,8 @@
 // student sees is what is exported (ARCHITECTURE §7.3, as the text drawing).
 import { curvedText, curveOf, type PlacedLetter } from './curve.ts';
 import { roughTextWidth } from './factory.ts';
+import { placeLetters } from './letters-placed.ts';
+import { hasLetterSpacing, layoutText, lineHeightOf } from './text-layout.ts';
 import { bentForDrawing } from '../graphics/warp.ts';
 import { flattenPath, isClosed, localOutline, outlineOf, pivotInBox, skewOf } from './geometry.ts';
 import { arcSweep } from '../graphics/bezier.ts';
@@ -366,7 +368,8 @@ function drawCurvedText(ctx: StageCanvas, t: TextObject, shown: number, options:
   const widthOf = (s: string) =>
     ctx.measureText ? ctx.measureText(s).width : roughTextWidth(s, t.size);
   const bent = curvedText(t, widthOf);
-  const half = (t.size * LINE_HEIGHT) / 2;
+  // GT1 (M20): each letter from the top of its line-high cell (the line spacing's height).
+  const half = lineHeightOf(t) / 2;
   const letter = (l: PlacedLetter) => {
     const spot = { x: l.x - bent.width / 2, y: l.y - bent.height / 2, angle: l.angle };
     ctx.save();
@@ -389,17 +392,64 @@ function drawCurvedText(ctx: StageCanvas, t: TextObject, shown: number, options:
   for (const l of bent.letters) if (l.char.trim() !== '') letter(l);
 }
 
+/**
+ * GT2, GT3 (M20): text on a path or in a shape, letter by letter where placeLetters puts them in
+ * the box (each from the top of its line-high cell, turned with the path), as curved text is;
+ * under them the path, when it has an outline (hidden otherwise: "do not show the path").
+ */
+function drawTextAlong(ctx: StageCanvas, t: TextObject, shown: number, options: DrawOptions) {
+  const line = t.path?.stroke;
+  if (t.path && line && line.width > 0) {
+    const outline = { ...t, kind: 'path', points: t.path.points, closed: t.path.closed };
+    tracePath(ctx, outline as unknown as PathObject);
+    faded(ctx, shown, line.opacity, () => {
+      applyStroke(ctx, line);
+      ctx.stroke();
+    });
+  }
+  ctx.font = fontOf(t);
+  ctx.textAlign = 'center';
+  ctx.textBaseline = 'top';
+  const widthOf = (s: string) =>
+    ctx.measureText ? ctx.measureText(s).width : roughTextWidth(s, t.size);
+  const half = lineHeightOf(t) / 2;
+  for (const l of placeLetters(t, widthOf)) {
+    const spot = { x: l.x - t.width / 2, y: l.y - t.height / 2, angle: l.angle };
+    ctx.save();
+    ctx.translate(spot.x, spot.y);
+    if (spot.angle !== 0) ctx.rotate((spot.angle * Math.PI) / 180);
+    const stroke = t.stroke;
+    if (stroke && stroke.width > 0)
+      faded(ctx, shown, stroke.opacity, () => {
+        applyStroke(ctx, stroke);
+        ctx.strokeText(l.char, 0, -half);
+      });
+    const fill = styleOf(ctx, t.fill, t.width, t.height, spot, options);
+    if (fill !== null)
+      faded(ctx, shown, t.fillOpacity, () => {
+        ctx.fillStyle = fill;
+        ctx.fillText(l.char, 0, -half);
+      });
+    ctx.restore();
+  }
+}
+
 function drawText(ctx: StageCanvas, t: TextObject, shown = 1, options: DrawOptions = {}): void {
+  if (t.path || t.inShape) return drawTextAlong(ctx, t, shown, options);
   if (curveOf(t) !== 0) return drawCurvedText(ctx, t, shown, options);
   const fill = styleOf(ctx, t.fill, t.width, t.height, undefined, options);
   ctx.font = fontOf(t);
-  ctx.textAlign = t.align === 'centre' ? 'center' : t.align;
+  const spaced = hasLetterSpacing(t);
+  ctx.textAlign = spaced ? 'left' : t.align === 'centre' ? 'center' : t.align;
   ctx.textBaseline = 'top';
+  if (spaced) return drawSpacedText(ctx, t, shown, fill);
   const x = t.align === 'left' ? 0 : t.align === 'centre' ? t.width / 2 : t.width;
   const ox = -t.width / 2;
   const oy = -t.height / 2;
+  // GT1 (M20): the lines its line spacing apart (1.2 times the size when not set).
+  const lineHeight = lineHeightOf(t);
   t.text.split('\n').forEach((line, i) => {
-    const y = i * t.size * LINE_HEIGHT;
+    const y = i * lineHeight;
     const stroke = t.stroke;
     if (stroke && stroke.width > 0)
       faded(ctx, shown, stroke.opacity, () => {
@@ -410,6 +460,40 @@ function drawText(ctx: StageCanvas, t: TextObject, shown = 1, options: DrawOptio
       faded(ctx, shown, t.fillOpacity, () => {
         ctx.fillStyle = fill;
         ctx.fillText(line, ox + x, oy + y);
+      });
+  });
+}
+
+/**
+ * GT1 (M20): straight text with letter spacing or kerning, letter by letter where the letter
+ * layout puts them (from each letter's left), each line aligned in the box. As a whole line is,
+ * each line's outlines are drawn before its fills, and the fill is made once for the whole box,
+ * so a gradient or a pattern still runs across all the words.
+ */
+function drawSpacedText(
+  ctx: StageCanvas,
+  t: TextObject,
+  shown: number,
+  fill: string | object | null,
+): void {
+  const widthOf = (s: string) =>
+    ctx.measureText ? ctx.measureText(s).width : roughTextWidth(s, t.size);
+  const layout = layoutText(t, widthOf);
+  const free = t.width - layout.width;
+  const ox = -t.width / 2 + (t.align === 'left' ? 0 : t.align === 'centre' ? free / 2 : free);
+  const oy = -t.height / 2;
+  layout.lineWidths.forEach((_, row) => {
+    const letters = layout.cells.filter((c) => c.line === row && c.char.trim() !== '');
+    const stroke = t.stroke;
+    if (stroke && stroke.width > 0)
+      faded(ctx, shown, stroke.opacity, () => {
+        applyStroke(ctx, stroke);
+        for (const c of letters) ctx.strokeText(c.char, ox + c.x, oy + c.y);
+      });
+    if (fill !== null)
+      faded(ctx, shown, t.fillOpacity, () => {
+        ctx.fillStyle = fill;
+        for (const c of letters) ctx.fillText(c.char, ox + c.x, oy + c.y);
       });
   });
 }
@@ -551,7 +635,8 @@ export function drawObject(
       if (fill !== null && isClosed(o))
         faded(ctx, shown, o.fillOpacity, () => {
           ctx.fillStyle = fill;
-          if (o.kind === 'path' && o.holes?.length) ctx.fill('evenodd');
+          // GT4 (M20): a letter made curves is filled nonzero, as its font is.
+          if (o.kind === 'path' && o.holes?.length && o.fillRule !== 'nonzero') ctx.fill('evenodd');
           else ctx.fill();
         });
       if (o.stroke && o.stroke.width > 0) {

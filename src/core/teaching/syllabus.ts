@@ -3,7 +3,7 @@
 // labels). The teacher notes are made from this (scripts/guides.ts).
 
 export interface SyllabusPoint {
-  section: '11.1' | '11.2' | '19.1' | '19.2' | '20.1';
+  section: '11.1' | '11.2' | '19.1' | '19.2' | '19.5' | '20.1';
   group: string;
   point: string;
   /** Where in OneEditor (mode ▸ place). */
@@ -350,6 +350,42 @@ export const SYLLABUS: readonly SyllabusPoint[] = [
     'application of envelopes and perspectives',
     'Graphics (and Animation) ▸ Properties ▸ Envelope: arch, arc, bulge, flag, wave, rise or squeeze with a bend %, Perspective (drag the four corners) or Custom (drag the sides’ corners and handles); Apply makes plain paths',
     ['19.2 envelopes and perspective'],
+  ),
+  // ---- 19.5 Text (M20) ----
+  p(
+    '19.5',
+    'Using software tools for the creation and editing of text in graphics',
+    'font face, size, kerning, letter spacing, line spacing',
+    'Graphics (and Animation) ▸ Properties ▸ Text: Font and Size (px, or pt in Graphics mode); Properties ▸ Spacing: Letter spacing, Line spacing, and Kerning between the letters at the cursor in the words box (or Alt+← / Alt+→ there)',
+    ['19.5 font, size, kerning and spacing'],
+  ),
+  p(
+    '19.5',
+    'Using software tools for the creation and editing of text in graphics',
+    'fitting text to path or shape: along a line or around a shape',
+    'Graphics (and Animation) ▸ select a text and a shape or path, then Properties ▸ Text on a path: Put on path; Properties ▸ On a path: Start, Side (outside, inside, centred), Flip, Show path, Take off path',
+    ['19.5 fitting text to a path or shape'],
+  ),
+  p(
+    '19.5',
+    'Using software tools for the creation and editing of text in graphics',
+    'setting text in a shape',
+    'Graphics (and Animation) ▸ select a text and a closed shape, then Properties ▸ Text on a path: Put in shape; Properties ▸ In a shape: Padding, Take out of shape',
+    ['19.5 setting text in a shape'],
+  ),
+  p(
+    '19.5',
+    'Using software tools for the creation and editing of text in graphics',
+    'converting text to curves: fonts into editable vector shapes',
+    'Graphics (and Animation) ▸ select a text, then Properties ▸ Curves and copies: Convert to curves (each letter a pen path, grouped); Ungroup, then Properties ▸ Nodes to pull a letter’s nodes',
+    ['19.5 converting text to curves'],
+  ),
+  p(
+    '19.5',
+    'Using software tools for the creation and editing of text in graphics',
+    'use and manipulation of text in graphics software',
+    'Graphics (and Animation) ▸ select a text, then Properties ▸ Envelope: arch, bulge, wave… (the words stay text until Apply); Properties ▸ Filters: drop shadow, glow, bevel',
+    ['19.5 warping text'],
   ),
   // ---- 20.1 Animation (phase 2) ----
   an(

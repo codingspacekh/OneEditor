@@ -322,30 +322,34 @@ describe('GV4 Apply: plain paths that look the same', () => {
 
   it('says what is wrong when there is nothing to apply, or it cannot be bent', () => {
     expect(() => applyEnvelope(rect())).toThrow(/not bent: choose an envelope first/);
-    expect(() => applyEnvelope(bent(createText('Hi', { x: 0, y: 0 })))).toThrow(/Text cannot/);
+    // GT5 (M20): text can be bent, once its font's outlines are loaded (no fonts are read here).
+    expect(() => applyEnvelope(bent(createText('Hi', { x: 0, y: 0 })))).toThrow(
+      /fonts that come with OneEditor, in the app/,
+    );
+    const button = bent(createButton('pause', { x: 0, y: 0 }));
+    expect(() => applyEnvelope(button)).toThrow(/^A button cannot/);
   });
 });
 
 describe('GV4 what can be bent', () => {
-  it('shapes and groups of shapes; not text, pictures or buttons, nor groups holding them', () => {
+  it('shapes, text (GT5) and groups of them; not pictures or buttons, nor groups holding them', () => {
     expect(whyNotBendable(rect())).toBeNull();
     expect(whyNotBendable(createGroup([rect(), createGroup([rect()])]))).toBeNull();
-    expect(whyNotBendable(createText('Hi', { x: 0, y: 0 }))).toMatch(
-      /Text cannot be bent .* Curve/,
-    );
+    expect(whyNotBendable(createText('Hi', { x: 0, y: 0 }))).toBeNull();
     expect(
       whyNotBendable(
         createPicture({ id: 'p1', path: '/a/b.png', width: 10, height: 10 }, { x: 0, y: 0 }),
       ),
-    ).toBe('A picture cannot be bent by an envelope: only shapes and groups of shapes can.');
+    ).toBe('A picture cannot be bent by an envelope: only shapes, text and groups of them can.');
     expect(whyNotBendable(createButton('pause', { x: 0, y: 0 }))).toMatch(/^A button cannot/);
     const deep = {
-      ...createGroup([rect(), createGroup([createText('Hi', { x: 0, y: 0 })])]),
+      ...createGroup([rect(), createGroup([createButton('pause', { x: 0, y: 0 })])]),
       name: 'Logo',
     };
     expect(whyNotBendable(deep)).toBe(
-      '“Logo” has text in it: only groups of shapes can be bent by an envelope.',
+      '“Logo” has a button in it: only groups of shapes and text can be bent by an envelope.',
     );
+    expect(whyNotBendable(createGroup([rect(), createText('Hi', { x: 0, y: 0 })]))).toBeNull();
   });
 
   it('withEnvelope bends, checks and takes the envelope off', () => {
@@ -354,7 +358,9 @@ describe('GV4 what can be bent', () => {
     expect(withEnvelope(o, null).envelope).toBeUndefined();
     const plain = rect();
     expect(withEnvelope(plain, null)).toBe(plain);
-    expect(() => withEnvelope(createText('Hi', { x: 0, y: 0 }), arch)).toThrow(/Text cannot/);
+    expect(() => withEnvelope(createButton('pause', { x: 0, y: 0 }), arch)).toThrow(
+      /button cannot/,
+    );
     expect(() => withEnvelope(rect(), { ...arch, bend: 120 })).toThrow(/between −100 % and 100 %/);
   });
 });

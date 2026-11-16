@@ -5,6 +5,13 @@ import { createCanvasStageRenderer } from '../adapters/canvas/stage-renderer.ts'
 import { createElectronMediaEngine } from '../adapters/electron/media-engine.ts';
 import { createElectronPageAssets } from '../adapters/electron/page-assets.ts';
 import {
+  createOpentypeGlyphs,
+  dataUrlBytes,
+  measureWith,
+  type Measurer,
+} from '../adapters/fonts/opentype-glyphs.ts';
+import { setGlyphSource } from '../core/graphics/glyphs.ts';
+import {
   createElectronDialogs,
   createElectronProjectFiles,
   getAppPaths,
@@ -62,13 +69,20 @@ if (!window.mve) {
         : String(e.reason),
     ),
   );
+  const pageAssets = createElectronPageAssets(api, FONT_URLS);
+  // GT4, GT5 (M20, D10): the letters' outlines from the bundled font files, placed where the
+  // stage draws them (words measured on a canvas, as the stage measures them).
+  setGlyphSource(
+    createOpentypeGlyphs(async (file) => dataUrlBytes(await pageAssets.fontDataUrl(file))),
+    measureWith(document.createElement('canvas').getContext('2d') as Measurer),
+  );
   const app = createApp({
     engine: createElectronMediaEngine(api),
     dialogs: createElectronDialogs(api),
     files: createElectronProjectFiles(api),
     text: createCanvasTextRenderer(),
     stageRenderer: createCanvasStageRenderer(),
-    pageAssets: createElectronPageAssets(api, FONT_URLS),
+    pageAssets,
     updates: createElectronUpdates(api),
     website: openWebsite(api),
     paths: await getAppPaths(api),

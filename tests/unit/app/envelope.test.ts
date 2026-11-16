@@ -58,7 +58,7 @@ describe('GV4 envelopes on the selected shapes', () => {
     expect(s.objects()[0]!.envelope).toBeUndefined();
   });
 
-  it('says why: nothing selected, a bend out of range, text, nothing to apply', () => {
+  it('says why: nothing selected, a bend out of range, nothing to apply; text can be bent', () => {
     const s = setup();
     expect(s.g.setEnvelope(flare)).toBe('Select a shape or a group of shapes first.');
     s.g.addShape('ellipse', { x: 0, y: 0, width: 50, height: 50 });
@@ -66,9 +66,10 @@ describe('GV4 envelopes on the selected shapes', () => {
       /between −100 % and 100 %/,
     );
     expect(s.g.applyEnvelope()).toMatch(/not bent: choose an envelope first/);
+    // GT5 (M20): text can be bent (text-curves-gt4.test.ts); a picture cannot.
     s.g.addText({ x: 0, y: 100 }, 'Roller coaster');
     s.g.select([s.objects().at(-1)!.id]);
-    expect(s.g.setEnvelope(flare)).toMatch(/^Text cannot be bent/);
+    expect(s.g.setEnvelope(flare)).toBeNull();
   });
 
   it('G3 a corner dragged on the stage is one undo step; a drag too far is said in the message line', () => {

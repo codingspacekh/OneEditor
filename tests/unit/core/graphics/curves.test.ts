@@ -118,22 +118,24 @@ describe('GV2: Convert to curves', () => {
     expect(toCurves(path)).toBe(path);
   });
 
-  it('converts a group’s shapes inside it and leaves its text as it is', () => {
-    const group = createGroup([createEllipse(box), createText('Hi', { x: 0, y: 0 })]);
+  it('converts a group’s shapes inside it and leaves its button as it is', () => {
+    const group = createGroup([createEllipse(box), createButton('pause', box)]);
     const converted = toCurves(group);
     expect(converted.kind).toBe('group');
     const kinds = converted.kind === 'group' ? converted.children.map((c) => c.kind) : [];
-    expect(kinds).toEqual(['path', 'text']);
+    expect(kinds).toEqual(['path', 'button']);
   });
 
-  it('says why text, pictures, buttons and a group of them cannot be converted', () => {
+  it('says why pictures, buttons and a group of them cannot be converted; text can (GT4)', () => {
     const text = createText('Logo', { x: 0, y: 0 });
-    expect(whyNotCurves(text)).toMatch(/Text to curves comes with the Text tools/);
+    expect(whyNotCurves(text)).toBeNull();
+    // Until its font's outlines are loaded (text-curves-gt4.test.ts).
     expect(() => toCurves(text)).toThrow(EditError);
     const picture = createPicture({ id: 'p', path: 'a.png', width: 10, height: 10 }, box);
     expect(whyNotCurves(picture)).toMatch(/Trace bitmap/);
-    expect(whyNotCurves(createButton('pause', box))).toMatch(/button stays a button/);
-    expect(whyNotCurves(createGroup([text]))).toMatch(/Nothing in this group/);
+    const button = createButton('pause', box);
+    expect(whyNotCurves(button)).toMatch(/button stays a button/);
+    expect(whyNotCurves(createGroup([button]))).toMatch(/Nothing in this group/);
     expect(whyNotCurves(createRect(box))).toBeNull();
   });
 });
@@ -141,18 +143,18 @@ describe('GV2: Convert to curves', () => {
 describe('GV2: Convert to curves on the stage', () => {
   it('converts each selected shape where it was, and leaves the ones it cannot', () => {
     const rect = createRect(box);
-    const text = createText('Logo', { x: 0, y: 0 });
-    const doc = stageWith(text, rect);
-    const next = convertToCurves(doc, [text.id, rect.id]);
-    expect(next.layers[0]!.objects.map((o) => o.kind)).toEqual(['text', 'path']);
+    const button = createButton('pause', box);
+    const doc = stageWith(button, rect);
+    const next = convertToCurves(doc, [button.id, rect.id]);
+    expect(next.layers[0]!.objects.map((o) => o.kind)).toEqual(['button', 'path']);
     expect(findObject(next, rect.id)!.index).toBe(1);
     expect(outlineOf(findObject(next, rect.id)!.object)[0]).toHaveLength(4);
   });
 
   it('says why when none can be converted, or none is selected, or it has gone', () => {
-    const text = createText('Logo', { x: 0, y: 0 });
-    const doc = stageWith(text);
-    expect(() => convertToCurves(doc, [text.id])).toThrow(/Text tools/);
+    const button = createButton('pause', box);
+    const doc = stageWith(button);
+    expect(() => convertToCurves(doc, [button.id])).toThrow(/button stays a button/);
     expect(() => convertToCurves(doc, [])).toThrow(/Select the shapes/);
     expect(() => convertToCurves(doc, ['gone'])).toThrow(/no longer exists/);
   });

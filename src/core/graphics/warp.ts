@@ -6,6 +6,9 @@
 // result is smooth with few points. A group is bent as one: every part in the group's box (and
 // a part's own envelope first). The live envelope is drawn as its applied shape (drawn.ts and
 // svg-export.ts get it from `bentForDrawing`); *Apply* keeps that shape as plain paths.
+// GT5 (M20): text is bent as its letters' outlines (text-outlines.ts), so it stays text — its
+// words, font and size can still be changed — until *Apply*; while its font's outlines are still
+// loading it is drawn unbent.
 import { localOutline, toStage, type Point } from '../animation/geometry.ts';
 import type {
   AnimObject,
@@ -19,6 +22,8 @@ import type {
 import { MAX_PIVOT } from '../animation/rules.ts';
 import { EditError } from '../model/errors.ts';
 import { boxMap, isFlat, validateEnvelope } from './envelope.ts';
+import { glyphsReady } from './glyphs.ts';
+import { lettersGroup } from './text-outlines.ts';
 
 /** A cubic Bézier segment (a straight one has its control points at the thirds). */
 interface Seg {
@@ -215,16 +220,18 @@ const bends = (o: AnimObject): o is AnimObject & { envelope: Envelope } =>
 
 /** The object in its own box (local px), with its own envelope (and its parts') applied. */
 function treeOf(o: AnimObject): Tree {
+  // GT5: a text as the group of its letters' outlines, in the same box.
+  const parts = o.kind === 'text' ? lettersGroup(o) : o;
   const plain: Tree =
-    o.kind === 'group'
+    parts.kind === 'group'
       ? {
           kind: 'group',
-          source: o,
-          children: o.children.map((c) =>
+          source: parts,
+          children: parts.children.map((c) =>
             mapTree(treeOf(c), (r) => moveRing(r, (p) => toStage(c, p))),
           ),
         }
-      : { kind: 'shape', source: o, rings: plainRings(o) };
+      : { kind: 'shape', source: parts, rings: plainRings(parts) };
   if (!bends(o)) return plain;
   const map = boxMap(o.envelope, o.width, o.height);
   return mapTree(plain, (r) => warpRing(r, map));
@@ -314,6 +321,7 @@ function looksOf(o: AnimObject) {
     fill: o.fill,
     ...(o.stroke ? { stroke: o.stroke } : {}),
     ...(o.fillOpacity !== undefined ? { fillOpacity: o.fillOpacity } : {}),
+    ...(o.kind === 'path' && o.fillRule ? { fillRule: o.fillRule } : {}),
     ...(o.filters ? { filters: o.filters } : {}),
     ...(o.drawing !== undefined ? { drawing: o.drawing } : {}),
   };
@@ -347,18 +355,15 @@ function build(t: Tree): AnimObject {
   return path.closed ? path : { ...path, fill: { kind: 'none' } };
 }
 
-/** GV4: what can be bent: shapes, and groups of shapes; or why this cannot. */
+/** GV4, GT5: what can be bent: shapes, text, and groups of them; or why this cannot. */
 export function whyNotBendable(o: AnimObject): string | null {
   const what: Partial<Record<AnimObject['kind'], string>> = {
-    text: 'text',
     picture: 'a picture',
     button: 'a button',
   };
   const own = what[o.kind];
   if (own)
-    return o.kind === 'text'
-      ? 'Text cannot be bent by an envelope yet: bend its words along an arc with Curve, or bend shapes and groups of shapes.'
-      : `${own[0]!.toUpperCase()}${own.slice(1)} cannot be bent by an envelope: only shapes and groups of shapes can.`;
+    return `${own[0]!.toUpperCase()}${own.slice(1)} cannot be bent by an envelope: only shapes, text and groups of them can.`;
   if (o.kind !== 'group') return null;
   const inside = (g: GroupObject): string | null => {
     for (const c of g.children) {
@@ -369,7 +374,7 @@ export function whyNotBendable(o: AnimObject): string | null {
   };
   const found = inside(o);
   return found
-    ? `“${o.name}” has ${found} in it: only groups of shapes can be bent by an envelope.`
+    ? `“${o.name}” has ${found} in it: only groups of shapes and text can be bent by an envelope.`
     : null;
 }
 
@@ -387,8 +392,12 @@ export function withEnvelope<T extends AnimObject>(o: T, envelope: Envelope | nu
   return { ...o, envelope };
 }
 
-/** Whether the stage draws it bent: an envelope that changes it, on something that can be bent. */
-const drawnBent = (o: AnimObject): boolean => bends(o) && whyNotBendable(o) === null;
+/**
+ * Whether the stage draws it bent: an envelope that changes it, on something that can be bent
+ * (GT5: with the outlines of every text in it loaded; until then it is drawn unbent).
+ */
+const drawnBent = (o: AnimObject): boolean =>
+  bends(o) && whyNotBendable(o) === null && glyphsReady(o);
 
 /**
  * GV4: the bent outlines (every outline, hole and open line; for a group every part's) as path

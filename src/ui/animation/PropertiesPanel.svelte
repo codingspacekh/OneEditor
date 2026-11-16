@@ -38,11 +38,19 @@
   import NodeSection from './NodeSection.svelte';
   import ArcSection from './ArcSection.svelte';
   import ShapeToolsSection from './ShapeToolsSection.svelte';
+  import TextPathSection from './TextPathSection.svelte';
   import SpiralSection from './SpiralSection.svelte';
   import { graphicOf } from '../../core/graphics/document.ts';
   import { DECIMALS, fromPx, toPx, UNIT_NAMES } from '../../core/graphics/units.ts';
   import { textBox } from './measure.ts';
   import NumField from './NumField.svelte';
+  import TextSpacing from './TextSpacing.svelte';
+  import {
+    KERN_BIG_STEP,
+    KERN_STEP,
+    kernedBy,
+    kerningAfterEdit,
+  } from '../../core/animation/kerning.ts';
 
   let { app }: { app: App } = $props();
   const editor = editorOf(() => app);
@@ -177,20 +185,62 @@
   /** AN4: words, font, size and style change the box with them (one undo step). */
   const textPatch = (change: Partial<TextObject>): string | null => {
     if (!first || first.kind !== 'text') return null;
+    // GT1 (M20): new words keep the kerning with the letters it was between.
+    if (change.text !== undefined && !('kerning' in change) && first.kerning)
+      change = { ...change, kerning: kerningAfterEdit(first.text, change.text, first.kerning) };
     const next = { ...first, ...change } as TextObject;
     return set({ ...change, ...textBox(next) } as Partial<AnimObject>);
   };
+  /** GT1 (M20): where the cursor is in the words box, for the text it is in (kerning). */
+  let caret = $state<{ id: string; at: number } | null>(null);
+  const caretAt = $derived(first && caret?.id === first.id ? caret.at : null);
+  let kernError: string | null = $state(null);
+  function trackCaret(e: Event): void {
+    const area = e.currentTarget as HTMLTextAreaElement;
+    if (!first) return;
+    caret =
+      area.selectionStart === area.selectionEnd ? { id: first.id, at: area.selectionStart } : null;
+  }
+  /**
+   * GT1 (M20): Alt+← / Alt+→ in the words box moves the two letters at the cursor closer or apart
+   * (with Shift, five times as far), one undo step a press; words typed but not yet applied go in
+   * with it.
+   */
+  function kernKey(e: KeyboardEvent): void {
+    if (!e.altKey || e.ctrlKey || e.metaKey) return;
+    if (e.key !== 'ArrowLeft' && e.key !== 'ArrowRight') return;
+    // One text at a time: each has its own letters.
+    if (!first || first.kind !== 'text' || many) return;
+    e.preventDefault();
+    const area = e.currentTarget as HTMLTextAreaElement;
+    const at = area.selectionStart;
+    const by = (e.shiftKey ? KERN_BIG_STEP : KERN_STEP) * (e.key === 'ArrowLeft' ? -1 : 1);
+    const text = area.value;
+    const kerning =
+      text === first.text ? first.kerning : kerningAfterEdit(first.text, text, first.kerning);
+    try {
+      const change = { kerning: kernedBy({ text, kerning }, at, by) };
+      kernError = textPatch(text === first.text ? change : { ...change, text });
+    } catch (err) {
+      kernError = err instanceof Error ? err.message : String(err);
+    }
+    caret = { id: first.id, at };
+    void tick().then(() => area.setSelectionRange(at, at));
+  }
   /**
    * AN26: a new curve bends the words; their box follows the bent words and stays centred where
    * it was (one undo step). 0 makes them straight again (and nothing is saved).
    */
   const curvePatch = (curve: number): string | null => {
     if (!first || first.kind !== 'text') return null;
-    const next = { ...first, curve: curve === 0 ? undefined : curve } as TextObject;
+    // GT2, GT3 (M20): curved words are taken off their path or out of their shape.
+    const off = curve === 0 ? {} : { path: undefined, inShape: undefined };
+    const next = { ...first, curve: curve === 0 ? undefined : curve, ...off } as TextObject;
     const box = textBox(next);
     const hundredths = (n: number) => Math.round(n * 100) / 100;
     return set({
       curve: next.curve,
+      ...off,
       ...box,
       x: hundredths(first.x + (first.width - box.width) / 2),
       y: hundredths(first.y + (first.height - box.height) / 2),
@@ -545,6 +595,18 @@
                 </select>
               </div>
             </div>
+            {#if editor.still}
+              <!-- G12, GT1 (M20): the papers give outlines in points ("a 1pt black outline",
+                   "a 3pt red outline"): dpi / 72 px each at the image's resolution. -->
+              <NumField
+                label="Outline width in points"
+                value={fromPx(first.stroke.width, 'pt', image.dpi)}
+                unit="pt"
+                decimals={DECIMALS.pt}
+                commit={(v) =>
+                  strokePatch({ width: Math.round(toPx(v, 'pt', image.dpi) * 100) / 100 })}
+              />
+            {/if}
             <!-- G12 (M19): the outline's own opacity, under the object's. -->
             <NumField
               label="Outline opacity"
@@ -659,7 +721,13 @@
             value={first.text}
             rows="3"
             onchange={(e) => textPatch({ text: (e.currentTarget as HTMLTextAreaElement).value })}
-          ></textarea>
+            onkeydown={kernKey}
+            onkeyup={trackCaret}
+            onclick={trackCaret}
+            onselect={trackCaret}
+            onfocus={trackCaret}
+            oninput={trackCaret}></textarea>
+          {#if kernError}<p class="error" role="alert">{kernError}</p>{/if}
           <div class="field">
             <label for="prop-font">Font</label>
             <FontPicker value={first.font} onchange={(font) => textPatch({ font })} />
@@ -687,6 +755,17 @@
               </select>
             </div>
           </div>
+          {#if editor.still}
+            <!-- GT1 (M20): the papers give sizes in points ("12 pt"): 1 pt is a 72nd of an inch,
+                 so dpi / 72 px at the image's resolution. -->
+            <NumField
+              label="Size in points"
+              value={fromPx(first.size, 'pt', image.dpi)}
+              unit="pt"
+              decimals={DECIMALS.pt}
+              commit={(v) => textPatch({ size: Math.round(toPx(v, 'pt', image.dpi) * 100) / 100 })}
+            />
+          {/if}
           <!-- AN26: the words bent along an arch, for a logo (M/J/17 HUNGRY, O/N/17 Rock ICT);
                one text at a time, as each box follows its own words. -->
           {#if !many}
@@ -730,6 +809,8 @@
           </div>
           <Why tool="animText" />
         </div>
+        <!-- GT1 (M20): letter spacing, line spacing and kerning at the cursor. -->
+        <TextSpacing text={first} caret={many ? null : caretAt} patch={textPatch} />
       {/if}
 
       {#if !many && !editor.still}
@@ -859,6 +940,7 @@
       <FiltersSection filters={first.filters ?? []} commit={(filters) => set({ filters })} />
       {#if !editor.still}<EffectsSection {app} />{/if}
       <AlignSection {app} count={found.length} />
+      <TextPathSection {app} objects={found.map((f) => f.object)} />
       <ShapeToolsSection {app} objects={found.map((f) => f.object)} />
       <EnvelopeSection {app} />
       <div class="sec arrange">

@@ -68,17 +68,18 @@ describe('GV4 the Envelope section', () => {
     expect(s.objects()[0]!.envelope).toBeUndefined();
   });
 
-  it('is not shown for text; a group with text in it says why it cannot be bent', async () => {
+  it('GT5 (M20): is shown for text, and bends a group of a shape and text as one', async () => {
     const s = await mode();
     s.g.addText({ x: 10, y: 10 }, 'Roller');
     await tick();
-    expect(screen.queryByLabelText('Bend into')).toBeNull();
+    expect(screen.getByLabelText('Bend into')).toBeTruthy();
     s.g.addShape('rect', { x: 100, y: 100, width: 50, height: 50 });
     s.g.select(s.objects().map((o) => o.id));
     s.g.group();
     await tick();
     await bendInto('arch');
-    expect(screen.getByRole('alert').textContent).toMatch(/has text in it/);
+    expect(s.objects()[0]).toMatchObject({ kind: 'group', envelope: { preset: 'arch' } });
+    expect(screen.queryByRole('alert')).toBeNull();
   });
 });
 

@@ -210,3 +210,42 @@ test('M19: a drop shadow and a pattern drawn by the real canvas; a PDF of the im
   expect(text).toMatch(/\/MediaBox\s*\[\s*0\s+0\s+150(\.\d+)?\s+150(\.\d+)?\s*\]/);
   await app.close();
 });
+
+test('M20: letter-spaced text drawn by the real canvas, then turned into its letters’ outlines from the bundled font', async () => {
+  test.setTimeout(120_000);
+  const { app, window: page } = await launchApp();
+  await page
+    .getByRole('navigation', { name: 'Mode' })
+    .getByRole('button', { name: 'Graphics' })
+    .click();
+  await newImage(page, 'Logo 200 × 200 px');
+  await page.getByRole('button', { name: 'Text', exact: true }).click();
+  const stage = page.getByRole('application', { name: 'Stage' });
+  const box = (await stage.boundingBox())!;
+  await page.mouse.click(box.x + box.width * 0.2, box.y + box.height * 0.4);
+  await type(page, 'Words', 'OPEN');
+  await type(page, 'Size', '48');
+  await type(page, 'X', '10');
+  await type(page, 'Y', '70');
+
+  // GT1: spaced letters are written one by one in the SVG.
+  await type(page, 'Letter spacing', '200');
+  const spaced = join(dir, 'Spaced.svg');
+  await answerDialogs(app, { exportTo: spaced });
+  await exportAs(page, /SVG/);
+  const svg = await readFile(spaced, 'utf8');
+  expect(svg.match(/<text/g)?.length).toBe(4);
+
+  // GT4: Convert to curves reads the font's outlines and makes each letter a path.
+  const props = page.getByRole('complementary', { name: 'Properties' });
+  await props.getByRole('button', { name: 'Convert to curves' }).click();
+  const curves = join(dir, 'Curves.svg');
+  await expect(async () => {
+    await answerDialogs(app, { exportTo: curves });
+    await exportAs(page, /SVG/);
+    const out = await readFile(curves, 'utf8');
+    expect(out).not.toMatch(/<text/);
+    expect(out.match(/<path/g)?.length ?? 0).toBeGreaterThanOrEqual(4);
+  }).toPass({ timeout: 20_000 });
+  await app.close();
+});

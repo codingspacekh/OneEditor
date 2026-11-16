@@ -244,11 +244,12 @@ export function outlineOf(o: AnimObject): Point[][] {
 }
 
 /**
- * GV4 (M19): a local outline bent by the object's envelope, as it is drawn (text, pictures and
- * buttons are never bent), so a bent object is picked, measured and snapped where it is seen.
+ * GV4 (M19): a local outline bent by the object's envelope, as it is drawn (pictures and buttons
+ * are never bent; GT5, M20: bent text by its box), so a bent object is picked, measured and
+ * snapped where it is seen.
  */
 function bentLocal(o: AnimObject, pts: Point[], closed: boolean): Point[] {
-  const bendable = o.kind !== 'text' && o.kind !== 'picture' && o.kind !== 'button';
+  const bendable = o.kind !== 'picture' && o.kind !== 'button';
   return o.envelope && bendable ? bendPolyline(o.envelope, o.width, o.height, pts, closed) : pts;
 }
 
@@ -430,6 +431,24 @@ export function setSize<T extends AnimObject>(o: T, width: number, height: numbe
       points: scaledPoints(o.points, o, { width, height }),
       ...(o.holes ? { holes: o.holes.map((h) => scaledPoints(h, o, { width, height })) } : {}),
     };
+  // GT2, GT3 (M20): a text's path or shape is in its box, so it scales with it too.
+  if (o.kind === 'text' && (o.path || o.inShape)) {
+    const scaled = (points: PathPoint[]) => scaledPoints(points, o, { width, height });
+    const { path, inShape } = o;
+    return {
+      ...sized,
+      ...(path ? { path: { ...path, points: scaled(path.points) } } : {}),
+      ...(inShape
+        ? {
+            inShape: {
+              ...inShape,
+              points: scaled(inShape.points),
+              ...(inShape.holes ? { holes: inShape.holes.map(scaled) } : {}),
+            },
+          }
+        : {}),
+    };
+  }
   if (o.kind === 'group') {
     // A group made 0 wide or high keeps its parts as they are and shows nothing, so it can grow
     // back from them (WB p.97: "Designs" grows from nothing); growing, it scales from its parts.

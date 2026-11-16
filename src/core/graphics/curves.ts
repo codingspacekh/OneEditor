@@ -2,20 +2,20 @@
 // points can be moved (a star's arm pulled out, a rounded corner made square): the same box,
 // fill, outline, opacity, turn, flips, skew, the point it turns about, effects and envelope.
 // Ellipses (and arcs) and rounded corners are exact Bézier curves (bezier.ts); a group's shapes
-// are converted inside it. Text waits for the Text tools (GT4, M20); a picture or a button has no
-// outline to convert.
+// are converted inside it. GT4 (M20): text becomes a group of letters, each a pen path from the
+// font's own outline (text-outlines.ts; the fonts' outlines loaded first, glyphs.ts). A picture or
+// a button has no outline to convert.
 import { EditError } from '../model/errors.ts';
 import { localOutline } from '../animation/geometry.ts';
 import { findObject, replaceObjects } from '../animation/layers.ts';
 import type { AnimationDoc, AnimObject, Id, PathObject, PathPoint } from '../animation/types.ts';
 import { ellipseAnchors, roundedRectAnchors } from './bezier.ts';
+import { lettersGroup } from './text-outlines.ts';
 import { applyEnvelope } from './warp.ts';
 
 /** Why an object cannot be converted, or null when it can. */
 export function whyNotCurves(o: AnimObject): string | null {
   switch (o.kind) {
-    case 'text':
-      return 'Text to curves comes with the Text tools. For now, text stays text.';
     case 'picture':
       return 'A picture has no outline to convert. Trace it (Trace bitmap) to make it shapes.';
     case 'button':
@@ -55,6 +55,7 @@ export function toCurves(o: AnimObject): AnimObject {
   // GV4: a bent shape is converted as it is drawn, its envelope applied.
   if (o.envelope) return toCurves(applyEnvelope(o));
   if (o.kind === 'path') return o;
+  if (o.kind === 'text') return lettersGroup(o);
   if (o.kind === 'group')
     return {
       ...o,

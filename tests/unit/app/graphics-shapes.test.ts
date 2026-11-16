@@ -143,10 +143,10 @@ describe('GV2: Convert to curves', () => {
     expect(s.objects().map((o) => o.kind)).toEqual(['star', 'ellipse']);
   });
 
-  it('says text waits for the Text tools', () => {
+  it('says text needs its font’s outlines, read in the app (GT4: text-curves-gt4.test.ts)', () => {
     const s = setup();
     s.g.addText({ x: 0, y: 0 }, 'Logo');
-    expect(s.g.convertToCurves()).toMatch(/Text to curves comes with the Text tools/);
+    expect(s.g.convertToCurves()).toMatch(/fonts that come with OneEditor, in the app/);
     s.g.select([]);
     expect(s.g.convertToCurves()).toMatch(/Select the shapes/);
   });

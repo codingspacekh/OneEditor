@@ -2,6 +2,7 @@
 // same drawing as the preview — and saved as a PNG. Pictures are fetched through media://.
 import { drawStage, fontsUsed, type StageCanvas } from '../../core/animation/draw.ts';
 import { fontKey } from '../../core/animation/svg-export.ts';
+import { loadGlyphsFor } from '../../core/graphics/glyphs.ts';
 import { withLayers } from './layers.ts';
 import type { AnimationDoc } from '../../core/animation/types.ts';
 import type { Pixels } from '../../core/animation/trace.ts';
@@ -114,6 +115,8 @@ export function createCanvasStageRenderer({
       if (!ctx) throw new Error('No canvas is available to draw the stage.');
       const images = await imagesOf(doc);
       await loadFonts(fontsUsed(doc.layers.flatMap((l) => l.objects)));
+      // GT5 (M20): bent text is drawn as its letters' outlines.
+      await loadGlyphsFor(doc.layers.flatMap((l) => l.objects));
       const stage = withLayers(ctx);
       if (size) stage.scale(size.width / doc.stage.width, size.height / doc.stage.height);
       drawStage(stage, doc, { image: (id) => images.get(id) ?? null, frame });
@@ -127,6 +130,8 @@ export function createCanvasStageRenderer({
       if (!ctx) throw new Error('No canvas is available to draw the stage.');
       const images = await imagesOf(doc);
       await loadFonts(fontsUsed(doc.layers.flatMap((l) => l.objects)));
+      // GT5 (M20): bent text is drawn as its letters' outlines.
+      await loadGlyphsFor(doc.layers.flatMap((l) => l.objects));
       // G11: a JPEG cannot be see-through: what is transparent is drawn on the background.
       ctx.fillStyle = background;
       ctx.fillRect(0, 0, size?.width ?? doc.stage.width, size?.height ?? doc.stage.height);

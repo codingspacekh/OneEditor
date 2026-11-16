@@ -22,6 +22,7 @@ import {
 } from '../../core/graphics/shapes.ts';
 import { EditError } from '../../core/model/errors.ts';
 import type { AnimationContext } from './context.ts';
+import { withLetters } from './letters-wait.ts';
 
 const command = (label: string, apply: (doc: AnimationDoc) => AnimationDoc): AnimCommand => ({
   label,
@@ -89,10 +90,15 @@ export function shapeActions(ctx: AnimationContext) {
       return null;
     },
 
-    /** GV2: the selected shapes become pen paths that look the same. */
+    /**
+     * GV2: the selected shapes become pen paths that look the same; GT4 (M20): text its letters'
+     * outlines, grouped (done once the fonts' outlines are read, the first time).
+     */
     convertToCurves(): string | null {
       const ids = liveSelection();
-      return edit(command('Convert to curves', (doc) => convertToCurves(doc, ids)));
+      return withLetters(ctx, ids, () =>
+        edit(command('Convert to curves', (doc) => convertToCurves(doc, ids))),
+      );
     },
 
     /** GV2: Step and repeat: copies of the selection, each moved and / or turned; selected. */

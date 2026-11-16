@@ -1,6 +1,7 @@
 <script lang="ts">
   // GV2 (M19): Curves and copies in the Properties panel, in Graphics and Animation modes:
-  // Convert to curves (shapes become pen paths that look the same), Step and repeat… (n copies,
+  // Convert to curves (shapes become pen paths that look the same; GT4, M20: text its letters'
+  // outlines, grouped), Step and repeat… (n copies,
   // each moved and / or turned), Paste in place and Mirror copy (a flipped copy beside the
   // selection). The dialog is opened from here.
   import type { App } from '../../app/app.ts';
@@ -17,6 +18,7 @@
   const anim = $derived(editor.anim);
 
   const curvable = $derived(objects.some((o) => whyNotCurves(o) === null));
+  const words = $derived(objects.some((o) => o.kind === 'text'));
   let error: string | null = $state(null);
 </script>
 
@@ -26,10 +28,15 @@
     <span class="cap">Curves</span>
     <button
       class="sm"
-      title={withWhy(
-        'Turn the selected shapes into paths of nodes and curves that look the same',
-        'graphicCurves',
-      )}
+      title={words
+        ? withWhy(
+            'Turn the selected text into its letters’ shapes: a path for each letter, grouped',
+            'textCurves',
+          )
+        : withWhy(
+            'Turn the selected shapes into paths of nodes and curves that look the same',
+            'graphicCurves',
+          )}
       disabled={!curvable}
       onclick={() => (error = anim.convertToCurves())}>Convert to curves</button
     >

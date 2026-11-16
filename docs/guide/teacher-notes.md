@@ -140,6 +140,18 @@ _Made by `npm run guides` from `src/core/teaching/syllabus.ts` and the app's too
 | add, move, delete nodes; Bézier handles; symmetrical, asymmetrical, cusp, smooth nodes; align and distribute nodes | Graphics (and Animation) ▸ select a pen path, then Properties ▸ Nodes: click or drag a box round nodes, Cusp / Smooth / Symmetrical, To line / To curve, Align and distribute, Simplify…, Break, Join, Close, Reverse, Delete | Nodes |
 | application of envelopes and perspectives | Graphics (and Animation) ▸ Properties ▸ Envelope: arch, arc, bulge, flag, wave, rise or squeeze with a bend %, Perspective (drag the four corners) or Custom (drag the sides’ corners and handles); Apply makes plain paths | Envelope and perspective |
 
+## 19.5 Text
+
+### Using software tools for the creation and editing of text in graphics
+
+| Syllabus point | Where in OneEditor | Tools |
+|---|---|---|
+| font face, size, kerning, letter spacing, line spacing | Graphics (and Animation) ▸ Properties ▸ Text: Font and Size (px, or pt in Graphics mode); Properties ▸ Spacing: Letter spacing, Line spacing, and Kerning between the letters at the cursor in the words box (or Alt+← / Alt+→ there) | Letter spacing, kerning and line spacing |
+| fitting text to path or shape: along a line or around a shape | Graphics (and Animation) ▸ select a text and a shape or path, then Properties ▸ Text on a path: Put on path; Properties ▸ On a path: Start, Side (outside, inside, centred), Flip, Show path, Take off path | Text on a path |
+| setting text in a shape | Graphics (and Animation) ▸ select a text and a closed shape, then Properties ▸ Text on a path: Put in shape; Properties ▸ In a shape: Padding, Take out of shape | Text in a shape |
+| converting text to curves: fonts into editable vector shapes | Graphics (and Animation) ▸ select a text, then Properties ▸ Curves and copies: Convert to curves (each letter a pen path, grouped); Ungroup, then Properties ▸ Nodes to pull a letter’s nodes | Text to curves |
+| use and manipulation of text in graphics software | Graphics (and Animation) ▸ select a text, then Properties ▸ Envelope: arch, bulge, wave… (the words stay text until Apply); Properties ▸ Filters: drop shadow, glow, bevel | Warped text |
+
 ## 20.1 Animation
 
 ### Using software tools for the creation and editing of computer animations

@@ -3,6 +3,7 @@
 import { describe, expect, it } from 'vitest';
 import {
   createAnimation,
+  createButton,
   createLayer,
   createRect,
   createText,
@@ -26,11 +27,15 @@ const box = (envelope: Envelope): AnimObject & { envelope: Envelope } => ({
 });
 
 describe('GV4 the envelope handles on the stage', () => {
-  it('are shown for perspective and custom envelopes on shapes, not presets or text', () => {
+  it('are shown for perspective and custom envelopes on shapes and text, not presets or buttons', () => {
     expect(shapedOnStage(box(persp))).toBe(true);
     expect(shapedOnStage(box(custom))).toBe(true);
     expect(shapedOnStage(box({ kind: 'preset', preset: 'arch', bend: 20 }))).toBe(false);
-    expect(shapedOnStage({ ...createText('Hi', { x: 0, y: 0 }), envelope: persp })).toBe(false);
+    // GT5 (M20): text is bent too.
+    expect(shapedOnStage({ ...createText('Hi', { x: 0, y: 0 }), envelope: persp })).toBe(true);
+    expect(shapedOnStage({ ...createButton('pause', { x: 0, y: 0 }), envelope: persp })).toBe(
+      false,
+    );
     expect(shapedOnStage(null)).toBe(false);
   });
 

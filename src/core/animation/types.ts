@@ -307,6 +307,12 @@ export interface PathObject extends ObjectBase {
    * filled even-odd. Absent: no holes.
    */
   holes?: PathPoint[][];
+  /**
+   * GT4 (M20): how its outline and holes are filled: 'nonzero' as a font fills its letters (a
+   * letter made curves: its overlapping strokes stay filled, its counters, wound the other way,
+   * stay holes). Absent: even-odd (each hole cut out).
+   */
+  fillRule?: 'nonzero' | 'evenodd';
 }
 
 export type TextAlign = 'left' | 'centre' | 'right';

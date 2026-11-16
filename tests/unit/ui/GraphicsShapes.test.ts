@@ -165,8 +165,10 @@ describe('GV2: Curves and copies', () => {
     expect(s.last().kind).toBe('path');
     s.g.addText({ x: 0, y: 300 }, 'Logo');
     await tick();
+    // GT4 (M20): text can be converted too (TextCurvesGT4.test.ts).
     const convert = s.props().getByRole('button', { name: 'Convert to curves' });
-    expect((convert as HTMLButtonElement).disabled).toBe(true);
+    expect((convert as HTMLButtonElement).disabled).toBe(false);
+    expect(convert.title).toMatch(/letters’ shapes/);
   });
 
   it('J/23: Step and repeat… makes 11 spokes turned 30° about the hub', async () => {

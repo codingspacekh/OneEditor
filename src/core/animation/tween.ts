@@ -1,7 +1,8 @@
 // AN9, AN13: keyframes per property and the values in between (tweening). Pure functions on
 // tracks and objects; the app's commands wrap them so each change is one undo step.
 import { EditError } from '../model/errors.ts';
-import { LINE_HEIGHT, roughTextWidth } from './factory.ts';
+import { roughTextWidth } from './factory.ts';
+import { lineHeightOf } from './text-layout.ts';
 import { pivotInBox, setSize, shiftedMotion } from './geometry.ts';
 import { isShapeValue, morphShapes, shapeOf } from './morph.ts';
 import { flattenCurves, pointAtFraction, polylineOf, type Polyline } from './path.ts';
@@ -303,7 +304,7 @@ function setOne(object: AnimObject, property: TweenProperty, value: KeyValue): A
       const height =
         object.curve && object.size > 0
           ? (object.height / object.size) * size
-          : lines * size * LINE_HEIGHT;
+          : lines * lineHeightOf({ size, lineSpacing: object.lineSpacing });
       return { ...object, size, width: perPx * size, height };
     }
     case 'text':

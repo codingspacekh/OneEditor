@@ -33,6 +33,7 @@ export function teacherNotes(points: readonly SyllabusPoint[]): string {
     ['11.2', '11.2 Audio editing'],
     ['19.1', '19.1 Common graphics skills'],
     ['19.2', '19.2 Vector graphics'],
+    ['19.5', '19.5 Text'],
     ['20.1', '20.1 Animation'],
   ] as const) {
     out.push('', `## ${title}`);

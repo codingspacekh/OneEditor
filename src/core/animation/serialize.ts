@@ -278,7 +278,9 @@ function isAnimObject(o: Obj): boolean {
       return (
         isBoolean(o.closed) &&
         isPathPoints(o.points) &&
-        (o.holes === undefined || (Array.isArray(o.holes) && o.holes.every(isPathPoints)))
+        (o.holes === undefined || (Array.isArray(o.holes) && o.holes.every(isPathPoints))) &&
+        // GT4 (M20): a letter made curves is filled as its font is.
+        optional(o.fillRule, (r) => r === 'nonzero' || r === 'evenodd')
       );
     case 'text':
       return (

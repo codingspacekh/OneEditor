@@ -217,6 +217,34 @@ const atLeastZero = (n: number, what: string) => {
   if (!Number.isFinite(n) || n < 0) throw new EditError(`${what} must be 0 or more.`);
 };
 
+/** GT1 (M20): letter spacing and kerning in thousandths of an em; line spacing in times the size. */
+export const LETTER_SPACING = { min: -500, max: 2000 } as const;
+export const KERNING = { min: -1000, max: 1000 } as const;
+export const LINE_SPACING = { min: 0.5, max: 5 } as const;
+
+const within = (n: number, range: { min: number; max: number }) =>
+  Number.isFinite(n) && n >= range.min && n <= range.max;
+
+/** GT1 (M20): a text's letter spacing, kerning and line spacing, each in its range. */
+function validateTextSpacing(t: Extract<AnimObject, { kind: 'text' }>): void {
+  const { letterSpacing: ls, kerning, lineSpacing } = t;
+  if (ls !== undefined && !within(ls, LETTER_SPACING))
+    throw new EditError(
+      `The letter spacing must be between −${-LETTER_SPACING.min} and ${LETTER_SPACING.max} (thousandths of the size).`,
+    );
+  if (
+    kerning !== undefined &&
+    !(Array.isArray(kerning) && kerning.every((k) => within(k, KERNING)))
+  )
+    throw new EditError(
+      `Kerning must be between −${-KERNING.min} and ${KERNING.max} (thousandths of the size).`,
+    );
+  if (lineSpacing !== undefined && !within(lineSpacing, LINE_SPACING))
+    throw new EditError(
+      `The line spacing must be between ${LINE_SPACING.min} and ${LINE_SPACING.max} times the size.`,
+    );
+}
+
 export function validateObject(object: AnimObject): void {
   for (const n of [object.x, object.y, object.rotation])
     if (!Number.isFinite(n)) throw new EditError('Position and rotation must be numbers.');
@@ -275,6 +303,15 @@ export function validateObject(object: AnimObject): void {
         !(Number.isFinite(object.curve) && Math.abs(object.curve) <= MAX_CURVE)
       )
         throw new EditError(`The curve must be between −${MAX_CURVE} and ${MAX_CURVE}.`);
+      validateTextSpacing(object);
+      // GT2, GT3 (M20): where the words start on a path, and how far in from a shape.
+      if (object.path && !Number.isFinite(object.path.start))
+        throw new EditError('The start on the path must be a number (0 to 100 %).');
+      if (
+        object.inShape &&
+        !(Number.isFinite(object.inShape.padding) && object.inShape.padding >= 0)
+      )
+        throw new EditError('The padding must be 0 px or more.');
       break;
     case 'path':
       if (object.points.length < 2) throw new EditError('A path needs at least two points.');

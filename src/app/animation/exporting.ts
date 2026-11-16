@@ -17,6 +17,7 @@ import {
 } from '../../core/animation/export.ts';
 import { soundPieces, soundsHeard } from '../../core/animation/sound.ts';
 import { fontsUsed } from '../../core/animation/draw.ts';
+import { loadGlyphsFor } from '../../core/graphics/glyphs.ts';
 import { fontsNeeded, picturesUsed, webPage, type WebPageView } from '../../core/animation/html.ts';
 import type { AnimationDoc, Id } from '../../core/animation/types.ts';
 import { TRANSPARENT } from '../../core/animation/rules.ts';
@@ -92,6 +93,8 @@ export async function svgDocument(
     renderer.textTops(lettering),
     // AN26: how wide letters are, for curved text.
     renderer.textWidths(lettering),
+    // GT5 (M20): bent text is drawn as its letters' outlines.
+    loadGlyphsFor(doc.layers.flatMap((l) => l.objects)),
   ]);
   const pictures: Record<Id, string> = {};
   for (const { picture, url } of read) if (url) pictures[picture.id] = url;

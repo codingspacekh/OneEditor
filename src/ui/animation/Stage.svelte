@@ -34,6 +34,7 @@
   import { toMediaUrl } from '../../core/media-url.ts';
   import { animUi, SNAP_PX } from './animation-ui.svelte.ts';
   import { textBox } from './measure.ts';
+  import { bentWithText, loadGlyphsFor } from '../../core/graphics/glyphs.ts';
   import PathPoints from './PathPoints.svelte';
   import EnvelopeHandles from './EnvelopeHandles.svelte';
   import { previewEnvelope, shapedOnStage } from './envelope-handles.ts';
@@ -125,6 +126,13 @@
     images[picture.path] = img;
     return null;
   }
+
+  // GT5 (M20): bent text is drawn from its letters' outlines: read from the font files the first
+  // time (drawn unbent meanwhile), then the stage is drawn again.
+  $effect(() => {
+    const bent = bentWithText(doc.layers.flatMap((l) => l.objects));
+    if (bent.length) void loadGlyphsFor(bent).then((arrived) => arrived && loaded++);
+  });
 
   function drawGrid(ctx: StageCanvas): void {
     const size = Math.max(2, view.grid.size);

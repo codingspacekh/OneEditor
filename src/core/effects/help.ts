@@ -141,6 +141,16 @@ export const WHY = {
     'Convert to curves turns a shape (a rectangle, ellipse, arc, star or polygon) into a path of nodes and curves that looks the same, so every point can then be moved on its own: a star’s arm pulled out, a corner of a rounded rectangle made square, a circle squeezed into a leaf. The shape loses what made it a rectangle or a star (its corner radius, its number of points), so do it once its size and corners are right.',
   graphicReplicate:
     'Replication makes exact, evenly spaced copies instead of placing each one by eye. Step and repeat makes several copies at once, each moved and turned by the same amount: the spokes of a wheel round its hub, the legs of a chip along its side. Duplicate again after moving a copy repeats that move. Paste in place puts a copy exactly where the original is (on another layer, say), and Mirror copy makes the other half of a symmetrical drawing.',
+  textSpacing:
+    'Spacing makes words fit and read well. Letter spacing (tracking) opens up or closes up the whole text evenly: wide for a calm heading or a logo, tight to fit a name in a space. Kerning moves just two letters closer or apart, where their shapes leave a gap that looks too big or too small (AV, To). Line spacing sets how far apart the lines are: more for easy reading, less for a compact title. Spacing is in thousandths of the letters’ size, so it grows and shrinks with them.',
+  textPath:
+    'Text on a path makes words follow a line or go round a shape: round a badge or a logo, along the curve of a guitar or a road, over an arc. The letters stay text, so the words, font and size can still be changed. Start moves the words along the path; Side puts them outside it, hanging inside it, or centred so the outline runs through each letter; Flip runs them the other way (along the bottom of a circle, reading left to right). The path itself is usually hidden, so only the words show its shape.',
+  textShape:
+    'Text in a shape wraps the lines inside an outline (a circle, a speech bubble, a star) instead of a rectangle, so the block of words takes the shape of the design. Padding keeps the words away from the edge so they are easy to read. If not all the words fit, make the text smaller, the padding less or the shape bigger: words that do not fit are not shown.',
+  textCurves:
+    'Convert to curves turns text into the shapes of its letters, each a path of nodes and curves taken from the font itself, so a letter can be stretched, bent or reshaped as a drawing (a long tail on a “Q”, a logo’s letters joined). The words then look the same on any computer, even one without the font, but they can no longer be typed into: change the words, font and size first.',
+  textWarp:
+    'Warping bends the words into a shape, an arch over a logo, a bulge or a wave, while they are still text: the words, the font and the size can still be changed and the bend follows. Apply makes the bent letters ordinary paths. Effects such as a drop shadow, a glow or a bevel make the words stand out from what is behind them.',
   animSound:
     'Sound is a secondary component of an animation: an alarm ringing, a door slamming or music under the action tells the audience what is happening and when. Each sound starts at a frame, so it is heard in time with the movement; a fade in or out stops it starting or ending suddenly. An MP4, AVI, MOV or web page carries the sounds; a GIF and pictures cannot.',
 } as const;
@@ -248,6 +258,15 @@ export const TOOLS: Tool[] = [
   tool('templateLayer', 'Template layer', '19.2 creating a vector graphic for its application'),
   tool('graphicPattern', 'Pattern fill and opacity', '19.1 changing solid and gradient fills'),
   tool('graphicFilters', 'Filters', '19.1 changing solid and gradient fills'),
+  tool(
+    'textSpacing',
+    'Letter spacing, kerning and line spacing',
+    '19.5 font, size, kerning and spacing',
+  ),
+  tool('textPath', 'Text on a path', '19.5 fitting text to a path or shape'),
+  tool('textShape', 'Text in a shape', '19.5 setting text in a shape'),
+  tool('textCurves', 'Text to curves', '19.5 converting text to curves'),
+  tool('textWarp', 'Warped text', '19.5 warping text'),
 ];
 
 export function toolById(id: ToolId): Tool {
