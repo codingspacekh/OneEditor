@@ -843,7 +843,18 @@ M21 Bitmap core ─► M22 Retouch & adjust ─► M23 Formats, theory & hardeni
 
 ### M20 — Text
 
-GT1–GT5. Gate: M/17 Woodlands, O/N/17 RockICT, J/18 TTS10, M/22 Heron, workbook Task 2, coursebook exam-style 1 and 2.
+**Goal:** every text skill of syllabus 19.5: text set with exact spacing, on any path or round any shape (and halfway through its outline), wrapped inside a shape, turned into letter outlines whose nodes can be edited, and bent by the envelopes of M19 while it is still text.
+
+**Build order** (started 2026-11-16 on the `m20` branch, off `m19` at 5972155; still file version 5, as M19 and M20 are released together in 1.6)
+1. **The letter layout and the file** (GT1): `core/animation/text-layout.ts` places every letter (letter spacing and kerning in thousandths of an em, line spacing, alignment; the font's own kerning pairs kept), used by curved text (AN26) and every text step after; `TextObject.letterSpacing`, `kerning`, `lineSpacing`, `path` (GT2) and `inShape` (GT3) saved and checked.
+2. **Spacing** (GT1): letter spacing, kerning (Alt+← / → between the two letters at the cursor) and line spacing drawn on the stage, in every export and the SVG; Properties fields; sizes in px or pt in Graphics mode.
+3. **Text on a path and in a shape** (GT2, GT3): *Put on path* (a text and a path or shape chosen together: the words follow its outline from a start %, outside, inside or centred on it, flipped; the path shown or hidden); *Put in shape* (the lines wrap inside a closed shape with padding); both stay editable text.
+4. **Text to curves and warped text** (GT4, GT5): `opentype.js` (D10) reads the bundled fonts; *Convert to curves* makes each letter a pen path (holes kept), grouped, for every kind of text (straight, spaced, curved, on a path, in a shape); envelopes (GV4) bend text while it stays editable.
+5. The papers' steps done in the app; `npm run check`; CI on the three platforms.
+
+**Exit gate**
+- Each step's tests green; `npm run check` green; CI green on the three platforms.
+- Done in the app (gate record `docs/acceptance/M20.md`): M/17 Woodlands (text on a hidden path, white with a 1 pt black outline, the group resized to 250 × 200 px); O/N/17 RockICT (text curved to the bottom of the guitar); J/18 TTS10 (text on a curved path above, in a script font, on A4); M/22 Heron (each letter halfway through the ellipse's outline, white-to-red gradient text with a black outline); workbook Task 2 (text to curves, letters stretched by their nodes); coursebook exam-style 1 (a TV logo with arched text) and 2 (text on an arc).
 
 ### M21 — Bitmap core
 

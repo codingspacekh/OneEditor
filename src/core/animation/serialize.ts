@@ -18,8 +18,9 @@ export const ANIMATION_MIGRATIONS: Record<number, Migration> = {
   /** Version 4 (M16): buttons (AN18), stop motion and frame-by-frame layers (AN14); a v3 file has none. */
   3: (v3) => ({ ...v3, schemaVersion: 4 }),
   /**
-   * Version 5 (M19): pattern fills, fill and outline opacity, effects, envelopes, arcs, node
-   * types, template layers and the outline view; a v4 file has none.
+   * Version 5 (M19, M20, released together in 1.6): pattern fills, fill and outline opacity,
+   * effects, envelopes, arcs, node types, template layers and the outline view; letter spacing,
+   * kerning, line spacing, text on a path and in a shape; a v4 file has none.
    */
   4: (v4) => ({ ...v4, schemaVersion: 5 }),
 };
@@ -119,6 +120,25 @@ function isFilter(f: Obj): boolean {
       return false;
   }
 }
+
+const SIDES = ['outside', 'inside', 'centred'];
+
+/** GT2 (M20): text on a path: its outline, where the words start and on which side. */
+const isTextPath = (v: unknown): boolean =>
+  isObject(v) &&
+  isPathPoints(v.points) &&
+  isBoolean(v.closed) &&
+  isNumber(v.start) &&
+  SIDES.includes(v.side as string) &&
+  optional(v.flip, isBoolean) &&
+  optional(v.stroke, (st) => isObject(st) && isColour(st.colour) && isNumber(st.width));
+
+/** GT3 (M20): text in a shape: its outline, holes and padding. */
+const isTextShape = (v: unknown): boolean =>
+  isObject(v) &&
+  isPathPoints(v.points) &&
+  optional(v.holes, (h) => Array.isArray(h) && h.every(isPathPoints)) &&
+  isNumber(v.padding);
 
 /** GV4 (M19): a side of a custom envelope. */
 const isSide = (v: unknown) => isObject(v) && ['a', 'c1', 'c2', 'b'].every((k) => isPoint(v[k]));
@@ -266,7 +286,12 @@ function isAnimObject(o: Obj): boolean {
         isNumber(o.size) &&
         has(o, ['bold', 'italic'], isBoolean) &&
         // AN26: the bend along an arc.
-        (o.curve === undefined || isNumber(o.curve))
+        (o.curve === undefined || isNumber(o.curve)) &&
+        // GT1–GT3 (M20): spacing, kerning, line spacing, on a path, in a shape.
+        ['letterSpacing', 'lineSpacing'].every((k) => optional(o[k], isNumber)) &&
+        optional(o.kerning, (v) => Array.isArray(v) && v.every(isNumber)) &&
+        optional(o.path, isTextPath) &&
+        optional(o.inShape, isTextShape)
       );
     case 'picture':
       return isString(o.pictureId);

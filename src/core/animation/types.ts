@@ -326,6 +326,51 @@ export interface TextObject extends ObjectBase {
    * a smile when less; at ±100 the widest line closes into a circle. Absent: 0, straight.
    */
   curve?: number;
+  /**
+   * GT1 (M20): space added after every letter but a line's last, in thousandths of an em (as
+   * tracking in Illustrator and Photoshop), so it grows with the letters; less than 0 tightens.
+   * Absent: 0.
+   */
+  letterSpacing?: number;
+  /**
+   * GT1 (M20): kerning, the space between two letters only: `kerning[i]` is added after the i-th
+   * character of `text` (new lines counted), in thousandths of an em. Absent or 0: none.
+   */
+  kerning?: number[];
+  /** GT1 (M20): the line height, in times the size. Absent: 1.2. */
+  lineSpacing?: number;
+  /**
+   * GT2 (M20): the words follow this path or shape's outline instead of a line (Absent: on a
+   * line, or curved by `curve`). Its points are in the text's own box.
+   */
+  path?: TextPath;
+  /** GT3 (M20): the words wrap inside this closed shape, in the text's own box. */
+  inShape?: TextShape;
+}
+
+/**
+ * GT2 (M20): text on a path. The letters start `start` % of the way along and stand on the
+ * outline: `outside` on the left of the way it runs (above a line drawn left to right, outside a
+ * shape drawn clockwise), `inside` hanging on the other side, `centred` halfway through it
+ * (9626/04 M/22: "each letter halfway through the outline"). `flip` runs them the other way. The
+ * path itself is drawn only when it has a `stroke` ("do not show the path").
+ */
+export interface TextPath {
+  points: PathPoint[];
+  closed: boolean;
+  start: number;
+  side: TextSide;
+  flip?: boolean;
+  stroke?: Stroke;
+}
+
+export type TextSide = 'outside' | 'inside' | 'centred';
+
+/** GT3 (M20): text in a shape: the lines wrap inside its outline, `padding` px in from it. */
+export interface TextShape {
+  points: PathPoint[];
+  holes?: PathPoint[][];
+  padding: number;
 }
 
 /** AN5: an imported picture, kept in `AnimationDoc.pictures`. */
