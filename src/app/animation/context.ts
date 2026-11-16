@@ -11,6 +11,7 @@ import type { AnimationDoc, Id, Layer } from '../../core/animation/types.ts';
 import { EditError, MediaError, ProjectFileError } from '../../core/model/errors.ts';
 import type { PageAssets, StageRenderer } from '../../core/ports.ts';
 import { fileNameOf } from '../../core/project/relocate.ts';
+import { IN_PROCESS_PIXELS } from '../../core/graphics/pixels/jobs.ts';
 import type { AnimationDeps, AnimationState } from './state.ts';
 import { ANIMATION_KIND, withoutExtension } from './kind.ts';
 import { unexpected } from '../problems.ts';
@@ -21,6 +22,7 @@ const NO_RENDERER: StageRenderer = {
   renderPng: () => Promise.reject(new EditError('Exporting needs the OneEditor app.')),
   renderJpeg: () => Promise.reject(new EditError('Exporting needs the OneEditor app.')),
   pixels: () => Promise.reject(new EditError('Tracing needs the OneEditor app.')),
+  renderPixels: () => Promise.reject(new EditError('Merging layers needs the OneEditor app.')),
   textTops: async () => ({}), // the SVG then keeps the font's own top edge
   // AN26: curved text then has its letters roughly where the stage puts them.
   textWidths: async () => (font, text) =>
@@ -44,6 +46,7 @@ export function createAnimationContext(deps: AnimationDeps) {
     renderer: deps.renderer ?? NO_RENDERER,
     pageAssets: deps.pageAssets ?? NO_PAGE_ASSETS,
     autosaveMs: deps.autosaveMs ?? 60_000,
+    pixelWorker: deps.pixelWorker ?? IN_PROCESS_PIXELS,
   };
   /** M18: an animation, or Graphics mode's image (one frame, its own file type). */
   const kind = deps.kind ?? ANIMATION_KIND;

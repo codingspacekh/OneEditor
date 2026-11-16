@@ -73,8 +73,12 @@ export type ExportSize =
   /** A printed width in a unit at a resolution (the height in proportion): "10 cm at 300 dpi". */
   | { by: 'print'; width: number; unit: Unit; dpi: number };
 
-/** What is exported: the whole canvas, or the selected objects cropped to them. */
-export type ExportWhat = 'image' | 'selection' | 'each';
+/**
+ * What is exported: the whole canvas, or the selected objects cropped to them (together, or each
+ * in a file of its own). G11 (M21): or each layer in a file of its own, on the whole canvas
+ * (O/N/23: CastleLayer, OceanLayer and SkyLayer, each saved apart).
+ */
+export type ExportWhat = 'image' | 'selection' | 'each' | 'layers';
 
 export interface GraphicExportOptions {
   format: GraphicFormat;
@@ -184,10 +188,11 @@ export function imageOfObjects(doc: AnimationDoc, ids: readonly Id[]): Animation
   const only: AnimationDoc = {
     ...doc,
     stage: { ...doc.stage, background: TRANSPARENT },
-    // A mask layer still shapes the layer under it, as it does on the canvas.
-    layers: doc.layers.map((l) =>
-      l.mask ? l : { ...l, objects: l.objects.filter((o) => want.has(o.id)) },
-    ),
+    // A mask layer still shapes the layer under it, as it does on the canvas. M21: a pixel layer
+    // holds no objects to choose: it is left out.
+    layers: doc.layers
+      .filter((l) => !l.pixels)
+      .map((l) => (l.mask ? l : { ...l, objects: l.objects.filter((o) => want.has(o.id)) })),
     guides: { x: [], y: [] },
   };
   const box = drawingBounds(only, want);
@@ -211,6 +216,45 @@ export function imagesOfEach(
     used.add(name.toLowerCase());
     return { name, doc: imageOfObjects(doc, [o.id]) };
   });
+}
+
+/** A name usable in a file name, made different from those already used ("Star", "Star 2"). */
+function fileNameFor(name: string, used: Set<string>, fallback: string): string {
+  const plain = name.replace(/[\\/:*?"<>|]+/g, ' ').trim() || fallback;
+  let out = plain;
+  for (let n = 2; used.has(out.toLowerCase()); n++) out = `${plain} ${n}`;
+  used.add(out.toLowerCase());
+  return out;
+}
+
+/**
+ * G11 (M21) "layers": one image per layer shown that has something on it, on the whole canvas,
+ * see-through around it, named after the layer (CastleLayer, OceanLayer, SkyLayer). Each is
+ * drawn as it is (its opacity, its layer mask; AN12: with its mask layer), not clipped. Mask
+ * layers and templates are not layers to save.
+ */
+export function imagesOfLayers(doc: AnimationDoc): { name: string; doc: AnimationDoc }[] {
+  const used = new Set<string>();
+  const out = doc.layers.flatMap((layer, i) => {
+    if (!layer.visible || layer.mask || layer.template) return [];
+    if (!layer.pixels && layer.objects.length === 0) return [];
+    const mask = doc.layers[i + 1];
+    const alone = { ...layer };
+    delete alone.clip;
+    return [
+      {
+        name: fileNameFor(layer.name, used, 'Layer'),
+        doc: {
+          ...doc,
+          stage: { ...doc.stage, background: TRANSPARENT },
+          layers: mask?.mask ? [alone, mask] : [alone],
+          guides: { x: [], y: [] },
+        },
+      },
+    ];
+  });
+  if (out.length === 0) throw new EditError('There is nothing on the layers shown to export.');
+  return out;
 }
 
 /** JPG quality, checked. */

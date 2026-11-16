@@ -151,6 +151,11 @@ export const WHY = {
     'Convert to curves turns text into the shapes of its letters, each a path of nodes and curves taken from the font itself, so a letter can be stretched, bent or reshaped as a drawing (a long tail on a “Q”, a logo’s letters joined). The words then look the same on any computer, even one without the font, but they can no longer be typed into: change the words, font and size first.',
   textWarp:
     'Warping bends the words into a shape, an arch over a logo, a bulge or a wave, while they are still text: the words, the font and the size can still be changed and the bend follows. Apply makes the bent letters ordinary paths. Effects such as a drop shadow, a glow or a bevel make the words stand out from what is behind them.',
+  // ---- Graphics mode, pixel layers (M21) ----
+  graphicPaint:
+    'Painting changes the pixels of a photo or a drawing by hand: the brush paints with a soft or hard edge, the pencil sets each pixel exactly (pixel art, a 1 px line), the airbrush builds up colour gently the longer it is held (a glow, a shadow), and the eraser takes pixels away to transparent. The size, hardness, opacity, flow and spacing change how each stroke looks, and a shape such as a star or a scatter of dots paints many stars and lights in one stroke (a night scene). A preset keeps a brush to use again; on a layer mask, black hides and white shows without losing any pixels.',
+  graphicFill:
+    'The paint bucket fills an area of one colour with another in one click (a sea recoloured light blue, land made green): the tolerance says how alike the colours must be, and contiguous fills only the pixels joined to the one clicked. The gradient tool fills the layer or the selection with colours that blend into each other along a line dragged across it, straight (linear) or out from a centre (radial), for a sky, a light, or a logo fading from light to dark.',
   animSound:
     'Sound is a secondary component of an animation: an alarm ringing, a door slamming or music under the action tells the audience what is happening and when. Each sound starts at a frame, so it is heard in time with the movement; a fade in or out stops it starting or ending suddenly. An MP4, AVI, MOV or web page carries the sounds; a GIF and pictures cannot.',
 } as const;
@@ -267,6 +272,8 @@ export const TOOLS: Tool[] = [
   tool('textShape', 'Text in a shape', '19.5 setting text in a shape'),
   tool('textCurves', 'Text to curves', '19.5 converting text to curves'),
   tool('textWarp', 'Warped text', '19.5 warping text'),
+  tool('graphicPaint', 'Brush, pencil, airbrush and eraser', '19.3 brush, pencil and pen tools'),
+  tool('graphicFill', 'Paint bucket and gradient', '19.1 changing solid and gradient fills'),
 ];
 
 export function toolById(id: ToolId): Tool {

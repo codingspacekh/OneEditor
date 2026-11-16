@@ -73,6 +73,98 @@
       withWhy('Click to place a button: Pause, Continue, Restart or Go to frame (U)', 'animButton'),
     ],
   ];
+  /** GB1 (M21): moving round the image (Graphics mode). */
+  const VIEW_TOOLS: [Tool, string, IconName, string][] = [
+    ['hand', 'Hand', 'hand', 'Hand: drag to move round the image (H); hold Space with any tool'],
+    [
+      'zoom',
+      'Zoom',
+      'zoomIn',
+      'Zoom: click to zoom in there (Z), Alt-click to zoom out; Ctrl/Cmd + wheel zooms too',
+    ],
+  ];
+  /** GB2 (M21): the selection tools (Graphics mode); their options show above the canvas. */
+  const SELECT_TOOLS: [Tool, string, IconName, string][] = [
+    [
+      'select-rect',
+      'Rectangle select',
+      'marqueeRect',
+      'Rectangle select: drag over the pixels (M); Shift while dragging for a square. Shift adds, Alt subtracts, both intersect',
+    ],
+    [
+      'select-ellipse',
+      'Ellipse select',
+      'marqueeEllipse',
+      'Ellipse select: drag over the pixels; Shift while dragging for a circle',
+    ],
+    ['lasso', 'Lasso', 'lasso', 'Lasso: drag round the part to select it freehand'],
+    [
+      'polygon-lasso',
+      'Polygonal lasso',
+      'polygonLasso',
+      'Polygonal lasso: click the corners; double-click, Enter or click the first point to close',
+    ],
+    [
+      'magnetic-lasso',
+      'Magnetic lasso',
+      'magneticLasso',
+      'Magnetic lasso: drag along an edge and the line snaps to it',
+    ],
+    [
+      'magic-wand',
+      'Magic wand',
+      'wand',
+      'Magic wand: click a colour to select it (W): the tolerance and contiguous are above the canvas',
+    ],
+    [
+      'colour-select',
+      'Colour select',
+      'colourSelect',
+      'Colour select: click a colour to select every pixel like it, softly by the fuzziness',
+    ],
+  ];
+  /** GB4, GB3 (M21): painting on a pixel layer (Graphics mode); their options are in Properties. */
+  const PAINT_TOOLS: [Tool, string, IconName, string][] = [
+    [
+      'paintbrush',
+      'Paintbrush',
+      'paintbrush',
+      withWhy(
+        'Paintbrush: paint on a pixel layer; Shift-click for a straight line',
+        'graphicPaint',
+      ),
+    ],
+    [
+      'pencil',
+      'Pencil',
+      'pencil',
+      withWhy('Pencil: hard pixels, exactly (a 1 px pencil sets one pixel)', 'graphicPaint'),
+    ],
+    [
+      'eraser',
+      'Eraser',
+      'eraser',
+      withWhy('Eraser: rub pixels out to transparent (on a layer mask: hides)', 'graphicPaint'),
+    ],
+    [
+      'airbrush',
+      'Airbrush',
+      'airbrush',
+      withWhy('Airbrush: builds up colour softly, the longer it is held', 'graphicPaint'),
+    ],
+    [
+      'bucket',
+      'Paint bucket',
+      'bucket',
+      withWhy('Paint bucket: click an area to fill it with the colour', 'graphicFill'),
+    ],
+    [
+      'gradient',
+      'Gradient',
+      'gradient',
+      withWhy('Gradient: drag a line to fill the layer or the selection', 'graphicFill'),
+    ],
+  ];
   const snapping = $derived(
     view.snap.grid || view.snap.guides || view.snap.objects || view.snap.pixels,
   );
@@ -95,6 +187,42 @@
         onclick={() => anim.setTool(tool)}><Icon name={icon} /></button
       >
     {/each}
+    <!-- GB1 (M21): Graphics mode's Hand and Zoom. -->
+    {#if editor.still}
+      {#each VIEW_TOOLS as [tool, label, icon, title] (tool)}
+        <button
+          class="tbtn"
+          aria-label={label}
+          aria-pressed={$store.tool === tool}
+          {title}
+          onclick={() => anim.setTool(tool)}><Icon name={icon} /></button
+        >
+      {/each}
+    {/if}
+    <!-- GB2 (M21): Graphics mode's selection tools. -->
+    {#if editor.still}
+      {#each SELECT_TOOLS as [tool, label, icon, title] (tool)}
+        <button
+          class="tbtn"
+          aria-label={label}
+          aria-pressed={$store.tool === tool}
+          {title}
+          onclick={() => anim.setTool(tool)}><Icon name={icon} /></button
+        >
+      {/each}
+    {/if}
+    <!-- GB4, GB3 (M21): Graphics mode's painting tools. -->
+    {#if editor.still}
+      {#each PAINT_TOOLS as [tool, label, icon, title] (tool)}
+        <button
+          class="tbtn"
+          aria-label={label}
+          aria-pressed={$store.tool === tool}
+          {title}
+          onclick={() => anim.setTool(tool)}><Icon name={icon} /></button
+        >
+      {/each}
+    {/if}
   </div>
   <div class="hsep"></div>
   <button
@@ -155,6 +283,16 @@
       )}
       onclick={() => anim.toggleOutline()}><Icon name="wireframe" /></button
     >
+    <!-- GB1 (M21): View ▸ Pixel grid (Graphics mode), drawn from 800 %. -->
+    {#if editor.still}
+      <button
+        class="tbtn"
+        aria-label="Pixel grid"
+        aria-pressed={animUi.pixelGrid}
+        title="Pixel grid: a line round every pixel when zoomed in to 800 % or more"
+        onclick={() => (animUi.pixelGrid = !animUi.pixelGrid)}><Icon name="grid" /></button
+      >
+    {/if}
   </div>
 </div>
 

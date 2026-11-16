@@ -46,6 +46,15 @@ function editable(layer: Layer): Layer {
   return layer;
 }
 
+/** G2 (M21): shapes, text and pictures go on a vector layer, never into a pixel layer's pixels. */
+function vectorLayer(layer: Layer): Layer {
+  if (layer.pixels)
+    throw new EditError(
+      `${layer.name} is a pixel layer: shapes, text and pictures go on a vector layer. Choose one, or add one with + Layer.`,
+    );
+  return layer;
+}
+
 const allNames = (objects: readonly AnimObject[]): string[] =>
   objects.flatMap((o) => [o.name, ...(o.kind === 'group' ? allNames(o.children) : [])]);
 
@@ -213,7 +222,7 @@ const requireObject = (doc: AnimationDoc, id: Id): Found => {
 
 /** Adds to the front of the layer, with a name no other object has. */
 export function addObject(doc: AnimationDoc, layerId: Id, object: AnimObject): AnimationDoc {
-  const layer = editable(layerOf(doc, layerId));
+  const layer = vectorLayer(editable(layerOf(doc, layerId)));
   const named = { ...object, name: uniqueName(doc, object.name) };
   return replaceLayer(doc, { ...layer, objects: [...layer.objects, named] });
 }
@@ -263,7 +272,7 @@ export function moveObjectsToLayer(
   ids: readonly Id[],
   layerId: Id,
 ): AnimationDoc {
-  const target = editable(layerOf(doc, layerId));
+  const target = vectorLayer(editable(layerOf(doc, layerId)));
   const wanted = new Set(ids);
   const moving = doc.layers.flatMap((l) => l.objects.filter((o) => wanted.has(o.id)));
   const removed = removeObjects(doc, ids);

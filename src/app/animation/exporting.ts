@@ -1,7 +1,8 @@
 // Exporting an animation (AN15, N12): MP4, AVI, MOV and GIF made by FFmpeg from frames drawn by
 // the preview's own drawing, a PNG sequence, one PNG, and the HTML web page — all of it or a
 // range of frames, at the stage's size or another width; the videos and the web page with the
-// animation's sounds (AN28) — and Test (AN18), the web page in a window of its own.
+// animation's sounds (AN28) — and Test (AN18), the web page in a window of its own. G2, GB1
+// (M21): an SVG carries each pixel layer as a PNG inside it.
 import { JobCancelledError } from '../../core/model/errors.ts';
 import {
   carriesSound,
@@ -25,6 +26,10 @@ import { stageSvg } from '../../core/animation/svg-export.ts';
 import { withoutTemplates } from '../../core/animation/template.ts';
 import { newId } from '../../core/model/factory.ts';
 import type { JobHandle } from '../../core/ports.ts';
+import { rasterPng } from '../../core/graphics/mveg.ts';
+import { applyMask } from '../../core/graphics/pixels/pixel-layers.ts';
+import { bytesToBase64 } from '../../core/image/base64.ts';
+import { webCompression } from '../../core/image/deflate.ts';
 import { fileNameOf } from '../../core/project/relocate.ts';
 import type { AnimationContext } from './context.ts';
 import type { AnimationExporting } from './state.ts';
@@ -98,8 +103,16 @@ export async function svgDocument(
   ]);
   const pictures: Record<Id, string> = {};
   for (const { picture, url } of read) if (url) pictures[picture.id] = url;
+  // G2, GB1 (M21): each pixel layer shown, as a PNG inside, its layer mask applied.
+  const bitmaps: Record<Id, string> = {};
+  for (const layer of doc.layers) {
+    if (!layer.pixels || !layer.visible) continue;
+    const { bitmap, mask } = layer.pixels;
+    const png = await rasterPng(mask ? applyMask(bitmap, mask) : bitmap, webCompression);
+    bitmaps[layer.id] = `data:image/png;base64,${bytesToBase64(png)}`;
+  }
   return {
-    svg: stageSvg(doc, frame, pictures, fonts, tops, widths, shown),
+    svg: stageSvg(doc, frame, pictures, fonts, tops, widths, shown, bitmaps),
     missing: read.filter((r) => !r.url).map((r) => fileNameOf(r.picture.path)),
   };
 }

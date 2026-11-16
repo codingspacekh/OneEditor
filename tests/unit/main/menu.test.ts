@@ -156,6 +156,9 @@ describe('X3 native menus', () => {
     expect(menus.map((m) => m.label ?? m.role)).toEqual([
       'File',
       'Edit',
+      'Image',
+      'Layer',
+      'Select',
       'View',
       'Learn',
       'windowMenu',
@@ -189,6 +192,7 @@ describe('X3 native menus', () => {
       ['Show / Hide Timeline', 'CmdOrCtrl+Alt+3'],
       ['Reset Layout', undefined],
       ['Outline', 'Ctrl+Shift+Y'],
+      ['Pixel Grid', undefined],
     ]);
     for (const i of ours) (i.click as () => void)();
     expect(send.mock.calls.map((c) => c[0])).toEqual([
@@ -197,6 +201,7 @@ describe('X3 native menus', () => {
       'toggleBottom',
       'resetLayout',
       'outline',
+      'pixelGrid',
     ]);
   });
 
@@ -226,5 +231,85 @@ describe('X3 native menus', () => {
     )!;
     (item.click as () => void)();
     expect(send).toHaveBeenCalledWith('importSvg');
+  });
+});
+
+describe('M21: the Image menu', () => {
+  it('M21 GB6, G8: Image ▸ Image Size…, Canvas Size…, Crop to Content, Trim Plain Edges, Reduce Colours…', () => {
+    const send = vi.fn<(a: MenuAction) => void>();
+    const image = items(find(menuTemplate('win32', send, false), 'Image')).filter((i) => i.click);
+    expect(image.map((i) => i.label)).toEqual([
+      'Image Size…',
+      'Canvas Size…',
+      'Crop to Content',
+      'Trim Plain Edges',
+      'Reduce Colours…',
+      'Crop to Selection',
+    ]);
+    for (const i of image) (i.click as () => void)();
+    expect(send.mock.calls.map((c) => c[0])).toEqual([
+      'imageSize',
+      'canvasSize',
+      'cropToContent',
+      'trimPlain',
+      'reduceColours',
+      'cropToSelection',
+    ]);
+  });
+
+  it('M21 G2, GB1: the Layer menu: new pixel layer, a picture as a layer, layers via copy and cut, a mask from the selection, merging', () => {
+    const send = vi.fn<(a: MenuAction) => void>();
+    const layer = items(find(menuTemplate('win32', send, false), 'Layer')).filter((i) => i.click);
+    expect(layer.map((i) => [i.label, i.accelerator])).toEqual([
+      ['New Pixel Layer', 'CmdOrCtrl+Shift+N'],
+      ['Add Picture as Layer…', undefined],
+      ['Layer via Copy', undefined],
+      ['Layer via Cut', undefined],
+      ['Layer Mask from Selection', undefined],
+      // Not Ctrl+E: that exports the video.
+      ['Merge Down', undefined],
+      ['Merge Visible', undefined],
+      ['Flatten Image', undefined],
+    ]);
+    for (const i of layer) (i.click as () => void)();
+    expect(send.mock.calls.map((c) => c[0])).toEqual([
+      'newPixelLayer',
+      'addPictureAsLayer',
+      'layerViaCopy',
+      'layerViaCut',
+      'maskFromSelection',
+      'mergeDown',
+      'mergeVisible',
+      'flatten',
+    ]);
+  });
+
+  it('M21 GB2, G13: the Select menu sends each selection command to the page', () => {
+    const send = vi.fn<(a: MenuAction) => void>();
+    const select = items(find(menuTemplate('darwin', send, false), 'Select')).filter(
+      (i) => i.click,
+    );
+    for (const i of select) (i.click as () => void)();
+    expect(send.mock.calls.map((c) => c[0])).toEqual([
+      'selectAllPixels',
+      'deselectPixels',
+      'invertSelection',
+      'selectLayerPixels',
+      'selectFromShape',
+      'featherSelection',
+      'growSelection',
+      'shrinkSelection',
+      'smoothSelection',
+      'fadeSelection',
+    ]);
+  });
+
+  it('M21 GB1: File ▸ Open Picture as Image… sends "openPictureAsImage"', () => {
+    const send = vi.fn<(a: MenuAction) => void>();
+    const item = items(find(menuTemplate('win32', send, false), 'File')).find(
+      (i) => i.label === 'Open Picture as Image…',
+    )!;
+    (item.click as () => void)();
+    expect(send).toHaveBeenCalledWith('openPictureAsImage');
   });
 });

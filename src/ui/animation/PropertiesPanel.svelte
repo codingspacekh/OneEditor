@@ -40,6 +40,7 @@
   import ShapeToolsSection from './ShapeToolsSection.svelte';
   import TextPathSection from './TextPathSection.svelte';
   import SpiralSection from './SpiralSection.svelte';
+  import PaintSection from '../graphics/PaintSection.svelte';
   import { graphicOf } from '../../core/graphics/document.ts';
   import { DECIMALS, fromPx, toPx, UNIT_NAMES } from '../../core/graphics/units.ts';
   import { textBox } from './measure.ts';
@@ -261,6 +262,8 @@
   <div class="body" {@attach propertyFilter(search, (n) => (matching = n))}>
     <!-- GV1 (M19): the Spiral tool's options (and the spiral just drawn). -->
     <SpiralSection {app} />
+    <!-- GB4, GB3 (M21): the painting tools' colours, brush, bucket and gradient. -->
+    <PaintSection {app} />
     {#if !first}
       <p class="hint">
         Click an object on the stage, or draw one with a tool from the strip on the left.
@@ -298,6 +301,34 @@
               class="sm"
               title="Make the canvas just big enough for everything drawn"
               onclick={() => anim.cropCanvas('drawing')}>Fit to drawing</button
+            >
+          </div>
+          <!-- GB6, G8 (M21): the whole image resized, its canvas, trimmed, its colours reduced. -->
+          <div class="cells two-up">
+            <button
+              class="sm"
+              title="Image size: every layer resampled to a new size, or only the resolution changed"
+              onclick={() => (animUi.dialog = 'imageSize')}>Image size…</button
+            >
+            <button
+              class="sm"
+              title="Canvas size: more room round the picture, or less (it crops), at an anchor"
+              onclick={() => (animUi.dialog = 'canvasSize')}>Canvas size…</button
+            >
+            <button
+              class="sm"
+              title="Crop to content: the canvas cut to the pixels and shapes drawn (transparent edges trimmed)"
+              onclick={() => anim.trimCanvas(false)}>Crop to content</button
+            >
+            <button
+              class="sm"
+              title="Trim plain edges: a border of one colour (white round a photo) cut off too"
+              onclick={() => anim.trimCanvas(true)}>Trim plain edges</button
+            >
+            <button
+              class="sm"
+              title="Reduce colours: the current pixel layer to 2, 16 or 256 colours or greys"
+              onclick={() => (animUi.dialog = 'reduceColours')}>Reduce colours…</button
             >
           </div>
         </div>

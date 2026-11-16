@@ -287,6 +287,14 @@ export const projectFiles = (
   },
   async writeBytes(path, bytes) {
     await mkdir(dirname(path), { recursive: true });
-    await writeFile(path, bytes);
+    // D9 (M21): a .mveg image is bytes too: written whole or not at all, as a project.
+    const temp = `${path}.saving`;
+    try {
+      await writeFile(temp, bytes);
+      await rename(temp, path);
+    } finally {
+      await rm(temp, { force: true });
+    }
   },
+  readBytes: async (path) => new Uint8Array(await readFile(path)),
 });

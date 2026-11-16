@@ -23,6 +23,7 @@ function setup(
       saveImage: async (name) => `/cache/${name}.png`,
       saveSound: async (name: string) => `/cache/sounds/${name}.wav`,
       writeBytes: async () => {},
+      readBytes: async () => Promise.reject(new Error('ENOENT')),
     },
     text: { draw: async (_t, _s, frame) => ({ png: new Uint8Array(1), ...frame }) },
     paths: {

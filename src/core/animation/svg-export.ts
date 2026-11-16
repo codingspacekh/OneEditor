@@ -2,8 +2,10 @@
 // file"). The stage is drawn by the same drawStage as the preview and every export, through a
 // canvas that writes SVG elements instead of pixels, so the picture matches the stage: each shape
 // a path (its fill and outline on one element), gradients, text as text, pictures inside as data,
-// masks as clip paths. Pure: no DOM.
-import { drawStage, type CanvasGradientLike, type StageCanvas } from './draw.ts';
+// masks as clip paths. Pure: no DOM. G2, GB1 (M21): a layer's blend mode as mix-blend-mode, a
+// clipping mask as an SVG mask of its base, a pixel layer as an <image> of its PNG.
+import { drawStage, type CanvasGradientLike, type LayerHow, type StageCanvas } from './draw.ts';
+import type { Bitmap } from '../graphics/pixels/raster.ts';
 import type { AnimationDoc, Id, ObjectFilter } from './types.ts';
 import { bevelShadows, shadowDeviation, type PatternTile } from './appearance.ts';
 import { fontFaceRule, genericFamily, type FontFile } from '../text/fonts.ts';
@@ -208,15 +210,21 @@ class SvgCanvas implements StageCanvas {
   font = '10px sans-serif';
   textAlign = 'start';
   textBaseline = 'alphabetic';
+  /** G2 (M21): a pixel layer's blend mode (drawStage sets it for drawBitmap). */
+  globalCompositeOperation = 'source-over';
 
   private readonly textTops: Readonly<Record<string, number>>;
+  /** G2, GB1 (M21): each pixel layer's PNG (its mask applied) as a data URL, by layer id. */
+  private readonly bitmaps: Readonly<Record<string, string>>;
   /** AN26: how wide words are in a font, as the stage measures them (curved text). */
   measureText?: (text: string) => { width: number };
   constructor(
     textTops: Readonly<Record<string, number>> = {},
     measure?: (font: string, text: string) => number,
+    bitmaps: Readonly<Record<string, string>> = {},
   ) {
     this.textTops = textTops;
+    this.bitmaps = bitmaps;
     if (measure) this.measureText = (text) => ({ width: measure(this.font, text) });
   }
 
@@ -232,6 +240,13 @@ class SvgCanvas implements StageCanvas {
   private readonly patterns: Pattern[] = [];
   private readonly filters: ((width: number, height: number) => string)[] = [];
   private readonly body: string[] = [];
+  /**
+   * G2 (M21): the layers withLayer has open, each with where its content starts in `body` and, once
+   * a layer is clipped to it, the mask made of that content.
+   */
+  private readonly open: { start: number; mask?: string }[] = [];
+  private readonly all: { start: number; mask?: string } = { start: 0 };
+  private readonly masks: ((width: number, height: number) => string)[] = [];
   /** A filled path waiting for its outline, so both go on one element. */
   private pending: { d: string; attrs: string; fill?: string; alpha?: number } | null = null;
 
@@ -240,9 +255,10 @@ class SvgCanvas implements StageCanvas {
   save(): void {
     this.flush();
     const { globalAlpha, fillStyle, strokeStyle, lineWidth, lineCap, lineJoin } = this;
-    const { font, textAlign, textBaseline } = this;
+    const { font, textAlign, textBaseline, globalCompositeOperation } = this;
     this.stack.push({
       state: {
+        globalCompositeOperation,
         globalAlpha,
         fillStyle,
         strokeStyle,
@@ -471,15 +487,44 @@ class SvgCanvas implements StageCanvas {
     this.groups++;
   }
 
-  /** A see-through group: its parts in one <g> with the opacity, so overlaps are no darker. */
-  withLayer(alpha: number, draw: (layer: StageCanvas) => void): void {
+  /**
+   * A see-through group: its parts in one <g> with the opacity, so overlaps are no darker. G2
+   * (M21): a layer in its blend mode (mix-blend-mode), or clipped to what the layer it is drawn
+   * in has drawn so far (its base): an SVG mask of that content, made white so its alpha is what
+   * shows (as the canvas's destination-in), in every SVG viewer.
+   */
+  withLayer(alpha: number, draw: (layer: StageCanvas) => void, how: LayerHow = {}): void {
     this.flush();
-    this.body.push(`<g opacity="${n(alpha)}">`);
+    const opacity = alpha === 1 ? '' : ` opacity="${n(alpha)}"`;
+    const blend = how.blend ? ` style="mix-blend-mode:${escape(how.blend)}"` : '';
+    const mask = how.clip ? this.baseMask() : '';
+    this.body.push(`<g${opacity}${mask ? ` mask="url(#${mask})"` : ''}${blend}>`);
+    this.open.push({ start: this.body.length });
     this.save();
     this.globalAlpha = 1;
+    this.globalCompositeOperation = 'source-over';
     draw(this);
     this.restore();
+    this.open.pop();
     this.body.push('</g>');
+  }
+
+  /**
+   * G2 (M21): a mask of what the open layer has drawn so far (its base), made once; outside any
+   * layer, of everything drawn so far.
+   */
+  private baseMask(): string {
+    const parent = this.open.at(-1) ?? this.all;
+    if (parent.mask) return parent.mask;
+    const id = this.masks.length + 1;
+    this.body.splice(parent.start, 0, `<g id="b${id}">`);
+    this.body.push('</g>');
+    parent.mask = `m${id}`;
+    this.masks.push(
+      (width, height) =>
+        `<mask id="m${id}" maskUnits="userSpaceOnUse" x="0" y="0" width="${n(width)}" height="${n(height)}"><use href="#b${id}" filter="url(#white)"/></mask>`,
+    );
+    return parent.mask;
   }
 
   /** G14 (M19): the object in a <g> with its effects as one SVG filter. */
@@ -602,6 +647,21 @@ class SvgCanvas implements StageCanvas {
     );
   }
 
+  /**
+   * G2, GB1 (M21): a pixel layer as an <image> of its PNG where it lies, at its opacity and in its
+   * blend mode; a layer whose PNG is not given is left out.
+   */
+  drawBitmap(bitmap: Bitmap, x: number, y: number, key: string): void {
+    this.flush();
+    const href = this.bitmaps[key];
+    if (!href) return;
+    const op = this.globalCompositeOperation;
+    const blend = op !== 'source-over' ? ` style="mix-blend-mode:${escape(op)}"` : '';
+    this.body.push(
+      `<image href="${escape(href)}" x="${n(x)}" y="${n(y)}" width="${bitmap.width}" height="${bitmap.height}" preserveAspectRatio="none"${this.opacity()}${blend}${this.matrixAttr()}/>`,
+    );
+  }
+
   // ---- gradients, in stage coordinates where they are made ----
 
   private newGradientId(): string {
@@ -665,6 +725,13 @@ class SvgCanvas implements StageCanvas {
       ...this.patterns.map(String),
       ...this.filters.map((f) => f(width, height)),
       ...this.clips,
+      // G2 (M21): the clipping masks, and the filter that makes their content white.
+      ...this.masks.map((f) => f(width, height)),
+      ...(this.masks.length
+        ? [
+            `<filter id="white" filterUnits="userSpaceOnUse" x="0" y="0" width="${n(width)}" height="${n(height)}" color-interpolation-filters="sRGB"><feColorMatrix type="matrix" values="0 0 0 0 1 0 0 0 0 1 0 0 0 0 1 0 0 0 1 0"/></filter>`,
+          ]
+        : []),
     ];
     return (
       `<svg xmlns="http://www.w3.org/2000/svg" width="${shown.width}" height="${shown.height}" viewBox="0 0 ${width} ${height}">\n` +
@@ -684,6 +751,7 @@ class SvgCanvas implements StageCanvas {
  * `measure` how wide words are in a font, as the stage measures them (StageRenderer.textWidths),
  * so curved text (AN26) has its letters where the stage puts them. `shown`: the width and height
  * written on the SVG, e.g. "10cm" (G11, M18: an image's printed size); absent: the stage in px.
+ * `bitmaps` (G2, GB1, M21): each pixel layer's PNG, its mask applied, as a data URL by layer id.
  */
 export function stageSvg(
   doc: AnimationDoc,
@@ -693,8 +761,9 @@ export function stageSvg(
   textTops: Readonly<Record<string, number>> = {},
   measure?: (font: string, text: string) => number,
   shown?: { width: string; height: string },
+  bitmaps: Readonly<Record<Id, string>> = {},
 ): string {
-  const canvas = new SvgCanvas(textTops, measure);
+  const canvas = new SvgCanvas(textTops, measure, bitmaps);
   drawStage(canvas, doc, {
     frame,
     image: (id) => (pictures[id] ? ({ href: pictures[id] } satisfies Href) : null),

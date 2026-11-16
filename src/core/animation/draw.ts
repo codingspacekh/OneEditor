@@ -12,6 +12,7 @@ import { colourStops, radialCentre } from './gradient.ts';
 import { patternTileOf, timesMatrix, type PatternTile } from './appearance.ts';
 import { TRANSPARENT } from './rules.ts';
 import { stateAt } from './state.ts';
+import { clipBaseIndex } from '../graphics/pixels/clipping.ts';
 import type { Bitmap, Mask } from '../graphics/pixels/raster.ts';
 import type {
   AnimObject,
@@ -88,7 +89,7 @@ export interface StageCanvas {
    * group is faded as one picture, so where its parts overlap it is no darker. A canvas without
    * it fades each part instead.
    */
-  withLayer?(alpha: number, draw: (layer: StageCanvas) => void): void;
+  withLayer?(alpha: number, draw: (layer: StageCanvas) => void, how?: LayerHow): void;
   /**
    * G12 (M19): a pattern fill to use as a fillStyle: `tile` repeated, placed by its matrix in
    * the current space. A canvas without it (or giving null) fills with the pattern's colour.
@@ -114,6 +115,17 @@ export interface StageCanvas {
    * pixels.
    */
   drawBitmap?(bitmap: Bitmap, x: number, y: number, key: string, mask?: Mask): void;
+}
+
+/** G2 (M21): how withLayer puts its layer down, besides its opacity. */
+export interface LayerHow {
+  /** The canvas's name for the blend mode (COMPOSITE_OPERATION); absent: 'source-over'. */
+  blend?: string;
+  /**
+   * A clipping mask: the layer is seen only where the canvas it is put on already has something
+   * drawn (its base, drawn there first). Each layer clipped to the base is put down this way.
+   */
+  clip?: boolean;
 }
 
 /** G2 (M21): the canvas's name for each blend mode. */
@@ -704,17 +716,26 @@ function drawTemplate(ctx: StageCanvas, layer: Layer, options: DrawOptions): voi
   for (const object of layer.objects) drawObject(ctx, object, plain, TEMPLATE_OPACITY);
 }
 
-/** G2, GB1 (M21): a pixel layer's pixels where it lies, at its opacity and in its blend mode. */
-function drawPixels(ctx: StageCanvas, layer: Layer): void {
+/**
+ * G2, GB1 (M21): a pixel layer's pixels where it lies, at its opacity and in its blend mode (or
+ * at full strength, `plain`, inside a picture of its own that is put down with them).
+ */
+function drawPixels(ctx: StageCanvas, layer: Layer, plain = false): void {
   const content = layer.pixels;
   if (!content || !ctx.drawBitmap) return;
   ctx.save();
-  ctx.globalAlpha = layer.opacity ?? 1;
-  if (layer.blend && layer.blend !== 'normal')
-    ctx.globalCompositeOperation = COMPOSITE_OPERATION[layer.blend];
+  if (!plain) {
+    ctx.globalAlpha = layer.opacity ?? 1;
+    if (layer.blend && layer.blend !== 'normal')
+      ctx.globalCompositeOperation = COMPOSITE_OPERATION[layer.blend];
+  }
   ctx.drawBitmap(content.bitmap, content.x, content.y, layer.id, content.mask);
   ctx.restore();
 }
+
+/** G2 (M21): how a layer is put down when it is drawn as one picture (absent: normal). */
+const howOf = (layer: Layer): LayerHow =>
+  layer.blend && layer.blend !== 'normal' ? { blend: COMPOSITE_OPERATION[layer.blend] } : {};
 
 /** Draws the whole stage at its own size: background, then every visible layer in order. */
 export function drawStage(ctx: StageCanvas, doc: AnimationDoc, given: DrawOptions = {}): void {
@@ -744,26 +765,60 @@ export function drawStage(ctx: StageCanvas, doc: AnimationDoc, given: DrawOption
     for (const object of options.onionSkin?.(layer.id) ?? [])
       drawObject(ctx, object, options, ONION_OPACITY);
   };
+  /** A vector layer's objects (AN12: only what lies under its mask's shapes), `fade`d. */
+  const drawVectors = (target: StageCanvas, layer: Layer, i: number, fade?: number): void => {
+    const mask = layers[i + 1];
+    if (!mask || !masking(mask)) {
+      if (target === ctx) skin(layer);
+      for (const object of layer.objects) drawObject(target, object, options, fade);
+      return;
+    }
+    target.save();
+    target.beginPath();
+    for (const o of mask.objects)
+      for (const outline of outlineOf(o)) {
+        outline.forEach((p, k) => (k === 0 ? target.moveTo(p.x, p.y) : target.lineTo(p.x, p.y)));
+        target.closePath();
+      }
+    target.clip();
+    for (const object of layer.objects) drawObject(target, object, options, fade);
+    target.restore();
+  };
+  /** A layer at full strength, inside a picture of its own. */
+  const drawPlain = (target: StageCanvas, layer: Layer, i: number): void =>
+    layer.pixels ? drawPixels(target, layer, true) : drawVectors(target, layer, i);
   layers.forEach((layer, i) => {
     if (!layer.visible || masking(layer)) return;
     if (layer.template) return drawTemplate(ctx, layer, options);
-    if (layer.pixels) return drawPixels(ctx, layer);
-    const mask = layers[i + 1];
-    if (!mask || !masking(mask)) {
-      skin(layer);
-      for (const object of layer.objects) drawObject(ctx, object, options);
+    // G2 (M21): a layer clipped to the one below is drawn with that one, its base (a canvas
+    // without layers draws it as an ordinary layer), and not at all when its base is hidden.
+    const base = clipBaseIndex(layers, i);
+    if (base >= 0 && (ctx.withLayer || !layers[base]!.visible)) return;
+    const opacity = layer.opacity ?? 1;
+    const clipped = layers.flatMap((l, j) =>
+      j > i && l.visible && clipBaseIndex(layers, j) === i ? [{ layer: l, j }] : [],
+    );
+    if (clipped.length > 0 && ctx.withLayer) {
+      // The base and the layers clipped to it make one picture, put down as the base is.
+      ctx.withLayer(
+        opacity,
+        (group) => {
+          drawPlain(group, layer, i);
+          for (const c of clipped) {
+            const how = { ...howOf(c.layer), clip: true };
+            group.withLayer!(c.layer.opacity ?? 1, (top) => drawPlain(top, c.layer, c.j), how);
+          }
+        },
+        howOf(layer),
+      );
       return;
     }
-    // AN12: only what lies under the mask's shapes is seen of this layer.
-    ctx.save();
-    ctx.beginPath();
-    for (const o of mask.objects)
-      for (const outline of outlineOf(o)) {
-        outline.forEach((p, k) => (k === 0 ? ctx.moveTo(p.x, p.y) : ctx.lineTo(p.x, p.y)));
-        ctx.closePath();
-      }
-    ctx.clip();
-    for (const object of layer.objects) drawObject(ctx, object, options);
-    ctx.restore();
+    if (layer.pixels) return drawPixels(ctx, layer);
+    // G2: a see-through or blended vector layer is faded and mixed as one picture.
+    if ((opacity < 1 || layer.blend) && ctx.withLayer) {
+      ctx.withLayer(opacity, (one) => drawVectors(one, layer, i), howOf(layer));
+      return;
+    }
+    drawVectors(ctx, layer, i, opacity < 1 ? opacity : undefined);
   });
 }

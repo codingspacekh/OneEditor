@@ -138,3 +138,129 @@ describe('menu actions follow the mode', () => {
     ui.mode = 'Video';
   });
 });
+
+describe('M21: the Image menu and View ▸ Pixel Grid', () => {
+  it('M21 GB6, G8: open Graphics mode and its dialogs, or trim its image', async () => {
+    const { animUi } = await import('../../../src/ui/animation/animation-ui.svelte.ts');
+    const { app } = testApp();
+    const actions = menuActions(app);
+    ui.mode = 'Video';
+    actions.imageSize();
+    expect([ui.mode, animUi.dialog]).toEqual(['Graphics', 'imageSize']);
+    actions.canvasSize();
+    expect(animUi.dialog).toBe('canvasSize');
+    actions.reduceColours();
+    expect(animUi.dialog).toBe('reduceColours');
+    animUi.dialog = null;
+    const trim = vi.spyOn(app.graphics, 'trimCanvas');
+    actions.cropToContent();
+    actions.trimPlain();
+    expect(trim.mock.calls).toEqual([[false], [true]]);
+    const was = animUi.pixelGrid;
+    actions.pixelGrid();
+    expect(animUi.pixelGrid).toBe(!was);
+    actions.pixelGrid();
+    ui.mode = 'Video';
+  });
+});
+
+describe('M21: the Layer and Select menus', () => {
+  it('M21 G2, GB2, G13: each item opens Graphics mode and acts on its image, with the option bar’s amounts', async () => {
+    const { selUi } = await import('../../../src/ui/graphics/selection-ui.svelte.ts');
+    const { app } = testApp();
+    const g = app.graphics;
+    const actions = menuActions(app);
+    const calls: string[] = [];
+    const methods = g as unknown as Record<string, (...args: unknown[]) => unknown>;
+    const spy = (name: string) =>
+      vi.spyOn(methods, name).mockImplementation((...args: unknown[]) => {
+        calls.push(`${name}(${args.map((a) => JSON.stringify(a)).join(',')})`);
+      });
+    for (const name of [
+      'openPictureAsImage',
+      'cropToPixelSelection',
+      'addPixelLayer',
+      'addPictureAsLayer',
+      'copySelectionToLayer',
+      'cutSelectionToLayer',
+      'maskFromPixelSelection',
+      'mergeLayers',
+      'selectAllPixels',
+      'deselectPixels',
+      'invertPixelSelection',
+      'selectLayerPixels',
+      'selectFromObjects',
+      'featherPixelSelection',
+      'growPixelSelection',
+      'smoothPixelSelection',
+      'fadePixelSelection',
+    ] as const)
+      spy(name);
+    selUi.amount = 4;
+    selUi.fade = 30;
+    selUi.feather = 2;
+    ui.mode = 'Video';
+    actions.openPictureAsImage();
+    expect(ui.mode).toBe('Graphics');
+    for (const a of [
+      'cropToSelection',
+      'newPixelLayer',
+      'addPictureAsLayer',
+      'layerViaCopy',
+      'layerViaCut',
+      'maskFromSelection',
+      'mergeDown',
+      'mergeVisible',
+      'flatten',
+      'selectAllPixels',
+      'deselectPixels',
+      'invertSelection',
+      'selectLayerPixels',
+      'selectFromShape',
+      'featherSelection',
+      'growSelection',
+      'shrinkSelection',
+      'smoothSelection',
+      'fadeSelection',
+    ] as const)
+      actions[a]();
+    expect(calls).toEqual([
+      'openPictureAsImage()',
+      'cropToPixelSelection()',
+      'addPixelLayer()',
+      'addPictureAsLayer()',
+      'copySelectionToLayer()',
+      'cutSelectionToLayer()',
+      'maskFromPixelSelection()',
+      'mergeLayers("down")',
+      'mergeLayers("visible")',
+      'mergeLayers("flatten")',
+      'selectAllPixels()',
+      'deselectPixels()',
+      'invertPixelSelection()',
+      'selectLayerPixels()',
+      'selectFromObjects({"feather":2})',
+      'featherPixelSelection(4)',
+      'growPixelSelection(4)',
+      'growPixelSelection(-4)',
+      'smoothPixelSelection(4)',
+      'fadePixelSelection(30)',
+    ]);
+    ui.mode = 'Video';
+  });
+
+  it('M21 GB2: Select All on a pixel layer selects its pixels, else the objects', () => {
+    const { app } = testApp();
+    const g = app.graphics;
+    const actions = menuActions(app);
+    const pixels = vi.spyOn(g, 'selectAllPixels').mockImplementation(() => {});
+    const objects = vi.spyOn(g, 'selectAll').mockImplementation(() => {});
+    ui.mode = 'Graphics';
+    actions.selectAll();
+    expect([pixels.mock.calls.length, objects.mock.calls.length]).toEqual([0, 1]);
+    g.addPixelLayer();
+    actions.selectAll();
+    expect([pixels.mock.calls.length, objects.mock.calls.length]).toEqual([1, 1]);
+    ui.mode = 'Video';
+  });
+});

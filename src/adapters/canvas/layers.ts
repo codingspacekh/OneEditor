@@ -3,7 +3,8 @@
 // down at the group's opacity, so where the parts overlap the group is no darker. Chromium has
 // no canvas layers (beginLayer) yet. One layer per depth of groups, kept for the next frame.
 // G12, G14 (M19): pattern fills and effects are added too (appearance.ts), with their own
-// layers per depth. G2, GB1 (M21): pixel layers too (bitmaps.ts).
+// layers per depth. G2, GB1 (M21): pixel layers too (bitmaps.ts); a layer put down in its blend
+// mode, or as a clipping mask (seen only where its base is drawn on the canvas below it).
 import type { StageCanvas } from '../../core/animation/draw.ts';
 import { canvasPattern, drawFiltered } from './appearance.ts';
 import { pageBitmaps } from './bitmaps.ts';
@@ -22,7 +23,7 @@ function addLayers<C extends Context2D>(
   scratch: Map<string, OffscreenCanvas> = new Map(),
 ): C {
   if (typeof OffscreenCanvas === 'undefined' || 'withLayer' in ctx) return ctx;
-  const withLayer = (alpha: number, draw: (layer: StageCanvas) => void) => {
+  const withLayer: NonNullable<StageCanvas['withLayer']> = (alpha, draw, how = {}) => {
     const { width, height } = ctx.canvas;
     let canvas = pool[depth];
     if (!canvas || canvas.width !== width || canvas.height !== height)
@@ -31,9 +32,20 @@ function addLayers<C extends Context2D>(
     layer.reset();
     layer.setTransform(ctx.getTransform());
     draw(addLayers(layer, depth + 1, pool, scratch) as unknown as StageCanvas);
+    if (how.clip) {
+      // G2 (M21): a clipping mask: only where its base is drawn, on the canvas it goes onto.
+      layer.save();
+      layer.setTransform(1, 0, 0, 1, 0, 0);
+      layer.globalAlpha = 1;
+      layer.globalCompositeOperation = 'destination-in';
+      layer.drawImage(ctx.canvas, 0, 0);
+      layer.restore();
+    }
     ctx.save();
     ctx.setTransform(1, 0, 0, 1, 0, 0);
     ctx.globalAlpha = alpha;
+    // G2 (M21): the layer's blend mode.
+    if (how.blend) ctx.globalCompositeOperation = how.blend as GlobalCompositeOperation;
     ctx.drawImage(canvas, 0, 0);
     ctx.restore();
   };

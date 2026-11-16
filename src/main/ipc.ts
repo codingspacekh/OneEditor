@@ -58,6 +58,7 @@ const PICTURE_TYPES: Record<string, string> = {
   jpeg: 'image/jpeg',
   gif: 'image/gif',
   bmp: 'image/bmp',
+  webp: 'image/webp',
   svg: 'image/svg+xml',
 };
 
@@ -250,6 +251,8 @@ export function registerIpc(s: MainServices): void {
       await s.files.writeBytes(path, bytes);
       return null;
     },
+    // D9 (M21): a .mveg image (a zip), or a picture's own bytes; as project:read, any file.
+    'project:readBytes': (path) => s.files.readBytes(path),
     'page:player': async () => new TextDecoder().decode(await s.pageFiles.read(s.pageFiles.player)),
     'page:picture': async (path) => {
       if (!s.allow.has(path)) throw new EditError('Only pictures opened in OneEditor can be used.');

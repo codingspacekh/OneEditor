@@ -39,6 +39,7 @@ export function createElectronProjectFiles(api: MveApi): ProjectFiles {
     saveSound: (name, wav) => unwrap(api.invoke('project:saveSound', name, wav)),
     writeBytes: async (path, bytes) =>
       void (await unwrap(api.invoke('project:writeBytes', path, bytes))),
+    readBytes: (path) => unwrap(api.invoke('project:readBytes', path)),
   };
 }
 

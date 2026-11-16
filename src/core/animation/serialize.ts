@@ -1,10 +1,13 @@
 // AN16: reading and writing .mvea animation files (JSON), with picture paths relative to the
-// file (X1) and the version upgrades of core/project/migrate.ts.
+// file (X1) and the version upgrades of core/project/migrate.ts. D9 (M21): the same JSON is the
+// doc.json of a Graphics mode .mveg, where each pixel layer's bitmap and layer mask is a PNG beside
+// it in the zip (core/graphics/mveg.ts): in the JSON a raster is only its size and that file's name.
+import { isRaster, type Raster } from '../graphics/pixels/raster.ts';
 import { ProjectFileError } from '../model/errors.ts';
 import { migrate, type Migration, type ProjectDocument } from '../project/migrate.ts';
 import { fromProjectPath, toProjectPath } from '../project/paths.ts';
 import { isColour, isStageBackground } from './rules.ts';
-import type { AnimationDoc, ObjectKind } from './types.ts';
+import { BLEND_MODES, type AnimationDoc, type Layer, type ObjectKind } from './types.ts';
 
 export const ANIMATION_SCHEMA = 5;
 export const ANIMATION_DAMAGED = 'This file is not a OneEditor animation, or it is damaged.';
@@ -25,11 +28,56 @@ export const ANIMATION_MIGRATIONS: Record<number, Migration> = {
   4: (v4) => ({ ...v4, schemaVersion: 5 }),
 };
 
-export function serializeAnimation(doc: AnimationDoc): string {
-  return `${JSON.stringify(doc, null, 2)}\n`;
+/** D9 (M21): a bitmap or mask in doc.json: its size, and the PNG in the .mveg that holds it. */
+export interface RasterRef {
+  width: number;
+  height: number;
+  file: string;
 }
 
-export function deserializeAnimation(text: string): AnimationDoc {
+/** D9: the PNGs of a document's pixel layers, as doc.json names them (by the layer's place). */
+export function pixelFiles(doc: AnimationDoc): { file: string; raster: Raster }[] {
+  return doc.layers.flatMap((l, i) =>
+    l.pixels
+      ? [
+          { file: `pixels/${i}.png`, raster: l.pixels.bitmap as Raster },
+          ...(l.pixels.mask
+            ? [{ file: `pixels/${i}-mask.png`, raster: l.pixels.mask as Raster }]
+            : []),
+        ]
+      : [],
+  );
+}
+
+const refOf = (r: Raster, file: string): RasterRef => ({ width: r.width, height: r.height, file });
+
+/** The document as JSON; a pixel layer's bitmap and mask as references to their PNGs (D9). */
+export function serializeAnimation(doc: AnimationDoc): string {
+  const layers = doc.layers.map((l, i): Layer | Record<string, unknown> =>
+    l.pixels
+      ? {
+          ...l,
+          pixels: {
+            ...l.pixels,
+            bitmap: refOf(l.pixels.bitmap, `pixels/${i}.png`),
+            ...(l.pixels.mask ? { mask: refOf(l.pixels.mask, `pixels/${i}-mask.png`) } : {}),
+          },
+        }
+      : l,
+  );
+  return `${JSON.stringify({ ...doc, layers }, null, 2)}\n`;
+}
+
+/**
+ * Reads a document's JSON, upgrading an older version, and refuses one that is not an animation
+ * or image or is damaged. D9: `rasters` gives the pixels of each PNG doc.json names (from the
+ * .mveg's zip); without it, or when one is missing or not the size doc.json says, the file is
+ * damaged.
+ */
+export function deserializeAnimation(
+  text: string,
+  rasters?: (file: string) => Raster | undefined,
+): AnimationDoc {
   let raw: unknown;
   try {
     raw = JSON.parse(text);
@@ -40,7 +88,29 @@ export function deserializeAnimation(text: string): AnimationDoc {
     throw new ProjectFileError(ANIMATION_DAMAGED);
   const doc = migrate(raw, ANIMATION_MIGRATIONS, ANIMATION_SCHEMA);
   if (!isAnimation(doc)) throw new ProjectFileError(ANIMATION_DAMAGED);
-  return doc;
+  if (!doc.layers.some((l) => l.pixels)) return doc;
+  const resolve = (ref: unknown, channels: 1 | 4): Raster => {
+    const { width, height, file } = ref as RasterRef;
+    const raster = rasters?.(file);
+    if (!isRaster(raster, channels) || raster.width !== width || raster.height !== height)
+      throw new ProjectFileError(ANIMATION_DAMAGED);
+    return raster;
+  };
+  return {
+    ...doc,
+    layers: doc.layers.map((l) =>
+      l.pixels
+        ? {
+            ...l,
+            pixels: {
+              ...l.pixels,
+              bitmap: resolve(l.pixels.bitmap, 4),
+              ...(l.pixels.mask ? { mask: resolve(l.pixels.mask, 1) } : {}),
+            },
+          }
+        : l,
+    ),
+  } as AnimationDoc;
 }
 
 const relocate = (doc: AnimationDoc, map: (path: string) => string): AnimationDoc => ({
@@ -312,6 +382,26 @@ function isAnimObject(o: Obj): boolean {
   }
 }
 
+/** D9 (M21): a raster's size and its PNG in the zip. */
+const isRef = (v: unknown): v is RasterRef =>
+  isObject(v) &&
+  ['width', 'height'].every((k) => Number.isInteger(v[k]) && (v[k] as number) >= 1) &&
+  isString(v.file);
+
+/** G2, GB1 (M21): a pixel layer's bitmap, where it lies (whole px), and its layer mask. */
+const isPixels = (p: unknown): boolean =>
+  isObject(p) &&
+  isRef(p.bitmap) &&
+  Number.isInteger(p.x) &&
+  Number.isInteger(p.y) &&
+  optional(
+    p.mask,
+    (m) =>
+      isRef(m) &&
+      m.width === (p.bitmap as RasterRef).width &&
+      m.height === (p.bitmap as RasterRef).height,
+  );
+
 /** AN28: a sound: its file, length, start, volume, and the optional trim, fades and mute. */
 const isSound = (s: Obj): boolean =>
   has(s, ['id', 'name', 'path'], isString) &&
@@ -337,6 +427,12 @@ function isAnimation(doc: ProjectDocument): doc is ProjectDocument & AnimationDo
         (l.mask === undefined || isBoolean(l.mask)) &&
         // GV8 (M19): a template to draw over.
         optional(l.template, isBoolean) &&
+        // G2, GB1 (M21): how the layer is drawn, and a pixel layer's pixels (no objects).
+        optional(l.opacity, (o) => isNumber(o) && o >= 0 && o <= 1) &&
+        optional(l.blend, (b) => BLEND_MODES.includes(b as never)) &&
+        optional(l.clip, isBoolean) &&
+        optional(l.pixels, isPixels) &&
+        (l.pixels === undefined || (Array.isArray(l.objects) && l.objects.length === 0)) &&
         (l.drawings === undefined ||
           (Array.isArray(l.drawings) && l.drawings.length > 0 && l.drawings.every(isNumber))) &&
         listOf(l.objects, isAnimObject),

@@ -98,3 +98,69 @@ describe('withLayers (a see-through group faded as one picture)', () => {
     expect('withLayer' in withLayers(raw as never)).toBe(false);
   });
 });
+
+describe('M21 G2: a layer put down in its blend mode, or as a clipping mask', () => {
+  afterEach(() => vi.unstubAllGlobals());
+
+  it('mixes the layer in its blend mode, and cuts a clipped one to what is drawn below it', () => {
+    const log: string[] = [];
+    let made = 0;
+    const withMode = (c: ReturnType<typeof fakeContext>, name: string) =>
+      Object.defineProperty(c, 'globalCompositeOperation', {
+        set: (v: string) => log.push(`${name}.mode=${v}`),
+        get: () => 'source-over',
+      });
+    vi.stubGlobal(
+      'OffscreenCanvas',
+      class {
+        private readonly ctx;
+        width: number;
+        height: number;
+        constructor(width: number, height: number) {
+          this.width = width;
+          this.height = height;
+          made++;
+          this.ctx = withMode(fakeContext(width, height, log, `layer${made}`), `layer${made}`);
+        }
+        getContext() {
+          return this.ctx;
+        }
+      },
+    );
+    const ctx = withLayers(
+      withMode(fakeContext(80, 60, log, 'stage'), 'stage') as never,
+    ) as unknown as StageCanvas;
+    ctx.withLayer!(
+      1,
+      (group) => {
+        log.push('draw base');
+        group.withLayer!(0.5, () => log.push('draw photo'), { blend: 'multiply', clip: true });
+      },
+      { blend: 'screen' },
+    );
+    expect(log).toEqual([
+      'layer1.reset',
+      'layer1.setTransform(matrix)',
+      'draw base',
+      'layer2.reset',
+      'layer2.setTransform(matrix)',
+      'draw photo',
+      // Cut to the base: only where the group's canvas has something drawn.
+      'layer2.save',
+      'layer2.setTransform(1,0,0,1,0,0)',
+      'layer2.mode=destination-in',
+      'layer2.drawImage(layer,0,0) at 1',
+      'layer2.restore',
+      'layer1.save',
+      'layer1.setTransform(1,0,0,1,0,0)',
+      'layer1.mode=multiply',
+      'layer1.drawImage(layer,0,0) at 0.5',
+      'layer1.restore',
+      'stage.save',
+      'stage.setTransform(1,0,0,1,0,0)',
+      'stage.mode=screen',
+      'stage.drawImage(layer,0,0) at 1',
+      'stage.restore',
+    ]);
+  });
+});

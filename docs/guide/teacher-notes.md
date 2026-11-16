@@ -126,7 +126,7 @@ _Made by `npm run guides` from `src/core/teaching/syllabus.ts` and the app's too
 | colour systems: RGB, HSL, CMYK | Graphics ▸ any colour box: the colour picker shows and takes RGB, HSL and CMYK numbers | — |
 | the need for different image resolutions, including the impact of having too low/high resolution for an image on screen or in print | Graphics ▸ File ▸ New Image… and the canvas chip at the top (size in px, cm, mm or in at a resolution; screen and print presets) | Image size and resolution |
 | exporting an image in different file formats | Graphics ▸ Export on the toolbar (PNG, JPG or SVG at a size, of the selection, or each object in its own file; the resolution is written into the file) | Export image |
-| changing solid and gradient fills; changing the opacity of all or part of an image | Graphics (and Animation) ▸ Properties ▸ Fill (solid, linear, radial or Pattern), Fill opacity and Outline opacity; Properties ▸ Filters for shadow, glow, bevel and blur | Pattern fill and opacity, Filters |
+| changing solid and gradient fills; changing the opacity of all or part of an image | Graphics (and Animation) ▸ Properties ▸ Fill (solid, linear, radial or Pattern), Fill opacity and Outline opacity; Properties ▸ Filters for shadow, glow, bevel and blur | Pattern fill and opacity, Filters, Paint bucket and gradient |
 
 ## 19.2 Vector graphics
 
@@ -139,6 +139,17 @@ _Made by `npm run guides` from `src/core/teaching/syllabus.ts` and the app's too
 | selection tools: convert to curves, replication, transformation tools | Graphics (and Animation) ▸ Properties ▸ Copies: Convert to curves, Step and repeat…, Paste in place, Mirror copy; Duplicate (Ctrl+D) repeats the last move | Convert to curves, Step and repeat, mirror copy |
 | add, move, delete nodes; Bézier handles; symmetrical, asymmetrical, cusp, smooth nodes; align and distribute nodes | Graphics (and Animation) ▸ select a pen path, then Properties ▸ Nodes: click or drag a box round nodes, Cusp / Smooth / Symmetrical, To line / To curve, Align and distribute, Simplify…, Break, Join, Close, Reverse, Delete | Nodes |
 | application of envelopes and perspectives | Graphics (and Animation) ▸ Properties ▸ Envelope: arch, arc, bulge, flag, wave, rise or squeeze with a bend %, Perspective (drag the four corners) or Custom (drag the sides’ corners and handles); Apply makes plain paths | Envelope and perspective |
+
+## 19.3 Bitmap images
+
+### Using software tools for the creation and editing of bitmap graphics
+
+| Syllabus point | Where in OneEditor | Tools |
+|---|---|---|
+| creating and editing bitmap images that meet the requirements of their intended application and audience | Graphics ▸ Layers ▸ New pixel layer or Add picture as layer; File ▸ Open a photo as an image; Image ▸ Image size…, Canvas size…, Crop to content, Trim plain edges | — |
+| selection tools to select, remove or hide parts of a bitmap image: lasso, magic wand, colour select, cut-out, crop, masking tools | Graphics ▸ the tool strip on a pixel layer: Rectangle and Ellipse select (M), Lasso, Polygonal and Magnetic lasso, Magic wand (W), Colour select; the option bar for add / subtract / intersect, tolerance and feather; Delete, Layer via copy (Ctrl+J), Crop to selection; Layers ▸ Add mask, clipping | — |
+| brush, pencil and pen tools: pre-set and customised options | Graphics ▸ the tool strip on a pixel layer: Paintbrush, Pencil, Eraser, Airbrush; Properties ▸ Paint: size, hardness, opacity, flow, spacing, shape, the presets and Save preset | Brush, pencil, airbrush and eraser |
+| resizing the image / canvas: changing colour depth, changing resolution | Graphics ▸ Image ▸ Image size… (px, %, cm, in at a resolution; bicubic, bilinear or nearest; or the resolution alone), Canvas size… (anchor), Reduce colours… (2, 16, 256, greyscale; dithering) | — |
 
 ## 19.5 Text
 

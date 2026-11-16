@@ -15,6 +15,10 @@ export type AnimDialog =
   | 'image'
   /** GV2 (M19): Step and repeat… for the selection. */
   | 'stepRepeat'
+  /** GB6 (M21), Graphics mode: Image size…, Canvas size…, Reduce colours…. */
+  | 'imageSize'
+  | 'canvasSize'
+  | 'reduceColours'
   | null;
 
 export const animUi = $state({
@@ -32,6 +36,8 @@ export const animUi = $state({
   lockRatio: false,
   /** A text object was just made: the Properties panel focuses its words. */
   focusText: 0,
+  /** GB1 (M21): View ▸ Pixel grid: lines between the pixels from 800 % (Graphics mode). */
+  pixelGrid: true,
 });
 
 /** How close (screen px) a drag must come to a snap target. */

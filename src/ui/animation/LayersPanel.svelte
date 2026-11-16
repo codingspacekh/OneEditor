@@ -3,11 +3,14 @@
   // coloured and put in a folder; new objects go on the selected layer. Folder makes a folder
   // holding the selected layer; a layer is dragged onto a folder (in it), onto another layer (next
   // to it, in its folder) or onto empty space (out of its folder); a folder is renamed by
-  // double-clicking it.
+  // double-clicking it. G2, GB1 (M21), Graphics mode only: pixel layers (new, a picture as a
+  // layer), each layer's opacity, blend mode and clipping mask, a pixel layer's layer mask,
+  // duplicate, merge down, merge visible and flatten.
   import type { App } from '../../app/app.ts';
   import { editorOf } from './editor.ts';
   import type { LayerDrop } from '../../core/animation/layers.ts';
-  import type { Id, Layer } from '../../core/animation/types.ts';
+  import { BLEND_MODES, type BlendMode, type Id, type Layer } from '../../core/animation/types.ts';
+  import NumField from './NumField.svelte';
   import { withWhy } from '../../core/effects/help.ts';
   import Icon from '../Icon.svelte';
   import Why from '../Why.svelte';
@@ -90,6 +93,26 @@
     dropOn = null;
   }
   const count = (l: Layer) => `${l.objects.length} object${l.objects.length === 1 ? '' : 's'}`;
+
+  // ---- G2, GB1 (M21): Graphics mode's layer look, masks and merging ----
+  const current = $derived(doc.layers.find((l) => l.id === $store.layerId));
+  const BLEND_LABELS: Record<BlendMode, string> = {
+    normal: 'Normal',
+    multiply: 'Multiply',
+    screen: 'Screen',
+    overlay: 'Overlay',
+    darken: 'Darken',
+    lighten: 'Lighten',
+    colour: 'Colour',
+    luminosity: 'Luminosity',
+    difference: 'Difference',
+  };
+  let lookError: string | null = $state(null);
+  function setBlend(id: Id, event: Event): void {
+    lookError = anim.setLayerLook(id, {
+      blend: (event.currentTarget as HTMLSelectElement).value as BlendMode,
+    });
+  }
 </script>
 
 <aside class="layers" aria-label="Layers">
@@ -115,6 +138,28 @@
       )}
       onclick={() => anim.placeTemplate()}><Icon name="template" size={14} /></button
     >
+    {#if editor.still}
+      <!-- GB1 (M21): a pixel layer to paint on, or a picture's pixels as a layer. -->
+      <button
+        class="sm icon-only"
+        aria-label="New pixel layer"
+        title="New pixel layer: empty, the size of the image, to paint and select on"
+        onclick={() => anim.addPixelLayer()}><Icon name="paintbrush" size={14} /></button
+      >
+      <button
+        class="sm icon-only"
+        aria-label="Add picture as layer"
+        title="Add a picture (JPG, PNG, GIF, BMP or WebP) as a new pixel layer"
+        onclick={() => anim.addPictureAsLayer()}><Icon name="image" size={14} /></button
+      >
+      <button
+        class="sm icon-only"
+        aria-label="Duplicate layer"
+        title="Duplicate the selected layer"
+        disabled={!current}
+        onclick={() => anim.duplicateLayer($store.layerId)}><Icon name="copy" size={14} /></button
+      >
+    {/if}
     <span class="spacer"></span>
     <button
       class="sm icon-only"
@@ -140,6 +185,78 @@
       onclick={() => anim.removeLayer($store.layerId)}><Icon name="delete" size={14} /></button
     >
   </div>
+  {#if editor.still && current}
+    <!-- G2 (M21): how the selected layer is drawn, its layer mask, and merging. -->
+    <div class="look" role="group" aria-label="Layer look">
+      <NumField
+        label="Opacity"
+        unit="%"
+        value={Math.round((current.opacity ?? 1) * 100)}
+        commit={(v) => anim.setLayerLook(current.id, { opacity: v / 100 })}
+      />
+      <label class="blend"
+        >Blend
+        <select
+          aria-label="Blend mode"
+          value={current.blend ?? 'normal'}
+          onchange={(e) => setBlend(current.id, e)}
+        >
+          {#each BLEND_MODES as mode (mode)}<option value={mode}>{BLEND_LABELS[mode]}</option
+            >{/each}
+        </select>
+      </label>
+      <button
+        class="sm"
+        class:on={current.clip}
+        aria-pressed={current.clip === true}
+        title={current.clip
+          ? 'Clipped: seen only where the layer below has something drawn. Click to release it.'
+          : 'Clipping mask: show this layer only where the layer below has something drawn (the photo inside the circle)'}
+        disabled={selectedIndex <= 0}
+        onclick={() => (lookError = anim.setLayerLook(current.id, { clip: !current.clip }))}
+        >Clip</button
+      >
+      {#if current.pixels}
+        {#if current.pixels.mask}
+          <button
+            class="sm"
+            title="Apply the layer mask: what it hides becomes transparent"
+            onclick={() => anim.removeLayerMask(current.id, true)}>Apply mask</button
+          >
+          <button
+            class="sm"
+            title="Delete the layer mask: the whole layer shows again"
+            onclick={() => anim.removeLayerMask(current.id, false)}>Delete mask</button
+          >
+        {:else}
+          <button
+            class="sm"
+            title="Add a layer mask: from the selection if there is one, else showing everything. Paint on it to hide parts without erasing them."
+            onclick={() => anim.addLayerMask(current.id)}>Add mask</button
+          >
+        {/if}
+      {/if}
+      <span class="merge">
+        <button
+          class="sm"
+          title="Merge the selected layer into the layer below it (shapes and text become pixels)"
+          disabled={selectedIndex <= 0}
+          onclick={() => anim.mergeLayers('down')}>Merge down</button
+        >
+        <button
+          class="sm"
+          title="Merge every layer showing into one pixel layer"
+          onclick={() => anim.mergeLayers('visible')}>Merge visible</button
+        >
+        <button
+          class="sm"
+          title="Flatten: every layer into one on the background; hidden layers are thrown away"
+          onclick={() => anim.mergeLayers('flatten')}>Flatten</button
+        >
+      </span>
+    </div>
+    {#if lookError}<p class="error" role="alert">{lookError}</p>{/if}
+  {/if}
   <ul
     class="list"
     role="listbox"
@@ -211,6 +328,7 @@
         {@const layer = row.layer}
         <li
           class="layer"
+          class:clipped={layer.clip === true}
           class:cur={layer.id === $store.layerId}
           class:infolder={layer.folderId !== undefined}
           class:drop={dropOn === layer.id && dragged !== layer.id}
@@ -292,7 +410,13 @@
             {#if !(doc.folders.length && layer.id === $store.layerId)}
               {#if layer.template}<span class="badge" title="Faded, locked and never exported"
                   >Template</span
-                >{:else}<span class="count">{count(layer)}</span>{/if}
+                >{:else if layer.pixels}<span
+                  class="badge"
+                  title="A pixel layer: paint, select and erase its pixels">Pixels</span
+                >{#if layer.pixels.mask}<span class="badge" title="It has a layer mask">Mask</span
+                  >{/if}{:else}<span class="count">{count(layer)}</span>{/if}
+              {#if layer.clip}<span class="badge" title="Clipped to the layer below it">Clip</span
+                >{/if}
             {/if}
           {/if}
           {#if doc.folders.length && layer.id === $store.layerId}
@@ -395,6 +519,34 @@
   }
   .layer.infolder {
     padding-left: 18px;
+  }
+  /* G2 (M21): a layer clipped to the one below sits in from it. */
+  .layer.clipped {
+    padding-left: 22px;
+  }
+  .look {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    gap: 4px 8px;
+    padding: 6px 8px;
+    border-bottom: 1px solid var(--line);
+    font-size: 11.5px;
+  }
+  .blend {
+    display: flex;
+    align-items: center;
+    gap: 4px;
+    color: var(--tx-2);
+  }
+  .blend select {
+    font-size: 11.5px;
+  }
+  .merge {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 4px;
+    flex-basis: 100%;
   }
   .layer.cur {
     background: var(--bg-3);

@@ -67,7 +67,8 @@ describe('the image file (G1)', () => {
     s.dialogs.saveGraphic.mockResolvedValueOnce('/work/HeronV10cm.mveg');
     await s.g.saveAs();
     expect(s.dialogs.saveGraphic).toHaveBeenCalledWith('Heron');
-    expect(s.disk.has('/work/HeronV10cm.mveg')).toBe(true);
+    // D9 (M21): a zip of doc.json (and a PNG per pixel layer), so bytes.
+    expect(s.bytes.has('/work/HeronV10cm.mveg')).toBe(true);
     expect(s.g.isDirty()).toBe(false);
     await s.g.newAnimation();
     s.dialogs.openGraphic.mockResolvedValueOnce('/work/HeronV10cm.mveg');
@@ -259,12 +260,12 @@ describe('export (G10, G11)', () => {
 });
 
 describe('Send to Animation (GL3)', () => {
-  it('puts the selected objects into the animation where they were drawn, on a layer of their own', () => {
+  it('puts the selected objects into the animation where they were drawn, on a layer of their own', async () => {
     const s = setup();
     s.g.addShape('star', { x: 40, y: 50, width: 100, height: 100 });
     s.g.addShape('rect', { x: 300, y: 50, width: 100, height: 100 });
     s.g.select([s.objects()[0]!.id]);
-    expect(s.app.sendGraphicToAnimation()).toBe(true);
+    expect(await s.app.sendGraphicToAnimation()).toBe(true);
     const anim = s.app.animation.store.get();
     const layer = anim.history.present.layers.at(-1)!;
     expect(layer.name).toBe('Untitled');
@@ -275,15 +276,15 @@ describe('Send to Animation (GL3)', () => {
     expect(anim.message?.text).toMatch(/One object from Untitled/);
   });
 
-  it('sends everything when nothing is selected, and says when there is nothing', () => {
+  it('sends everything when nothing is selected, and says when there is nothing', async () => {
     const s = setup();
-    expect(s.app.sendGraphicToAnimation()).toBe(false);
+    expect(await s.app.sendGraphicToAnimation()).toBe(false);
     expect(s.message()).toMatch(/nothing drawn/);
     s.g.addShape('rect', { x: 0, y: 0, width: 10, height: 10 });
     s.g.addShape('rect', { x: 20, y: 0, width: 10, height: 10 });
     s.g.select([]);
-    s.app.sendGraphicToAnimation();
-    s.app.sendGraphicToAnimation();
+    await s.app.sendGraphicToAnimation();
+    await s.app.sendGraphicToAnimation();
     const layers = s.app.animation.store.get().history.present.layers;
     expect(layers.map((l) => l.name)).toEqual(['Layer 1', 'Untitled', 'Untitled 2']);
     expect(layers[1]!.objects).toHaveLength(2);

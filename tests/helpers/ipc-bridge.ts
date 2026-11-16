@@ -67,6 +67,7 @@ export function inProcessBridge(engine: MediaEngine, overrides: Partial<MainServ
       saveImage: async (name) => `/cache/text/${name}.png`,
       saveSound: async (name: string) => `/cache/sounds/${name}.wav`,
       writeBytes: async () => {},
+      readBytes: async () => new Uint8Array([1, 2, 3]),
     },
     microphoneAccess: async () => true,
     closeAnswer: () => {},

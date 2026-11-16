@@ -66,6 +66,14 @@ export function testApp(
       height: 1,
       data: new Uint8ClampedArray([255, 255, 255, 255]),
     })),
+    /** G2 (M21): the stage as pixels: red where anything is drawn would need a canvas; all red. */
+    renderPixels: vi.fn<StageRenderer['renderPixels']>(async (doc) => ({
+      width: doc.stage.width,
+      height: doc.stage.height,
+      data: new Uint8ClampedArray(doc.stage.width * doc.stage.height * 4).map((_, i) =>
+        i % 4 === 0 || i % 4 === 3 ? 255 : 0,
+      ),
+    })),
   };
   /** AN15: the web page's player and files, as data: URLs named after the file. */
   const pageAssets = {
@@ -105,6 +113,8 @@ export function testApp(
       saveImage: async (name) => `/cache/text/${name}.png`,
       saveSound,
       writeBytes: async (p, b) => void bytes.set(p, b),
+      // D9 (M21): a .mveg is bytes; a picture's file is read for its resolution.
+      readBytes: async (p) => bytes.get(p) ?? Promise.reject(new Error('ENOENT')),
     },
     stageRenderer,
     pageAssets,

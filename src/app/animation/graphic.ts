@@ -1,7 +1,8 @@
 // Graphics mode's own actions (M18): a new image of a chosen size, the image settings (canvas,
 // resolution, units, background), cropping the canvas (G8), align and distribute (G5, in
 // Animation mode too), exporting PNG, JPG, SVG and PDF (M19) at a size and of the chosen objects
-// (G11), and what is sent to Animation mode (GL3).
+// (G11), and what is sent to Animation mode (GL3). M21: each layer exported in a file of its own
+// (G11), and pixel layers sent to Animation mode as pictures.
 import * as cmd from '../animation-commands.ts';
 import { findObject, pictureIdsOf } from '../../core/animation/layers.ts';
 import type { AnimObject, AnimationDoc, Picture } from '../../core/animation/types.ts';
@@ -24,6 +25,7 @@ import {
   FORMAT_INFO,
   imageOfObjects,
   imagesOfEach,
+  imagesOfLayers,
   jpegQuality,
   svgDimensions,
   type GraphicExportOptions,
@@ -31,6 +33,12 @@ import {
 import { pdfPageLabel, pdfPageSize } from '../../core/graphics/pdf.ts';
 import { jpegWithDpi, pngWithDpi } from '../../core/image/dpi.ts';
 import { stateAt } from '../../core/animation/state.ts';
+import { createPicture } from '../../core/animation/factory.ts';
+import { rasterPng } from '../../core/graphics/mveg.ts';
+import { isLayerShown } from '../../core/graphics/pixels/clipping.ts';
+import { applyMask } from '../../core/graphics/pixels/pixel-layers.ts';
+import { webCompression } from '../../core/image/deflate.ts';
+import { newId } from '../../core/model/factory.ts';
 import { withoutTemplates } from '../../core/animation/template.ts';
 import { EditError } from '../../core/model/errors.ts';
 import { fileNameOf } from '../../core/project/relocate.ts';
@@ -161,18 +169,20 @@ export function graphicActions(
       const info = FORMAT_INFO[options.format];
       let parts: { name: string; doc: AnimationDoc }[];
       try {
-        if (what !== 'image' && ids.length === 0)
+        if ((what === 'selection' || what === 'each') && ids.length === 0)
           throw new EditError('Select the objects to export first, or export the whole image.');
         const single = ids.length === 1 ? findObject(doc, ids[0]!)?.object.name : undefined;
         parts =
           what === 'each'
             ? imagesOfEach(doc, ids)
-            : [
-                {
-                  name: what === 'selection' && single ? single : ctx.fileBase(),
-                  doc: what === 'selection' ? imageOfObjects(doc, ids) : doc,
-                },
-              ];
+            : what === 'layers'
+              ? imagesOfLayers(doc)
+              : [
+                  {
+                    name: what === 'selection' && single ? single : ctx.fileBase(),
+                    doc: what === 'selection' ? imageOfObjects(doc, ids) : doc,
+                  },
+                ];
         // The sizes are checked before any save box.
         for (const p of parts) exportPixels(p.doc.stage, graphicOf(doc).dpi, options.size);
         // G11 (M19): and a PDF's page.
@@ -184,7 +194,7 @@ export function graphicActions(
         return null;
       }
       let outputs: string[];
-      if (what === 'each') {
+      if (what === 'each' || what === 'layers') {
         const dir = await dialogs.chooseFolder(
           `Choose the folder for the ${parts.length} ${info.extension.toUpperCase()} files`,
         );
@@ -258,21 +268,49 @@ export function graphicActions(
 
     /**
      * GL3: what goes to Animation mode: the selected objects, or everything on the visible layers,
-     * with the pictures they show. Null when there is nothing.
+     * with the pictures they show. G2 (M21): with nothing selected, each pixel layer shown goes as
+     * a picture (its PNG saved in the app's folder, its layer mask applied, at its opacity), in its
+     * place among the layers. Null when there is nothing.
      */
-    toSend(): { objects: AnimObject[]; pictures: Picture[] } | null {
+    async toSend(): Promise<{ objects: AnimObject[]; pictures: Picture[] } | null> {
       // GV8 (M19): a template stays behind.
       const doc = withoutTemplates(present());
       const ids = liveSelection();
-      const objects = ids.length
-        ? ids.flatMap((id) => {
-            const found = findObject(doc, id);
-            return found ? [found.object] : [];
-          })
-        : doc.layers.filter((l) => l.visible && !l.mask).flatMap((l) => l.objects);
+      const made: Picture[] = [];
+      const objects: AnimObject[] = [];
+      if (ids.length)
+        for (const id of ids) {
+          const found = findObject(doc, id);
+          if (found) objects.push(found.object);
+        }
+      else
+        for (const [i, layer] of doc.layers.entries()) {
+          if (!isLayerShown(doc.layers, i) || layer.mask) continue;
+          if (!layer.pixels) {
+            objects.push(...layer.objects);
+            continue;
+          }
+          const { bitmap, mask, x, y } = layer.pixels;
+          const png = await rasterPng(mask ? applyMask(bitmap, mask) : bitmap, webCompression);
+          const picture: Picture = {
+            id: newId(),
+            path: await files.saveImage(`layer-${newId()}`, png),
+            width: bitmap.width,
+            height: bitmap.height,
+          };
+          made.push(picture);
+          objects.push({
+            ...createPicture(picture, { x, y }),
+            name: layer.name,
+            opacity: layer.opacity ?? 1,
+          });
+        }
       if (objects.length === 0) return null;
       const used = new Set(pictureIdsOf(objects));
-      return { objects, pictures: doc.pictures.filter((p) => used.has(p.id)) };
+      return {
+        objects,
+        pictures: [...doc.pictures.filter((p) => used.has(p.id)), ...made],
+      };
     },
   };
 }

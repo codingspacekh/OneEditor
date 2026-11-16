@@ -195,6 +195,7 @@ describe('files at the edges', () => {
         saveImage: async () => '',
         saveSound: async (name: string) => `/cache/sounds/${name}.wav`,
         writeBytes: async () => Promise.reject(new Error('disk full')),
+        readBytes: async () => Promise.reject(new Error('ENOENT')),
       },
       paths: { proxies: '/c', recovery: '/c/recovery.mve', snapshots: '/c', learn: '/c' },
       engine: t.engine,

@@ -146,6 +146,14 @@ describe('P2 main-process IPC handlers', () => {
     });
   });
 
+  it('M21 D9: reads a file’s bytes (a .mveg image is a zip)', async () => {
+    const { api } = inProcessBridge(createMockMediaEngine());
+    expect(await api.invoke('project:readBytes', '/p/Castle.mveg')).toEqual({
+      ok: true,
+      value: new Uint8Array([1, 2, 3]),
+    });
+  });
+
   it('P2 copies only files the app has opened (never arbitrary files)', async () => {
     const copied: string[] = [];
     const { api } = inProcessBridge(createMockMediaEngine({ '/m/a.mp4': clip }), {
@@ -157,6 +165,7 @@ describe('P2 main-process IPC handlers', () => {
         saveImage: async () => '',
         saveSound: async (name: string) => `/cache/sounds/${name}.wav`,
         writeBytes: async () => {},
+        readBytes: async () => new Uint8Array(),
       },
     });
     expect(await api.invoke('project:copy', '/etc/passwd', '/usb/x')).toMatchObject({ ok: false });
@@ -184,6 +193,7 @@ describe('P2 main-process IPC handlers', () => {
         writeBytes: async (path, bytes) => {
           saved.push(`${path}:${bytes.length}`);
         },
+        readBytes: async () => new Uint8Array(),
       },
     });
     for (const bad of ['../evil', '/etc/x', 'a b', 'C:\\x', '']) {
@@ -214,6 +224,7 @@ describe('P2 main-process IPC handlers', () => {
           return `/cache/sounds/${name}.wav`;
         },
         writeBytes: async () => {},
+        readBytes: async () => new Uint8Array(),
       },
     });
     for (const bad of ['../evil', '/etc/x', 'a b', 'C:\\x', '', 'Pop', 'x'.repeat(60)]) {

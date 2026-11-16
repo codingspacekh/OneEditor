@@ -115,6 +115,8 @@ export interface Channels {
   'project:saveImage': { args: [name: string, png: Uint8Array]; result: string };
   'project:saveSound': { args: [name: string, wav: Uint8Array]; result: string };
   'project:writeBytes': { args: [path: string, bytes: Uint8Array]; result: null };
+  /** D9 (M21): a file's bytes (a .mveg image is a zip). */
+  'project:readBytes': { args: [path: string]; result: Uint8Array };
   /** AN15: the HTML web animation's player script. */
   'page:player': { args: []; result: string };
   /** AN15: a picture the app opened, as a data: URL. */
@@ -198,6 +200,7 @@ export const CHANNELS: readonly Channel[] = [
   'project:saveImage',
   'project:saveSound',
   'project:writeBytes',
+  'project:readBytes',
   'page:player',
   'page:picture',
   'page:sound',
@@ -244,6 +247,34 @@ export type MenuAction =
   | 'placeTemplate'
   | 'importSvg'
   | 'outline'
+  /** GB6, G8, GB1 (M21): Graphics mode's Image menu and View ▸ Pixel Grid. */
+  | 'imageSize'
+  | 'canvasSize'
+  | 'cropToContent'
+  | 'trimPlain'
+  | 'reduceColours'
+  | 'pixelGrid'
+  /** G2, GB1, GB2, G13 (M21): Graphics mode's pixel layers and selection. */
+  | 'openPictureAsImage'
+  | 'cropToSelection'
+  | 'newPixelLayer'
+  | 'addPictureAsLayer'
+  | 'layerViaCopy'
+  | 'layerViaCut'
+  | 'maskFromSelection'
+  | 'mergeDown'
+  | 'mergeVisible'
+  | 'flatten'
+  | 'selectAllPixels'
+  | 'deselectPixels'
+  | 'invertSelection'
+  | 'selectLayerPixels'
+  | 'selectFromShape'
+  | 'featherSelection'
+  | 'growSelection'
+  | 'shrinkSelection'
+  | 'smoothSelection'
+  | 'fadeSelection'
   | 'learnInspect'
   | 'learnFormats'
   | 'learnAnimation'

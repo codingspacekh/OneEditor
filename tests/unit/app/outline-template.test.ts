@@ -99,10 +99,10 @@ describe('GV8: template layers', () => {
 
   it('GV8: not sent to Animation mode', async () => {
     const s = await withTemplate();
-    expect(s.g.toSend()).toBeNull();
+    expect(await s.g.toSend()).toBeNull();
     s.g.addShape('rect', { x: 10, y: 10, width: 50, height: 50 });
-    expect(s.g.toSend()!.objects).toHaveLength(1);
-    expect(s.g.toSend()!.pictures).toEqual([]);
+    expect((await s.g.toSend())!.objects).toHaveLength(1);
+    expect((await s.g.toSend())!.pictures).toEqual([]);
   });
 
   it('GV8: an animation is exported without its template too', async () => {

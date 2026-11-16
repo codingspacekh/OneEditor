@@ -218,7 +218,12 @@ export function canvasAround(doc: AnimationDoc, box: Bounds, min = 1): Animation
   return {
     ...doc,
     stage,
-    layers: doc.layers.map((l) => ({ ...l, objects: l.objects.map((o) => moved(o, -left, -top)) })),
+    layers: doc.layers.map((l) => ({
+      ...l,
+      objects: l.objects.map((o) => moved(o, -left, -top)),
+      // GB6, G8 (M21): a pixel layer's place moves with the drawing.
+      ...(l.pixels ? { pixels: { ...l.pixels, x: l.pixels.x - left, y: l.pixels.y - top } } : {}),
+    })),
     guides: {
       x: doc.guides.x.map((g) => g - left).filter((g) => g >= 0 && g <= width),
       y: doc.guides.y.map((g) => g - top).filter((g) => g >= 0 && g <= height),

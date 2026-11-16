@@ -1,7 +1,8 @@
 // M18 / G11: exporting an image — its pixel size and resolution, an SVG in cm, and the chosen
 // objects alone or each in a file of its own.
 import { describe, expect, it } from 'vitest';
-import { createEllipse, createRect } from '../../../../src/core/animation/factory.ts';
+import { createEllipse, createLayer, createRect } from '../../../../src/core/animation/factory.ts';
+import { createBitmap } from '../../../../src/core/graphics/pixels/raster.ts';
 import { addObject, groupObjects } from '../../../../src/core/animation/layers.ts';
 import { createGraphic, defaultGraphic } from '../../../../src/core/graphics/document.ts';
 import {
@@ -9,6 +10,7 @@ import {
   FORMAT_INFO,
   imageOfObjects,
   imagesOfEach,
+  imagesOfLayers,
   jpegQuality,
   svgDimensions,
 } from '../../../../src/core/graphics/export.ts';
@@ -144,5 +146,46 @@ describe('formats (G11)', () => {
     expect(jpegQuality(40)).toBe(40);
     expect(() => jpegQuality(0)).toThrow(EditError);
     expect(() => jpegQuality(101)).toThrow(EditError);
+  });
+});
+
+describe('M21 G11: each layer in a file of its own (O/N/23)', () => {
+  const pixels = { bitmap: createBitmap(4, 4), x: 0, y: 0 };
+  const shape = createRect({ x: 0, y: 0, width: 5, height: 5 });
+
+  it('one image per layer shown with something on it, named after it, on the whole canvas', () => {
+    const doc = {
+      ...defaultGraphic(),
+      layers: [
+        { ...createLayer('CastleLayer'), pixels, clip: true },
+        { ...createLayer('Hidden'), pixels, visible: false },
+        { ...createLayer('Empty') },
+        { ...createLayer('Shapes'), objects: [shape] },
+        { ...createLayer('Its mask'), mask: true, objects: [shape] },
+        { ...createLayer('Template'), template: true, objects: [shape] },
+        { ...createLayer('Sky:Layer'), pixels },
+        { ...createLayer('sky layer'), pixels },
+      ],
+    };
+    const parts = imagesOfLayers(doc);
+    expect(parts.map((p) => p.name)).toEqual(['CastleLayer', 'Shapes', 'Sky Layer', 'sky layer 2']);
+    expect(parts[0]!.doc.layers).toHaveLength(1);
+    expect(parts[0]!.doc.layers[0]).not.toHaveProperty('clip');
+    expect(parts[0]!.doc.stage).toMatchObject({ width: 1280, height: 720, background: 'none' });
+    // AN12: a shapes layer takes its mask layer with it.
+    expect(parts[1]!.doc.layers.map((l) => l.name)).toEqual(['Shapes', 'Its mask']);
+  });
+
+  it('says when there is nothing on the layers shown', () => {
+    expect(() => imagesOfLayers(defaultGraphic())).toThrow(/nothing on the layers shown/);
+  });
+
+  it('leaves pixel layers out of the chosen objects’ image', () => {
+    let doc = {
+      ...defaultGraphic(),
+      layers: [{ ...createLayer('Photo'), pixels }, createLayer('Logo')],
+    };
+    doc = addObject(doc, doc.layers[1]!.id, shape);
+    expect(imageOfObjects(doc, [shape.id]).layers.map((l) => l.name)).toEqual(['Logo']);
   });
 });

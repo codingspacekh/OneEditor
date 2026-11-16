@@ -5,6 +5,7 @@ import type { App } from '../app/app.ts';
 import type { MenuAction } from '../preload/api.ts';
 import { animUi } from './animation/animation-ui.svelte.ts';
 import { openLearn, ui } from './ui-state.svelte.ts';
+import { selUi } from './graphics/selection-ui.svelte.ts';
 
 const inTextBox = () => {
   const el = document.activeElement;
@@ -21,6 +22,11 @@ export function menuActions(app: App): Record<MenuAction, () => unknown> {
   /** The Animation-mode app the menus act on: Graphics mode's when it is showing. */
   const drawing = () => (graphics() ? g : a);
   const inDrawing = () => anim() || graphics();
+  /** M21: a Graphics-only action: Graphics mode is shown first. */
+  const inGraphics = (act: () => unknown) => {
+    ui.mode = 'Graphics';
+    return act();
+  };
   /** N16: the panel on that edge of the editor that is showing (none in Learn). */
   const toggleEdge = (edge: 'left' | 'right' | 'bottom') =>
     ui.mode === 'Learn' ? Promise.resolve() : app.layout.toggleEdge(ui.mode, edge);
@@ -58,6 +64,57 @@ export function menuActions(app: App): Record<MenuAction, () => unknown> {
     importSvg: () => {
       if (!inDrawing()) ui.mode = 'Graphics';
       return drawing().importSvg();
+    },
+    /** GB6, G8 (M21): the Image menu acts on Graphics mode's image (shown first). */
+    imageSize: () => {
+      ui.mode = 'Graphics';
+      animUi.dialog = 'imageSize';
+    },
+    canvasSize: () => {
+      ui.mode = 'Graphics';
+      animUi.dialog = 'canvasSize';
+    },
+    cropToContent: () => {
+      ui.mode = 'Graphics';
+      return g.trimCanvas(false);
+    },
+    trimPlain: () => {
+      ui.mode = 'Graphics';
+      return g.trimCanvas(true);
+    },
+    reduceColours: () => {
+      ui.mode = 'Graphics';
+      animUi.dialog = 'reduceColours';
+    },
+    /** GB1 (M21): a photo as a new image (Graphics mode shown first). */
+    openPictureAsImage: () => {
+      ui.mode = 'Graphics';
+      return g.openPictureAsImage();
+    },
+    cropToSelection: () => inGraphics(() => g.cropToPixelSelection()),
+    // G2, GB1 (M21): the Layer menu, on Graphics mode's image.
+    newPixelLayer: () => inGraphics(() => g.addPixelLayer()),
+    addPictureAsLayer: () => inGraphics(() => g.addPictureAsLayer()),
+    layerViaCopy: () => inGraphics(() => g.copySelectionToLayer()),
+    layerViaCut: () => inGraphics(() => g.cutSelectionToLayer()),
+    maskFromSelection: () => inGraphics(() => g.maskFromPixelSelection()),
+    mergeDown: () => inGraphics(() => g.mergeLayers('down')),
+    mergeVisible: () => inGraphics(() => g.mergeLayers('visible')),
+    flatten: () => inGraphics(() => g.mergeLayers('flatten')),
+    // GB2, G13 (M21): the Select menu; the amounts are the option bar's.
+    selectAllPixels: () => inGraphics(() => g.selectAllPixels()),
+    deselectPixels: () => inGraphics(() => g.deselectPixels()),
+    invertSelection: () => inGraphics(() => g.invertPixelSelection()),
+    selectLayerPixels: () => inGraphics(() => g.selectLayerPixels()),
+    selectFromShape: () => inGraphics(() => g.selectFromObjects({ feather: selUi.feather })),
+    featherSelection: () => inGraphics(() => g.featherPixelSelection(selUi.amount)),
+    growSelection: () => inGraphics(() => g.growPixelSelection(selUi.amount)),
+    shrinkSelection: () => inGraphics(() => g.growPixelSelection(-selUi.amount)),
+    smoothSelection: () => inGraphics(() => g.smoothPixelSelection(selUi.amount)),
+    fadeSelection: () => inGraphics(() => g.fadePixelSelection(selUi.fade)),
+    /** GB1 (M21): View ▸ Pixel Grid (Graphics mode, from 800 %). */
+    pixelGrid: () => {
+      animUi.pixelGrid = !animUi.pixelGrid;
     },
     /** GV7 (M19): View ▸ Outline in Animation and Graphics mode. */
     outline: () => (inDrawing() ? drawing().toggleOutline() : undefined),
@@ -103,6 +160,8 @@ export function menuActions(app: App): Record<MenuAction, () => unknown> {
       const box = inTextBox();
       if (box) box.select();
       else if (audio()) app.audio.selectAll();
+      // GB2 (M21): on a pixel layer, Select All selects its pixels.
+      else if (graphics() && g.onPixelLayer()) g.selectAllPixels();
       else if (inDrawing()) drawing().selectAll();
     },
   };

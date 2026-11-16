@@ -5,11 +5,13 @@ import type { AnimationFormat } from '../../core/animation/export.ts';
 import type { AnimationDoc, Id } from '../../core/animation/types.ts';
 import type { SpiralOptions } from '../../core/graphics/shapes.ts';
 import type { Mask } from '../../core/graphics/pixels/raster.ts';
+import type { PaintOptions } from '../../core/graphics/pixels/presets.ts';
 import type {
   AppPaths,
   Dialogs,
   MediaEngine,
   PageAssets,
+  PixelWorker,
   ProjectFiles,
   StageRenderer,
 } from '../../core/ports.ts';
@@ -97,6 +99,11 @@ export interface AnimationState {
   pixelSelection?: Mask;
   /** GB2 (M21): paint on the current pixel layer's mask instead of its pixels. */
   editingMask?: boolean;
+  /**
+   * GB4, GB3 (M21): the painting tools' settings — the foreground and background colours, each
+   * brush tool's brush, the bucket's and the gradient's options (absent: DEFAULT_PAINT). Not saved.
+   */
+  paint?: PaintOptions;
   /** 1 = 100 %; 'fit' fills the window. */
   zoom: number | 'fit';
   /** AN8: the playhead, 0 to the stage's length (the end shows the last pose). */
@@ -139,6 +146,8 @@ export interface AnimationDeps {
   /** AN28: the speakers the animation's sounds play on while it plays (none: silent). */
   audioOutput?: AudioOutput;
   autosaveMs?: number;
+  /** D3, GN2 (M21): where the heavy pixel jobs run (a Web Worker in the app; absent: the page). */
+  pixelWorker?: PixelWorker;
   /** M18: an animation (the default) or Graphics mode's image. */
   kind?: EditorKind;
   /** P8: a file name in the papers' form ("Casing" → "Casing_ZZ999_9999"), for files named here. */

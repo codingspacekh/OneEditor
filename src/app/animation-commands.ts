@@ -44,6 +44,7 @@ import type {
 } from '../core/animation/types.ts';
 import type { Command } from './history.ts';
 import * as graphic from '../core/graphics/document.ts';
+import { cropImage } from '../core/graphics/image-size.ts';
 import type { Bounds } from '../core/animation/geometry.ts';
 
 export type AnimCommand = Command<AnimationDoc>;
@@ -502,7 +503,8 @@ export function setImage(change: Parameters<typeof graphic.setImage>[1]): AnimCo
 
 /** G8 (M18): the canvas cropped to a box (the selection, or the whole drawing). */
 export function cropCanvas(box: Bounds, label: string): AnimCommand {
-  return command(label, (doc) => graphic.cropCanvas(doc, box));
+  // G8 (M21): pixel layers move with the drawing; their pixels off the canvas are dropped.
+  return command(label, (doc) => cropImage(doc, box));
 }
 
 /**

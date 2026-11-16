@@ -1,7 +1,7 @@
 // M18: Graphics mode on screen — its tab, the canvas chip, New image… in the papers' sizes, the
 // Image section, positions in cm, Align, Export image, Send to Animation, and the colour picker's
 // RGB / HSL / CMYK numbers.
-import { describe, expect, it } from 'vitest';
+import { describe, expect, it, vi } from 'vitest';
 import { fireEvent, render, screen, within } from '@testing-library/svelte';
 import App from '../../../src/ui/App.svelte';
 import { animUi } from '../../../src/ui/animation/animation-ui.svelte.ts';
@@ -132,7 +132,8 @@ describe('Graphics mode (M18)', () => {
     s.g.addShape('star', { x: 40, y: 40, width: 100, height: 100 });
     s.g.select([]);
     await fireEvent.click(screen.getByRole('button', { name: 'Send to Animation' }));
-    expect(ui.mode).toBe('Animation');
+    // M21: sending is async (pixel layers go as pictures saved first).
+    await vi.waitFor(() => expect(ui.mode).toBe('Animation'));
     expect(s.app.animation.store.get().history.present.layers.at(-1)!.objects[0]!.kind).toBe(
       'star',
     );

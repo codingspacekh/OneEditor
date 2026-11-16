@@ -56,6 +56,8 @@ export function menuTemplate(
         item('Open Animation…', '', 'openAnimation'),
         item('New Image…', '', 'newImage'),
         item('Open Image…', '', 'openImage'),
+        // GB1 (M21): a photo opened as a new image of its size, on a pixel layer.
+        item('Open Picture as Image…', '', 'openPictureAsImage'),
         // GV8 (M19): a picture to draw over, faded and locked, never exported.
         item('Place Template…', '', 'placeTemplate'),
         // GV6 (M19): a given SVG's shapes into the drawing, editable.
@@ -91,6 +93,57 @@ export function menuTemplate(
       ],
     },
     {
+      // GB6, G8 (M21): Graphics mode's image as a whole (from another mode: Graphics mode).
+      label: 'Image',
+      submenu: [
+        item('Image Size…', '', 'imageSize'),
+        item('Canvas Size…', '', 'canvasSize'),
+        { type: 'separator' },
+        item('Crop to Content', '', 'cropToContent'),
+        item('Trim Plain Edges', '', 'trimPlain'),
+        { type: 'separator' },
+        item('Reduce Colours…', '', 'reduceColours'),
+        { type: 'separator' },
+        // GB2, G8 (M21): the image cut down to the selected pixels.
+        item('Crop to Selection', '', 'cropToSelection'),
+      ],
+    },
+    {
+      // G2, GB1, GB2 (M21): Graphics mode's pixel layers.
+      label: 'Layer',
+      submenu: [
+        item('New Pixel Layer', 'CmdOrCtrl+Shift+N', 'newPixelLayer'),
+        item('Add Picture as Layer…', '', 'addPictureAsLayer'),
+        { type: 'separator' },
+        item('Layer via Copy', '', 'layerViaCopy'),
+        item('Layer via Cut', '', 'layerViaCut'),
+        item('Layer Mask from Selection', '', 'maskFromSelection'),
+        { type: 'separator' },
+        item('Merge Down', '', 'mergeDown'),
+        item('Merge Visible', '', 'mergeVisible'),
+        item('Flatten Image', '', 'flatten'),
+      ],
+    },
+    {
+      // GB2, G13 (M21): Graphics mode's pixel selection; the amounts are the option bar's.
+      label: 'Select',
+      submenu: [
+        item('All Pixels', '', 'selectAllPixels'),
+        item('Deselect', '', 'deselectPixels'),
+        item('Inverse', '', 'invertSelection'),
+        { type: 'separator' },
+        item('Layer Pixels', '', 'selectLayerPixels'),
+        item('From Shape or Text', '', 'selectFromShape'),
+        { type: 'separator' },
+        item('Feather', '', 'featherSelection'),
+        item('Grow', '', 'growSelection'),
+        item('Shrink', '', 'shrinkSelection'),
+        item('Smooth', '', 'smoothSelection'),
+        { type: 'separator' },
+        item('Fade Selected Pixels', '', 'fadeSelection'),
+      ],
+    },
+    {
       label: 'View',
       submenu: [
         // N16: the panels of the editor that is showing.
@@ -101,6 +154,8 @@ export function menuTemplate(
         // GV7 (M19): Animation and Graphics mode's outline view; ⌘Y as Illustrator (Ctrl+Y is
         // Redo on Windows).
         item('Outline', mac ? 'Cmd+Y' : 'Ctrl+Shift+Y', 'outline'),
+        // GB1 (M21): Graphics mode's lines between the pixels from 800 %.
+        item('Pixel Grid', '', 'pixelGrid'),
         { type: 'separator' },
         { role: 'resetZoom' },
         { role: 'zoomIn' },

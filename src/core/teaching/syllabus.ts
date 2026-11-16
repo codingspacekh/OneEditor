@@ -3,7 +3,7 @@
 // labels). The teacher notes are made from this (scripts/guides.ts).
 
 export interface SyllabusPoint {
-  section: '11.1' | '11.2' | '19.1' | '19.2' | '19.5' | '20.1';
+  section: '11.1' | '11.2' | '19.1' | '19.2' | '19.3' | '19.5' | '20.1';
   group: string;
   point: string;
   /** Where in OneEditor (mode ▸ place). */
@@ -44,6 +44,7 @@ const an = (point: string, where: string, tools?: string[]) =>
 // Syllabus 19 grows with phase 3: the points the Graphics tab teaches so far (M18).
 const GRAPHIC_TOOLS = 'Using software tools for the creation and editing of digital graphics';
 const VECTOR_TOOLS = 'Using software tools for the creation and editing of vector graphics';
+const BITMAP_TOOLS = 'Using software tools for the creation and editing of bitmap graphics';
 const g = (point: string, where: string, tools?: string[]) =>
   p('19.1', GRAPHIC_TOOLS, point, where, tools);
 
@@ -350,6 +351,35 @@ export const SYLLABUS: readonly SyllabusPoint[] = [
     'application of envelopes and perspectives',
     'Graphics (and Animation) ▸ Properties ▸ Envelope: arch, arc, bulge, flag, wave, rise or squeeze with a bend %, Perspective (drag the four corners) or Custom (drag the sides’ corners and handles); Apply makes plain paths',
     ['19.2 envelopes and perspective'],
+  ),
+  // ---- 19.3 Bitmap images (M21) ----
+  p(
+    '19.3',
+    BITMAP_TOOLS,
+    'creating and editing bitmap images that meet the requirements of their intended application and audience',
+    'Graphics ▸ Layers ▸ New pixel layer or Add picture as layer; File ▸ Open a photo as an image; Image ▸ Image size…, Canvas size…, Crop to content, Trim plain edges',
+    ['19.3 creating and editing bitmap images'],
+  ),
+  p(
+    '19.3',
+    BITMAP_TOOLS,
+    'selection tools to select, remove or hide parts of a bitmap image: lasso, magic wand, colour select, cut-out, crop, masking tools',
+    'Graphics ▸ the tool strip on a pixel layer: Rectangle and Ellipse select (M), Lasso, Polygonal and Magnetic lasso, Magic wand (W), Colour select; the option bar for add / subtract / intersect, tolerance and feather; Delete, Layer via copy (Ctrl+J), Crop to selection; Layers ▸ Add mask, clipping',
+    ['19.3 selection tools'],
+  ),
+  p(
+    '19.3',
+    BITMAP_TOOLS,
+    'brush, pencil and pen tools: pre-set and customised options',
+    'Graphics ▸ the tool strip on a pixel layer: Paintbrush, Pencil, Eraser, Airbrush; Properties ▸ Paint: size, hardness, opacity, flow, spacing, shape, the presets and Save preset',
+    ['19.3 brush, pencil and pen tools'],
+  ),
+  p(
+    '19.3',
+    BITMAP_TOOLS,
+    'resizing the image / canvas: changing colour depth, changing resolution',
+    'Graphics ▸ Image ▸ Image size… (px, %, cm, in at a resolution; bicubic, bilinear or nearest; or the resolution alone), Canvas size… (anchor), Reduce colours… (2, 16, 256, greyscale; dithering)',
+    ['19.3 resizing the image and canvas'],
   ),
   // ---- 19.5 Text (M20) ----
   p(

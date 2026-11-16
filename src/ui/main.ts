@@ -22,6 +22,7 @@ import { createMediaStreamRecorder, type AudioFrame } from '../adapters/webaudio
 import { unwrap } from '../adapters/electron/media-engine.ts';
 import { createIndexedDbUndoStore } from '../adapters/indexeddb/undo-store.ts';
 import { createElectronUpdates } from '../adapters/electron/updates.ts';
+import { createWebPixelWorker, type WorkerLike } from '../adapters/worker/pixel-worker.ts';
 import { menuActions } from './menu-actions.ts';
 import { watchPlayback } from '../app/animation/paint-watch.ts';
 import { onUnexpected } from '../app/problems.ts';
@@ -89,6 +90,14 @@ if (!window.mve) {
     audioOutput: createWebAudioOutput(),
     animationAudioOutput: createWebAudioOutput(),
     audioUndoStore: createIndexedDbUndoStore(),
+    // D3, GN2 (M21): the paint bucket and the gradient in a Web Worker (bundled by Vite); if it
+    // cannot start, they run in the page.
+    pixelWorker: createWebPixelWorker(
+      () =>
+        new Worker(new URL('../workers/pixels.ts', import.meta.url), {
+          type: 'module',
+        }) as unknown as WorkerLike,
+    ),
     audioRecorder: createMediaStreamRecorder({
       mediaDevices: navigator.mediaDevices,
       frames: (track) => new MediaStreamTrackProcessor({ track }).readable,

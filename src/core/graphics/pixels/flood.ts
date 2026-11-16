@@ -35,28 +35,45 @@ export function floodMask(bitmap: Bitmap, x: number, y: number, options: FloodOp
     for (let p = 0; p < width * height; p++) if (close(data, p * 4, colour, t)) out[p] = 255;
     return maskFromBytes(width, height, out);
   }
-  // Scanline fill: each run of alike pixels on a row is filled at once, and the rows above and
-  // below it are searched for runs to fill next.
-  const stack: number[] = [sx, sy];
-  const alike = (px: number, py: number) => {
-    const p = py * width + px;
-    return out[p] === 0 && close(data, p * 4, colour, t);
-  };
+  // Which pixels are alike, worked out once in one pass (1: alike, 0: not); then a scanline
+  // fill: each run of alike pixels on a row is filled at once, and the rows above and below it
+  // are searched for runs to fill next.
+  const like = new Uint8Array(width * height);
+  const [r, g, b, a] = colour;
+  if (t === 0) {
+    // Exactly the colour: four bytes compared as one number.
+    const words = new Uint32Array(data.buffer, data.byteOffset, like.length);
+    const want = words[sy * width + sx]!;
+    for (let p = 0; p < like.length; p++) if (words[p] === want) like[p] = 1;
+  } else
+    for (let p = 0, i = 0; p < like.length; p++, i += 4)
+      if (
+        Math.abs(data[i]! - r) <= t &&
+        Math.abs(data[i + 1]! - g) <= t &&
+        Math.abs(data[i + 2]! - b) <= t &&
+        Math.abs(data[i + 3]! - a) <= t
+      )
+        like[p] = 1;
+  const stack: number[] = [sy * width + sx];
   while (stack.length > 0) {
-    const py = stack.pop()!;
-    const px0 = stack.pop()!;
-    if (!alike(px0, py)) continue;
-    let left = px0;
-    while (left > 0 && alike(left - 1, py)) left--;
-    let right = px0;
-    while (right < width - 1 && alike(right + 1, py)) right++;
-    out.fill(255, py * width + left, py * width + right + 1);
-    for (const ny of [py - 1, py + 1]) {
-      if (ny < 0 || ny >= height) continue;
+    const start = stack.pop()!;
+    if (like[start] !== 1) continue;
+    const row = start - (start % width);
+    let left = start;
+    while (left > row && like[left - 1] === 1) left--;
+    let right = start;
+    while (right < row + width - 1 && like[right + 1] === 1) right++;
+    // Filled pixels are marked 2 so they are not taken again.
+    like.fill(2, left, right + 1);
+    out.fill(255, left, right + 1);
+    for (let side = 0; side < 2; side++) {
+      const offset = side === 0 ? -width : width;
+      const from = left + offset;
+      if (from < 0 || from >= like.length) continue;
       let inRun = false;
-      for (let nx = left; nx <= right; nx++) {
-        const ok = alike(nx, ny);
-        if (ok && !inRun) stack.push(nx, ny);
+      for (let q = from; q <= right + offset; q++) {
+        const ok = like[q] === 1;
+        if (ok && !inRun) stack.push(q);
         inRun = ok;
       }
     }

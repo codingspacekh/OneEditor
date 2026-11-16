@@ -13,6 +13,10 @@ import { fileActions } from './animation/files.ts';
 import { graphicActions } from './animation/graphic.ts';
 import { nodeActions } from './animation/nodes.ts';
 import { pictureActions } from './animation/pictures.ts';
+import { pixelImageActions } from './animation/pixel-image.ts';
+import { pixelLayerActions } from './animation/pixel-layers.ts';
+import { pixelSelectionActions } from './animation/pixel-selection.ts';
+import { paintingActions } from './animation/painting.ts';
 import { shapeActions } from './animation/shapes.ts';
 import { soundActions } from './animation/sounds.ts';
 import type { AnimationDeps } from './animation/state.ts';
@@ -50,10 +54,18 @@ export function createAnimationApp(deps: AnimationDeps) {
     ...timelineActions(ctx),
     ...documentActions(ctx),
     ...graphicActions(ctx, files.startWith),
+    // G2, GB1 (M21): pixel layers, opacity, blend, clipping, layer masks, merging.
+    ...pixelLayerActions(ctx, files.startWith),
     ...templateActions(ctx),
     ...svgActions(ctx),
     ...textPathActions(ctx),
     ...appearanceActions(ctx),
+    // GB6, G8 (M21): Image size, Canvas size, trim and Reduce colours.
+    ...pixelImageActions(ctx),
+    // GB2, G8, G13 (M21): the pixel selection and the cut-outs made with it.
+    ...pixelSelectionActions(ctx),
+    // GB4, GB3 (M21): the brushes, the paint bucket and the gradient.
+    ...paintingActions(ctx),
     /** M18: an animation's app, or Graphics mode's. */
     kind: ctx.kind,
     dispose(): void {

@@ -103,6 +103,7 @@ function session() {
         await mkdir(dirname(p), { recursive: true });
         await writeFile(p, b);
       },
+      readBytes: async (p) => new Uint8Array(await readFile(p)),
     },
     text: blockText,
     paths: {

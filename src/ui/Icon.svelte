@@ -134,6 +134,31 @@
     down: '<path d="m6 9 6 6 6-6"/>',
     front: '<rect x="3" y="3" width="12" height="12" rx="1"/><path d="M9 21h12V9"/>',
     back: '<rect x="9" y="9" width="12" height="12" rx="1"/><path d="M15 3H3v12"/>',
+    // GB1 (M21): the Hand tool (pan).
+    hand: '<path d="M18 11V6a2 2 0 0 0-4 0v5"/><path d="M14 10V4a2 2 0 0 0-4 0v6"/><path d="M10 10.5V6a2 2 0 0 0-4 0v8"/><path d="M18 8a2 2 0 1 1 4 0v6a8 8 0 0 1-8 8h-2c-2.8 0-4.5-.86-6-2.34l-3.6-3.6a2 2 0 0 1 2.83-2.82L7 15"/>',
+    // GB2 (M21): the selection tools — dashed marquees, lassos, the wand, a picked colour.
+    marqueeRect: '<rect x="4" y="5" width="16" height="14" stroke-dasharray="3 2.5"/>',
+    marqueeEllipse: '<ellipse cx="12" cy="12" rx="9" ry="7" stroke-dasharray="3 2.5"/>',
+    lasso:
+      '<path d="M7 17c-3-1.5-4-4-3-6.5C5.5 6 11 4 16 5s6 4.5 4 7.5S12 17 8.5 16"/><path d="M7 17c0 2 1 3 3 4"/>',
+    polygonLasso: '<path d="M4 15 7 5l10 1 3 8-9 3z" stroke-dasharray="3 2"/><path d="M11 17v4"/>',
+    magneticLasso:
+      '<path d="M5 14C3 9 8 4 14 5s7 6 3 9-8 2-10 1" stroke-dasharray="3 2"/><path d="M15 15v6M19 15v6M15 18h4"/>',
+    wand: '<path d="m4 20 11-11"/><path d="M15 3v3M19 5l-2 2M21 9h-3M12 5l1.5 1.5M18 12l-1.5-1.5"/>',
+    colourSelect:
+      '<path d="m3 21 5-1L19 9l-4-4L4 16z"/><path d="m14 6 4 4"/><circle cx="19" cy="19" r="2.5" fill="currentColor" stroke="none"/>',
+    // GB4, GB3 (M21): the painting tools — a paintbrush, pencil, eraser, airbrush, bucket, gradient.
+    paintbrush:
+      '<path d="M18 3 9 12"/><path d="m21 6-9 9"/><path d="M9 12l3 3"/><path d="M8.5 14c-2.5 0-4.5 2-4.5 4.5V21h2.5c2.5 0 4.5-2 4.5-4.5"/>',
+    pencil: '<path d="M4 20l1-5L16 4l4 4L9 19z"/><path d="m14 6 4 4"/><path d="M4 20h4"/>',
+    eraser:
+      '<path d="M8 20h12"/><path d="m3.5 14.5 9-9a2 2 0 0 1 2.8 0l3.2 3.2a2 2 0 0 1 0 2.8L11 19H8z"/><path d="m8 10 6 6"/>',
+    airbrush:
+      '<path d="M4 15h7l3-3V9h-3L8 12H4z"/><path d="M14 10.5h3"/><path d="M19 7v.01M21 10.5v.01M19 14v.01M17 4.5v.01M17 16.5v.01"/>',
+    bucket:
+      '<path d="m4 11 7-7 8 8-7 7a2 2 0 0 1-2.8 0L4 13.8a2 2 0 0 1 0-2.8z"/><path d="M4 12h15"/><path d="M20 15s2 2.5 2 4a2 2 0 0 1-4 0c0-1.5 2-4 2-4z"/>',
+    gradient:
+      '<rect x="3" y="3" width="18" height="18" rx="2"/><path d="M7 3v18" stroke-opacity=".9"/><path d="M11 3v18" stroke-opacity=".6"/><path d="M15 3v18" stroke-opacity=".35"/><path d="M19 3v18" stroke-opacity=".15"/>',
   } as const;
   export type IconName = keyof typeof ICONS;
 </script>

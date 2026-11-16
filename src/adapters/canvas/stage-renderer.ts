@@ -1,5 +1,6 @@
 // StageRenderer (AN15) on an OffscreenCanvas: the stage drawn by core/animation/draw.ts — the
-// same drawing as the preview — and saved as a PNG. Pictures are fetched through media://.
+// same drawing as the preview — and saved as a PNG. Pictures are fetched through media://. G2
+// (M21): or read back as pixels (a vector layer merged into a pixel layer).
 import { drawStage, fontsUsed, type StageCanvas } from '../../core/animation/draw.ts';
 import { fontKey } from '../../core/animation/svg-export.ts';
 import { loadGlyphsFor } from '../../core/graphics/glyphs.ts';
@@ -101,6 +102,19 @@ export function createCanvasStageRenderer({
     return images;
   }
 
+  /** What the stage's text and pictures need, loaded; then a function that draws the stage. */
+  async function readyToDraw(doc: AnimationDoc) {
+    const images = await imagesOf(doc);
+    await loadFonts(fontsUsed(doc.layers.flatMap((l) => l.objects)));
+    // GT5 (M20): bent text is drawn as its letters' outlines.
+    await loadGlyphsFor(doc.layers.flatMap((l) => l.objects));
+    return (ctx: StageCanvas, frame: number, size?: { width: number; height: number }) => {
+      const stage = withLayers(ctx);
+      if (size) stage.scale(size.width / doc.stage.width, size.height / doc.stage.height);
+      drawStage(stage, doc, { image: (id) => images.get(id) ?? null, frame });
+    };
+  }
+
   return {
     async renderPng(
       doc: AnimationDoc,
@@ -113,31 +127,30 @@ export function createCanvasStageRenderer({
       // its caches (over 250 MB for a 10 s export of 100 moving objects). The PNG is read back anyway.
       const ctx = canvas.getContext('2d', { willReadFrequently: true });
       if (!ctx) throw new Error('No canvas is available to draw the stage.');
-      const images = await imagesOf(doc);
-      await loadFonts(fontsUsed(doc.layers.flatMap((l) => l.objects)));
-      // GT5 (M20): bent text is drawn as its letters' outlines.
-      await loadGlyphsFor(doc.layers.flatMap((l) => l.objects));
-      const stage = withLayers(ctx);
-      if (size) stage.scale(size.width / doc.stage.width, size.height / doc.stage.height);
-      drawStage(stage, doc, { image: (id) => images.get(id) ?? null, frame });
+      (await readyToDraw(doc))(ctx, frame, size);
       const blob = await canvas.convertToBlob({ type: 'image/png' });
       return new Uint8Array(await blob.arrayBuffer());
+    },
+
+    async renderPixels(doc: AnimationDoc): Promise<Pixels> {
+      const { width, height } = doc.stage;
+      const ctx = makeCanvas(width, height).getContext('2d', { willReadFrequently: true }) as
+        | (StageCanvas & { getImageData(x: number, y: number, w: number, h: number): ImageData })
+        | null;
+      if (!ctx) throw new Error('No canvas is available to draw the stage.');
+      (await readyToDraw(doc))(ctx, 0);
+      return { width, height, data: ctx.getImageData(0, 0, width, height).data };
     },
 
     async renderJpeg(doc, { quality, background, size }): Promise<Uint8Array> {
       const canvas = makeCanvas(size?.width ?? doc.stage.width, size?.height ?? doc.stage.height);
       const ctx = canvas.getContext('2d', { willReadFrequently: true });
       if (!ctx) throw new Error('No canvas is available to draw the stage.');
-      const images = await imagesOf(doc);
-      await loadFonts(fontsUsed(doc.layers.flatMap((l) => l.objects)));
-      // GT5 (M20): bent text is drawn as its letters' outlines.
-      await loadGlyphsFor(doc.layers.flatMap((l) => l.objects));
+      const draw = await readyToDraw(doc);
       // G11: a JPEG cannot be see-through: what is transparent is drawn on the background.
       ctx.fillStyle = background;
       ctx.fillRect(0, 0, size?.width ?? doc.stage.width, size?.height ?? doc.stage.height);
-      const stage = withLayers(ctx);
-      if (size) stage.scale(size.width / doc.stage.width, size.height / doc.stage.height);
-      drawStage(stage, doc, { image: (id) => images.get(id) ?? null, frame: 0 });
+      draw(ctx, 0, size);
       const blob = await canvas.convertToBlob({ type: 'image/jpeg', quality: quality / 100 });
       return new Uint8Array(await blob.arrayBuffer());
     },
