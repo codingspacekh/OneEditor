@@ -9,7 +9,8 @@
   // polyline; Ctrl/Cmd + Shift + V pastes in place. M21 (GB2): M the marquee, W the magic wand;
   // on a pixel layer with pixels selected, Delete clears them and Ctrl/Cmd + D deselects;
   // Ctrl/Cmd + J copies the selection to a new layer, + Shift + J cuts it, + Shift + I inverts it;
-  // the selection's options show above the canvas.
+  // the selection's options show above the canvas. G3 (M21): on a pixel layer with no objects
+  // selected, the arrows move the layer or the selected pixels (Shift: 10 px).
   import type { App } from '../../app/app.ts';
   import type { Tool } from '../../app/animation.ts';
   import { shortcutAllowed } from '../keys.ts';
@@ -130,7 +131,9 @@
       const step = e.shiftKey ? 10 : 1;
       const dx = e.key === 'ArrowLeft' ? -step : e.key === 'ArrowRight' ? step : 0;
       const dy = e.key === 'ArrowUp' ? -step : e.key === 'ArrowDown' ? step : 0;
-      g.nudge(dx, dy);
+      // G3 (M21): on a pixel layer with no objects selected, the layer (or the selected pixels).
+      if (g.onPixelLayer() && $store.selection.length === 0) g.movePixelLayer(dx, dy);
+      else g.nudge(dx, dy);
     } else if (e.key === 'Escape') {
       if ($store.tool !== 'select') g.setTool('select');
       else g.select([]);

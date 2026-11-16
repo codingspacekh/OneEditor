@@ -44,6 +44,7 @@
   import PixelOverlay from '../graphics/PixelOverlay.svelte';
   import { pixelToolOf, type PixelPointer, type StageView } from '../graphics/pixel-pointer.ts';
   import { HAND } from '../graphics/view-tools.ts';
+  import { PIXEL_MOVE } from '../graphics/pixel-move.ts';
   import { tick } from 'svelte';
   import { shortcutAllowed } from '../keys.ts';
   import {
@@ -200,6 +201,12 @@
   /** The document as it looks during the drag. */
   /** GV4 (M19): an envelope's corner or handle being dragged. */
   let bending: Parameters<typeof previewEnvelope>[1] = $state(null);
+  /** G3 (M21): the Select tool moves the current pixel layer's pixels (Graphics mode). */
+  const movesPixels = $derived(
+    editor.still &&
+      $store.tool === 'select' &&
+      $store.history.present.layers.find((l) => l.id === $store.layerId)?.pixels !== undefined,
+  );
   /** M21: what a pixel tool shows while its drag goes on (a stroke as it is painted). */
   let pixelPreview: typeof doc | null = $state(null);
   const shown = $derived(
@@ -348,6 +355,11 @@
     const raw = at(e);
     if (tool === 'select') {
       const hit = pickObject(doc, raw);
+      // G3 (M21): on a pixel layer, the empty stage drags the layer (or the selected pixels).
+      if (!hit && movesPixels) {
+        PIXEL_MOVE.down(e, pointer);
+        return;
+      }
       if (!hit) {
         drag = { kind: 'marquee', start: raw, now: raw };
         track(
@@ -826,7 +838,9 @@
         height={stage.height * zoom}
         style:cursor={spaceHeld
           ? 'grab'
-          : (pixelToolOf($store.tool)?.cursor ?? CURSORS[$store.tool] ?? 'crosshair')}
+          : movesPixels
+            ? PIXEL_MOVE.cursor
+            : (pixelToolOf($store.tool)?.cursor ?? CURSORS[$store.tool] ?? 'crosshair')}
         {onpointerdown}
         {onpointermove}
         onpointerleave={() => (animUi.pointer = null)}
