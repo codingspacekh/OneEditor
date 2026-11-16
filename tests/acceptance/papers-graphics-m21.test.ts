@@ -6,7 +6,7 @@
 // The PNG exports are drawn here by the pixel compositor (the app draws them on a canvas, which
 // the e2e tests check). Skipped where the papers' files are not on the computer (CI).
 import { readFile } from 'node:fs/promises';
-import { describe, expect, it } from 'vitest';
+import { describe, expect, it, vi } from 'vitest';
 import { TRANSPARENT } from '../../src/core/animation/rules.ts';
 import type { AnimationDoc, PixelContent } from '../../src/core/animation/types.ts';
 import { compositeLayers, drawnPixelLayers } from '../../src/core/graphics/pixels/merge.ts';
@@ -23,6 +23,10 @@ import { webCompression } from '../../src/core/image/deflate.ts';
 import { decodePng, encodePng } from '../../src/core/image/png.ts';
 import { IMAGE, testApp } from '../helpers/test-app.ts';
 import { hasPapers, loadBitmap, paperFile } from './helpers/pixels.ts';
+
+// The papers' photos are up to 12 megapixels, each step done for real: under coverage
+// instrumentation (npm run check) Balloon1 alone took 3½ minutes.
+vi.setConfig({ testTimeout: 600_000 });
 
 /** The image as the PNG export draws its pixel layers (at its size or scaled to `size`). */
 function drawnImage(doc: AnimationDoc, size?: { width: number; height: number }): Bitmap {
