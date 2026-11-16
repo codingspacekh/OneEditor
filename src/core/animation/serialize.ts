@@ -394,6 +394,8 @@ const isPixels = (p: unknown): boolean =>
   isRef(p.bitmap) &&
   Number.isInteger(p.x) &&
   Number.isInteger(p.y) &&
+  // M22: a preview's reduced copy is never kept.
+  p.scale === undefined &&
   optional(
     p.mask,
     (m) =>

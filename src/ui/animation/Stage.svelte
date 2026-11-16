@@ -209,8 +209,19 @@
   );
   /** M21: what a pixel tool shows while its drag goes on (a stroke as it is painted). */
   let pixelPreview: typeof doc | null = $state(null);
+  /** M22: an adjustment or filter previewed live: its pixels in place of the layer's. */
+  const withOperation = (d: typeof doc): typeof doc => {
+    const op = $store.pixelPreview;
+    if (!op) return d;
+    return {
+      ...d,
+      layers: d.layers.map((l) =>
+        l.id === op.layerId && l.pixels ? { ...l, pixels: op.pixels } : l,
+      ),
+    };
+  };
   const shown = $derived(
-    pixelPreview ?? previewEnvelope(previewDoc(doc, drag, $store.layerId), bending),
+    withOperation(pixelPreview ?? previewEnvelope(previewDoc(doc, drag, $store.layerId), bending)),
   );
 
   // ---- pictures (AN5): loaded once each; the stage is drawn again when one arrives ----

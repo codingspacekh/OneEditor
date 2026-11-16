@@ -497,6 +497,11 @@ export interface PixelContent {
    * the pixel, 0 hides it, between: partly. Absent: all shown.
    */
   mask?: Mask;
+  /**
+   * M22 (GN2): a live preview only, never in a document that is kept: each bitmap pixel covers
+   * `scale` image px (a reduced copy, drawn at the layer's own size).
+   */
+  scale?: number;
 }
 
 export interface LayerFolder {

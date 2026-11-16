@@ -114,7 +114,15 @@ export interface StageCanvas {
    * it changed. A canvas without it (the HTML player: pixel layers are Graphics mode's) draws no
    * pixels.
    */
-  drawBitmap?(bitmap: Bitmap, x: number, y: number, key: string, mask?: Mask): void;
+  drawBitmap?(
+    bitmap: Bitmap,
+    x: number,
+    y: number,
+    key: string,
+    mask?: Mask,
+    /** M22: each bitmap pixel covers this many image px (a reduced preview). Absent: 1. */
+    scale?: number,
+  ): void;
 }
 
 /** G2 (M21): how withLayer puts its layer down, besides its opacity. */
@@ -729,7 +737,17 @@ function drawPixels(ctx: StageCanvas, layer: Layer, plain = false): void {
     if (layer.blend && layer.blend !== 'normal')
       ctx.globalCompositeOperation = COMPOSITE_OPERATION[layer.blend];
   }
-  ctx.drawBitmap(content.bitmap, content.x, content.y, layer.id, content.mask);
+  // M22: a reduced preview has its own picture, so the layer's own stays ready for afterwards.
+  if (content.scale && content.scale !== 1)
+    ctx.drawBitmap(
+      content.bitmap,
+      content.x,
+      content.y,
+      `${layer.id} preview`,
+      content.mask,
+      content.scale,
+    );
+  else ctx.drawBitmap(content.bitmap, content.x, content.y, layer.id, content.mask);
   ctx.restore();
 }
 

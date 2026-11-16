@@ -65,13 +65,13 @@ function addLayers<C extends Context2D>(
     );
   const patternOf: StageCanvas['patternOf'] = (tile) => canvasPattern(ctx, tile);
   // G2, GB1 (M21): a pixel layer, from the page's one picture per layer.
-  const drawBitmap: StageCanvas['drawBitmap'] = (bitmap, x, y, key, mask) =>
+  const drawBitmap: StageCanvas['drawBitmap'] = (bitmap, x, y, key, mask, scale = 1) =>
     ctx.drawImage(
       pageBitmaps().picture(bitmap, key, mask) as unknown as CanvasImageSource,
       x,
       y,
-      bitmap.width,
-      bitmap.height,
+      bitmap.width * scale,
+      bitmap.height * scale,
     );
   return Object.assign(ctx, { withLayer, withFilters, patternOf, drawBitmap });
 }

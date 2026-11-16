@@ -875,7 +875,19 @@ M21 Bitmap core ─► M22 Retouch & adjust ─► M23 Formats, theory & hardeni
 
 ### M22 — Retouch and adjust
 
-GB3, GB5 (clone, heal, red-eye, brushes, filters, distort), G14 on pixel layers. Gate: O/N/19 harbour, J/22 Scene2–4, O/N/24 night scene, O/N/21 lens, workbook Tasks 3, 5–9.
+**Goal:** photos repaired and changed as the papers ask: things removed with the clone stamp and the heal brush, red eyes fixed, colours adjusted (greyscale, black and white, brightness and contrast, levels, colour balance, hue and saturation, recolouring), parts blurred, sharpened, swirled or magnified through a lens, and halos, glows and shadows on pixel layers — each previewed live, each one undo step, inside the selection.
+
+**Build order** (started 2026-11-17 on the `m22` branch, off `m21` at 2accab3; still file version 5)
+1. **One way to apply an operation** (GB3, GB5, GN2): `core/graphics/pixels/apply.ts` (a result kept only inside the selection, a feathered edge blended, untouched tiles shared; a reduced copy of a big layer for the live preview); `app/animation/pixel-ops.ts` (`applyPixelOperation`: the current pixel layer or its mask, one undo step, refused on locked or hidden layers; `previewPixelOperation`: shown on the stage in place of the layer, on a reduced copy, the late answers dropped); `PixelContent.scale` for a preview only (never saved); the retouching tools named in the app's state.
+2. **Adjustments** (GB3): greyscale, black and white (threshold), brightness / contrast, levels, exposure, colour balance (shadows, midtones, highlights), shadows / highlights, hue / saturation / lightness and colourise, temperature / tint, replace colour, invert; a dialog each with a live preview; *Image ▸ Adjustments*.
+3. **Retouching brushes** (GB5, D8): clone stamp (Alt-click the source, aligned or not), heal (cloned, then the colour and light matched to the surroundings), blur, sharpen and smudge brushes, red eye (click or drag a box over the eye), on step M21's brush engine.
+4. **Filters and distort** (GB5): Gaussian blur, motion blur, zoom blur, twirl (the workbook's swirl), sharpen (unsharp mask); distort: bulge / pinch (the lens's magnified circle), perspective, a warp mesh; *Filter* menu; heavy ones in the pixel worker.
+5. **Effects on pixel layers** (G14): drop shadow, inner shadow, glow (halo, light blooms), bevel and blur on a pixel layer, as on objects: on the stage, in PNG / JPG, in SVG as filters and in a merge.
+6. The papers' steps done in the app; GN2 for filters (preview ≤ 0.5 s, applied ≤ 3 s on 12 megapixels); `npm run check`; CI on the three platforms.
+
+**Exit gate**
+- Each step's tests green; `npm run check` green; CI green on the three platforms.
+- Done in the app (gate record `docs/acceptance/M22.md`): O/N/19 HarbourScene (the rubbish and the bin removed); J/22 Scene2 (the sky repaired where the balloon was), Scene3 (the posts, fence and wires removed without cropping), Scene4 (the sky replaced from Sunset.jpg); O/N/24 NightScene (the figure removed and the sea repaired, greyscale, the sky a black-to-blue gradient, the sea and sand a 40 % blue layer, the Moon recoloured with a halo, stars and lights, the Moonlight reflection); O/N/21 Lens (500 px high, a magnified circle, red sans-serif text, transparent light blooms); workbook Tasks 3 (sign, posts and rope removed; motion swirl; darker colours brighter), 5 (levels, exposure, contrast, shadows and highlights; colour depth explained), 6 (cables removed; red eye), 7 (greyscale, coloured balloons), 8 (the sky replaced), 9 (a metallic plaque: gradients, bevel, depth).
 
 ### M23 — Formats, theory and hardening
 

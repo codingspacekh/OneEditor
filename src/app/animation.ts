@@ -14,6 +14,7 @@ import { graphicActions } from './animation/graphic.ts';
 import { nodeActions } from './animation/nodes.ts';
 import { pictureActions } from './animation/pictures.ts';
 import { pixelImageActions } from './animation/pixel-image.ts';
+import { pixelOpActions } from './animation/pixel-ops.ts';
 import { pixelLayerActions } from './animation/pixel-layers.ts';
 import { pixelSelectionActions } from './animation/pixel-selection.ts';
 import { pixelTransformActions } from './animation/pixel-transform.ts';
@@ -68,6 +69,8 @@ export function createAnimationApp(deps: AnimationDeps) {
     ...pixelSelectionActions(ctx),
     // GB4, GB3 (M21): the brushes, the paint bucket and the gradient.
     ...paintingActions(ctx),
+    // GB3, GB5 (M22): every adjustment and filter, applied and previewed the same way.
+    ...pixelOpActions(ctx),
     // G3 (M21): a pixel layer, or the selected pixels, moved, scaled, turned, flipped, skewed.
     ...pixelTransformActions(ctx),
     /** M18: an animation's app, or Graphics mode's. */

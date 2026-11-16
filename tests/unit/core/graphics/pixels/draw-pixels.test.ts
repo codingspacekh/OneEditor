@@ -103,6 +103,14 @@ describe('M21 G2 / GB1: pixel layers on the stage', () => {
     expect(calls[at + 1]).toBe('restore()');
   });
 
+  it('M22: draws a reduced preview at the layer’s size, under its own name', () => {
+    const { ctx, drawn, calls } = recorder();
+    const photo = createLayer('Photo', { pixels: { bitmap, x: 4, y: 5, scale: 2.5 } });
+    drawStage(ctx, image([photo]));
+    expect(drawn[0]!.key).toBe(`${photo.id} preview`);
+    expect(calls).toContain(`drawBitmap(4,5,${photo.id} preview)`);
+  });
+
   it('draws nothing of the pixels on a canvas that cannot (the HTML player)', () => {
     const { ctx, calls } = recorder(false);
     drawStage(ctx, image([createLayer('Photo', { pixels: { bitmap, x: 0, y: 0 } })]));

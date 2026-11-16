@@ -53,6 +53,7 @@ export function fileActions(ctx: AnimationContext) {
       // GB2 (M21): a selection belongs to the image it was made on.
       pixelSelection: undefined,
       editingMask: false,
+      pixelPreview: undefined,
       layerId: doc.layers[0]!.id,
       tool: 'select',
       busy: null,

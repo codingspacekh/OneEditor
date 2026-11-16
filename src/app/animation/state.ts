@@ -2,7 +2,7 @@
 // derived facts the UI shows (unsaved work, the window title).
 import type { History } from '../history.ts';
 import type { AnimationFormat } from '../../core/animation/export.ts';
-import type { AnimationDoc, Id } from '../../core/animation/types.ts';
+import type { AnimationDoc, Id, PixelContent } from '../../core/animation/types.ts';
 import type { SpiralOptions } from '../../core/graphics/shapes.ts';
 import type { Mask } from '../../core/graphics/pixels/raster.ts';
 import type { PaintOptions } from '../../core/graphics/pixels/presets.ts';
@@ -52,7 +52,14 @@ export type Tool =
   | 'gradient'
   /** GB1 (M21): pan (also Space held) and zoom by clicking. */
   | 'hand'
-  | 'zoom';
+  | 'zoom'
+  /** GB5 (M22): retouching on a pixel layer: clone stamp, heal, the blur / sharpen / smudge brushes, red eye. */
+  | 'clone'
+  | 'heal'
+  | 'blur-brush'
+  | 'sharpen-brush'
+  | 'smudge'
+  | 'red-eye';
 
 /** M21: the tools that work on a pixel layer's pixels (Graphics mode only). */
 export const PIXEL_TOOLS: readonly Tool[] = [
@@ -69,6 +76,12 @@ export const PIXEL_TOOLS: readonly Tool[] = [
   'airbrush',
   'bucket',
   'gradient',
+  'clone',
+  'heal',
+  'blur-brush',
+  'sharpen-brush',
+  'smudge',
+  'red-eye',
 ];
 
 export type ShapeKind = 'rect' | 'ellipse' | 'star' | 'polygon' | 'arc' | 'spiral';
@@ -99,6 +112,11 @@ export interface AnimationState {
   pixelSelection?: Mask;
   /** GB2 (M21): paint on the current pixel layer's mask instead of its pixels. */
   editingMask?: boolean;
+  /**
+   * M22 (GN2): an adjustment or filter shown live while its dialog is open: the stage draws these
+   * pixels (perhaps a reduced copy) instead of the layer's. Never saved, never an undo step.
+   */
+  pixelPreview?: { layerId: Id; pixels: PixelContent };
   /**
    * GB4, GB3 (M21): the painting tools' settings — the foreground and background colours, each
    * brush tool's brush, the bucket's and the gradient's options (absent: DEFAULT_PAINT). Not saved.

@@ -50,6 +50,14 @@ function image(): AnimationDoc {
 const text = (s: string) => new TextEncoder().encode(s);
 
 describe('M21 D9: the .mveg file', () => {
+  it('M22: never keeps a live preview’s reduced copy', async () => {
+    const doc = image();
+    const layers = doc.layers.map((l) =>
+      l.pixels ? { ...l, pixels: { ...l.pixels, scale: 2 } } : l,
+    );
+    await expect(writeGraphicFile({ ...doc, layers }, webCompression)).rejects.toThrow();
+  });
+
   it('is a zip of doc.json and a PNG per bitmap and mask, read back exactly', async () => {
     const doc = image();
     const file = await writeGraphicFile(doc, webCompression);
