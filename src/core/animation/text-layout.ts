@@ -78,3 +78,28 @@ export function layoutText(t: Laid, widthOf: WidthOf): TextLayout {
   });
   return { cells, width, height: lines.length * lineHeight, lineHeight, lineWidths };
 }
+
+/**
+ * One letter as drawn: the middle of its line-high cell (`x`, `y` in the text's own box, from its
+ * top left) and its turn in degrees, clockwise. Curved text (AN26), text on a path (GT2) and in a
+ * shape (GT3) give the same.
+ */
+export interface PlacedLetter {
+  char: string;
+  x: number;
+  y: number;
+  angle: number;
+  width: number;
+}
+
+/**
+ * GT1, GT4 (M20): every letter of straight text where the stage draws it (spaces left out). Curved
+ * text, text on a path and text in a shape are placed by `placeLetters` in letters-placed.ts.
+ */
+export function straightLetters(t: Laid, widthOf: WidthOf): PlacedLetter[] {
+  const layout = layoutText(t, widthOf);
+  const half = layout.lineHeight / 2;
+  return layout.cells
+    .filter((c) => c.char.trim() !== '')
+    .map((c) => ({ char: c.char, x: c.x + c.width / 2, y: c.y + half, angle: 0, width: c.width }));
+}

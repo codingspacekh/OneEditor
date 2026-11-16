@@ -105,3 +105,18 @@ describe('AN26 curved text with GT1 spacing', () => {
     expect(flat.height).toBe(80);
   });
 });
+
+describe('GT4: every letter placed, whichever way the text is set', () => {
+  it('straight text: the middle of each letter’s cell, spaces left out', async () => {
+    const { placeLetters } = await import('../../../../src/core/animation/letters-placed.ts');
+    const { createText } = await import('../../../../src/core/animation/factory.ts');
+    const t = { ...createText('A B', { x: 0, y: 0, size: 50 }), align: 'left' as const };
+    expect(placeLetters(t, widthOf)).toEqual([
+      { char: 'A', x: 5, y: 30, angle: 0, width: 10 },
+      { char: 'B', x: 25, y: 30, angle: 0, width: 10 },
+    ]);
+    const bent = placeLetters({ ...t, curve: 40 }, widthOf);
+    expect(bent).toHaveLength(2);
+    expect(bent[0]!.angle).toBeLessThan(0);
+  });
+});
