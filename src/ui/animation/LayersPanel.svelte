@@ -495,6 +495,8 @@
   }
   .actions {
     display: flex;
+    /* M21: Graphics mode's pixel layer buttons make the row wrap in a narrow panel (N10). */
+    flex-wrap: wrap;
     gap: 4px;
     padding: 6px 8px;
     border-bottom: 1px solid var(--line);

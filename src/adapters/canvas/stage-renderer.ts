@@ -197,12 +197,21 @@ export function createCanvasStageRenderer({
       const scale = Math.min(1, maxSide / Math.max(image.width, image.height));
       const width = Math.max(1, Math.round(image.width * scale));
       const height = Math.max(1, Math.round(image.height * scale));
-      const ctx = makeCanvas(width, height).getContext('2d') as
+      // GN1 (M21): read in ordinary memory (not the graphics card's), and the decoded picture and
+      // the canvas let go at once: a 12-megapixel photo is 48 MB each.
+      const canvas = makeCanvas(width, height);
+      const ctx = canvas.getContext('2d', { willReadFrequently: true }) as
         | (StageCanvas & { getImageData(x: number, y: number, w: number, h: number): ImageData })
         | null;
       if (!ctx) throw new Error('No canvas is available to read the picture.');
-      ctx.drawImage(image, 0, 0, width, height);
-      return { width, height, data: ctx.getImageData(0, 0, width, height).data };
+      try {
+        ctx.drawImage(image, 0, 0, width, height);
+        return { width, height, data: ctx.getImageData(0, 0, width, height).data };
+      } finally {
+        (image as { close?: () => void }).close?.();
+        const sized = canvas as { width?: number; height?: number };
+        if (typeof sized.width === 'number') sized.width = sized.height = 0;
+      }
     },
   };
 }
