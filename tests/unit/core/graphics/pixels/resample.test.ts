@@ -1,6 +1,7 @@
 // M21 GB6: Image size's resampling — known answers for nearest and bilinear on a 2 × 2, flat
 // colours staying flat under bicubic, transparent edges not going dark (premultiplied), exact
-// sizes (Balloon1 at 3000 × 2250), masks, and a 12-megapixel photo in seconds.
+// sizes (Balloon1 at 3000 × 2250), masks, and a large photo across many tiles. How fast a
+// 12-megapixel photo goes (GN2) is measured in the built app (tests/e2e/pixels-performance.spec.ts).
 import { describe, expect, it } from 'vitest';
 import {
   bitmapFromRGBA,
@@ -152,18 +153,16 @@ describe('M21 GB6: resampling', () => {
     expect(() => resampleBitmap(quad, 2.5, 2, 'nearest')).toThrow();
   });
 
-  it('M21 GN1: a 12-megapixel photo resamples in seconds', () => {
-    const data = new Uint8ClampedArray(4000 * 3000 * 4);
+  it('M21 GB6: a large photo resamples to an exact size across many tiles', () => {
+    const data = new Uint8ClampedArray(2000 * 1500 * 4);
     for (let i = 0; i < data.length; i += 4) {
       data[i] = i & 255;
       data[i + 1] = (i >> 8) & 255;
       data[i + 3] = 255;
     }
-    const photo = bitmapFromRGBA(4000, 3000, data);
-    const started = performance.now();
-    const out = resampleBitmap(photo, 3000, 2250, 'bicubic');
-    const ms = performance.now() - started;
-    expect([out.width, out.height]).toEqual([3000, 2250]);
-    expect(ms).toBeLessThan(15_000);
+    const photo = bitmapFromRGBA(2000, 1500, data);
+    const out = resampleBitmap(photo, 1500, 1125, 'bicubic');
+    expect([out.width, out.height]).toEqual([1500, 1125]);
+    expect(out.tiles.every((t) => t !== null)).toBe(true);
   }, 60_000);
 });

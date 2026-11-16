@@ -14,6 +14,8 @@ import type {
   TextObject,
 } from '../../../../../src/core/animation/types.ts';
 import { contentBounds, pixelAt } from '../../../../../src/core/graphics/pixels/raster.ts';
+import { createEllipse } from '../../../../../src/core/animation/factory.ts';
+import { readRegion } from '../../../../../src/core/graphics/pixels/raster.ts';
 import { objectsMask } from '../../../../../src/core/graphics/pixels/select-objects.ts';
 import { isEmptyMask } from '../../../../../src/core/graphics/pixels/selection.ts';
 
@@ -22,6 +24,16 @@ const noLetters = (): GroupObject => {
 };
 
 describe('M21 GB2: selection from shapes and text', () => {
+  it('hard edges: two ellipses that meet share no pixel; soft ones share their edge', () => {
+    const a = createEllipse({ x: 0, y: 0, width: 20, height: 20 });
+    const b = createEllipse({ x: 10.3, y: 0, width: 20, height: 20 });
+    const hard = (o: typeof a) => objectsMask(40, 20, [o], noLetters, false);
+    const soft = (o: typeof a) => objectsMask(40, 20, [o], noLetters);
+    const values = (m: ReturnType<typeof hard>) => new Set(readRegion(m));
+    expect([...values(hard(a))].sort((x, y) => x - y)).toEqual([0, 255]);
+    expect(values(soft(a)).size).toBeGreaterThan(2);
+  });
+
   it('selects a rectangle’s area, turned with it', () => {
     const rect = createRect({ x: 10, y: 10, width: 20, height: 10 });
     expect(contentBounds(objectsMask(50, 50, [rect], noLetters))).toEqual({

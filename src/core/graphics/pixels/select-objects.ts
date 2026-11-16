@@ -37,16 +37,22 @@ function areasOf(o: AnimObject, letters: LettersOf, place: (p: Point) => Point):
   ];
 }
 
-/** GB2 Select from shape: the objects' areas joined, as a selection the image's size. */
+/**
+ * GB2 Select from shape: the objects' areas joined, as a selection the image's size; soft edges
+ * (anti-aliased), or hard (each pixel in or out by its centre: pieces cut by shapes that meet
+ * share no pixel).
+ */
 export function objectsMask(
   width: number,
   height: number,
   objects: readonly AnimObject[],
   letters: LettersOf,
+  antiAlias = true,
 ): Mask {
   const areas = objects.flatMap((o) => areasOf(o, letters, (p) => p));
   return areas.reduce(
-    (m, a) => combineMasks(m, polygonMask(width, height, a.rings, { rule: a.rule }), 'add'),
+    (m, a) =>
+      combineMasks(m, polygonMask(width, height, a.rings, { rule: a.rule, antiAlias }), 'add'),
     createMask(width, height),
   );
 }

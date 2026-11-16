@@ -218,7 +218,10 @@ export function pixelSelectionActions(ctx: AnimationContext) {
         });
         const { width, height } = size();
         try {
-          select(objectsMask(width, height, objects, lettersGroup), options);
+          select(
+            objectsMask(width, height, objects, lettersGroup, options.antiAlias ?? true),
+            options,
+          );
           return null;
         } catch (error) {
           // The letters' outlines cannot be read (not a bundled font): it says why.
