@@ -6,6 +6,7 @@
   import CompressionComparison from './CompressionComparison.svelte';
   import FileSizeCalculator from './FileSizeCalculator.svelte';
   import FormatGuide from './FormatGuide.svelte';
+  import GraphicsLearn from './graphics/GraphicsLearn.svelte';
   import MediaInspector from './MediaInspector.svelte';
   import SamplingVisualiser from './SamplingVisualiser.svelte';
   import TaskChecker from './TaskChecker.svelte';
@@ -28,6 +29,8 @@
     <VideoQuality {learn} />
   {:else if ui.learnTab === 'animation'}
     <AnimationLearn />
+  {:else if ui.learnTab === 'graphics'}
+    <GraphicsLearn learn={app.learnGraphics} />
   {:else}
     <TaskChecker {learn} />
   {/if}
@@ -50,7 +53,8 @@
   .formats {
     grid-template-columns: minmax(0, 1.15fr) minmax(0, 1fr);
   }
-  .task {
+  .task,
+  .graphics {
     grid-template-columns: minmax(0, 1fr);
   }
   .animation {

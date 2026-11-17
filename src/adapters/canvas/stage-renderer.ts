@@ -132,13 +132,17 @@ export function createCanvasStageRenderer({
       return new Uint8Array(await blob.arrayBuffer());
     },
 
-    async renderPixels(doc: AnimationDoc): Promise<Pixels> {
-      const { width, height } = doc.stage;
+    async renderPixels(
+      doc: AnimationDoc,
+      size?: { width: number; height: number },
+    ): Promise<Pixels> {
+      // G11 (M23): another size drawn scaled, as renderPng does, so the vectors stay sharp.
+      const { width, height } = size ?? doc.stage;
       const ctx = makeCanvas(width, height).getContext('2d', { willReadFrequently: true }) as
         | (StageCanvas & { getImageData(x: number, y: number, w: number, h: number): ImageData })
         | null;
       if (!ctx) throw new Error('No canvas is available to draw the stage.');
-      (await readyToDraw(doc))(ctx, 0);
+      (await readyToDraw(doc))(ctx, 0, size);
       return { width, height, data: ctx.getImageData(0, 0, width, height).data };
     },
 

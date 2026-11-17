@@ -123,8 +123,9 @@ _Made by `npm run guides` from `src/core/teaching/syllabus.ts` and the app's too
 |---|---|---|
 | graphics tools: add, remove and select layers; order; toggle visibility; lock/unlock layers; change opacity/transparency | Graphics ▸ the Layers panel (add, rename, order, lock, hide, folders) and Properties ▸ opacity | Layers |
 | alignment and distribution tools: left, right, top, bottom, centre alignment; vertical and horizontal distribution | Graphics (and Animation) ▸ Properties ▸ Align: with the selection, the first object chosen or the canvas, and Distribute across or down | Align and distribute |
-| colour systems: RGB, HSL, CMYK | Graphics ▸ any colour box: the colour picker shows and takes RGB, HSL and CMYK numbers | — |
-| the need for different image resolutions, including the impact of having too low/high resolution for an image on screen or in print | Graphics ▸ File ▸ New Image… and the canvas chip at the top (size in px, cm, mm or in at a resolution; screen and print presets) | Image size and resolution |
+| colour systems: RGB, HSL, CMYK, CMS; how each produces colour; their properties, purpose and uses | Learn ▸ Graphics ▸ Colour systems (RGB light and CMYK ink mixers, the HSL wheel, the same colour in each system, a colour matching system and the eyedropper); Graphics ▸ any colour box: the colour picker shows and takes RGB, HSL and CMYK numbers | — |
+| the need for different image resolutions, including the impact of having too low/high resolution for an image on screen or in print | Graphics ▸ File ▸ New Image… and the canvas chip at the top (size in px, cm, mm or in at a resolution; screen and print presets); Learn ▸ Graphics ▸ Resolution and print size, and Bitmap and vector (a zoom that pixelates the bitmap beside the vector) | Image size and resolution |
+| different bitmap and vector file formats, including their suitability and selection for use in a given scenario | Learn ▸ Graphics ▸ File formats (the seven formats side by side; choose a scenario — the web, print, a logo, transparency, animation — for the formats to use and to avoid, and why) | — |
 | exporting an image in different file formats | Graphics ▸ Export on the toolbar (PNG, JPG or SVG at a size, of the selection, or each object in its own file; the resolution is written into the file) | Export image |
 | changing solid and gradient fills; changing the opacity of all or part of an image | Graphics (and Animation) ▸ Properties ▸ Fill (solid, linear, radial or Pattern), Fill opacity and Outline opacity; Properties ▸ Filters for shadow, glow, bevel and blur | Pattern fill and opacity, Filters, Paint bucket and gradient |
 
@@ -139,6 +140,7 @@ _Made by `npm run guides` from `src/core/teaching/syllabus.ts` and the app's too
 | selection tools: convert to curves, replication, transformation tools | Graphics (and Animation) ▸ Properties ▸ Copies: Convert to curves, Step and repeat…, Paste in place, Mirror copy; Duplicate (Ctrl+D) repeats the last move | Convert to curves, Step and repeat, mirror copy |
 | add, move, delete nodes; Bézier handles; symmetrical, asymmetrical, cusp, smooth nodes; align and distribute nodes | Graphics (and Animation) ▸ select a pen path, then Properties ▸ Nodes: click or drag a box round nodes, Cusp / Smooth / Symmetrical, To line / To curve, Align and distribute, Simplify…, Break, Join, Close, Reverse, Delete | Nodes |
 | application of envelopes and perspectives | Graphics (and Animation) ▸ Properties ▸ Envelope: arch, arc, bulge, flag, wave, rise or squeeze with a bend %, Perspective (drag the four corners) or Custom (drag the sides’ corners and handles); Apply makes plain paths | Envelope and perspective |
+| converting bitmap images into editable vector shapes, including trace bitmaps; advantages and disadvantages of converting a bitmap image into an editable vector shape | Graphics ▸ a picture, then Properties ▸ Trace bitmap… (colours, detail, smoothing, black and white); Learn ▸ Graphics ▸ Bitmap to vector (advantages and disadvantages) | — |
 
 ## 19.3 Bitmap images
 
@@ -152,6 +154,16 @@ _Made by `npm run guides` from `src/core/teaching/syllabus.ts` and the app's too
 | resizing the image / canvas: changing colour depth, changing resolution | Graphics ▸ Image ▸ Image size… (px, %, cm, in at a resolution; bicubic, bilinear or nearest; or the resolution alone), Canvas size… (anchor), Reduce colours… (2, 16, 256, greyscale; dithering) | — |
 | working with colour: solid and gradient fills; convert to black and white, greyscale; adjust brightness, contrast, colour balance, shadows and highlights | Graphics ▸ the Paint bucket and Gradient tools on a pixel layer; Image ▸ Adjustments ▸ Brightness / Contrast…, Levels…, Exposure…, Shadows / Highlights…, Hue / Saturation… (Colourise), Colour Balance…, Temperature / Tint…, Replace Colour… (click the colour in the image), Black and White…, Greyscale, Invert — on the layer, its mask or inside the selection, with a live preview | Adjustments |
 | tools/filters to alter parts of an image: distort, clone, erase, blur, smudge, sharpen, red eye removal | Graphics ▸ Filter ▸ Blur (Gaussian, Motion, Zoom), Twirl…, Sharpen… and Distort ▸ Bulge / Pinch…, Perspective…, Warp… on a pixel layer, its mask or inside the selection, with a live preview (click the image for the centre; drag the corners or the mesh); the Eraser on the tool strip; the tool strip on a pixel layer: Clone stamp and Heal (Alt-click, Option-click on a Mac, the source; Properties ▸ Aligned, Copy from), Blur, Sharpen and Smudge brushes (Properties ▸ Strength), Red eye (click the eye or drag a box over it; Pupil size, Darken) | Clone stamp and heal, Blur, sharpen and smudge brushes, red eye, Blur and sharpen, Twirl, bulge, perspective and warp |
+
+## 19.4 Compression
+
+### Compression
+
+| Syllabus point | Where in OneEditor | Tools |
+|---|---|---|
+| what compression is | Learn ▸ Graphics ▸ Compression (what compression is, on your own picture or the image in Graphics mode) | — |
+| methods of compression: lossless compression, lossy compression | Learn ▸ Graphics ▸ Compression: the same picture as PNG, GIF, BMP, TIFF and JPG side by side with their sizes; the colour depth and the resolution reduced; the image file-size calculator (width × height × bits ÷ 8); Graphics ▸ Export (each format lossless or lossy) | — |
+| effects of different methods of compression on images | Learn ▸ Graphics ▸ Compression: a JPEG quality slider with the file size and a zoomed difference view (where data was lost), and a JPEG saved again and again | — |
 
 ## 19.5 Text
 

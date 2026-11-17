@@ -14,6 +14,10 @@ import {
 } from '../../graphics/export.ts';
 import { EditError } from '../../model/errors.ts';
 import type { Compression } from '../deflate.ts';
+import { encodeBmpFile } from './bmp.ts';
+import { encodeGifFile } from './gif.ts';
+import { encodePngFile } from './png.ts';
+import { encodeTiffFile } from './tiff.ts';
 
 /** Pixels in rows from the top, 4 bytes a pixel, RGBA not premultiplied (as ImageData). */
 export interface RgbaImage {
@@ -92,25 +96,27 @@ export type BitmapEncoder = (
   compression: Compression,
 ) => Promise<Uint8Array>;
 
-const notYet =
-  (format: BitmapFormat): BitmapEncoder =>
-  () =>
-    Promise.reject(new EditError(`Saving as ${format.toUpperCase()} is not ready yet.`));
-
-/** M23 step 2 puts each format's writer here. */
+/** D5 (M23): each format's own writer. */
 const ENCODERS: Record<BitmapFormat, BitmapEncoder> = {
-  png: notYet('png'),
-  gif: notYet('gif'),
-  bmp: notYet('bmp'),
-  tiff: notYet('tiff'),
+  png: encodePngFile,
+  gif: encodeGifFile,
+  bmp: encodeBmpFile,
+  tiff: encodeTiffFile,
 };
 
-/** G11 (M23): a bitmap file of these pixels. */
+/** G11 (M23): a bitmap file of these pixels (refused when it is not at least 1 × 1 px). */
 export function encodeBitmap(
   format: BitmapFormat,
   image: RgbaImage,
   options: EncodeOptions,
   compression: Compression,
 ): Promise<Uint8Array> {
+  const { width, height, data } = image;
+  if (!Number.isInteger(width) || !Number.isInteger(height) || width < 1 || height < 1)
+    return Promise.reject(
+      new EditError(`A picture must be at least 1 × 1 px, not ${width} × ${height}.`),
+    );
+  if (data.length !== width * height * 4)
+    return Promise.reject(new RangeError('The pixels do not fill the picture.'));
   return ENCODERS[format](image, options, compression);
 }

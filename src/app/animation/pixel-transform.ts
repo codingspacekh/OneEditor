@@ -5,9 +5,12 @@
 // them (O/N/23: Ocean moved, scaled and flipped into the hole cut in Castle; workbook Task 3.4:
 // the edited photos placed and turned on the canal). Each is one undo step, refused on a locked
 // or hidden layer as every change to a layer is. A drag shows the layer (or the lifted pixels)
-// where it goes as it moves, then makes its one step when let go.
+// where it goes as it moves, then makes its one step when let go. M23 (GN2): a big layer is
+// transformed in the pixel worker, the step made when it answers (a whole-pixel move of the layer
+// keeps its tiles, so it is done at once); Undo puts the selection back where it was (GB2).
 import type { AnimationDoc, Layer, PixelContent } from '../../core/animation/types.ts';
 import { copySelected, fadeSelected } from '../../core/graphics/pixels/cutout.ts';
+import { pixelsFromAnswer } from '../../core/graphics/pixels/jobs.ts';
 import { changePixels, isPixelLayer } from '../../core/graphics/pixels/layers.ts';
 import type { Mask, Rect } from '../../core/graphics/pixels/raster.ts';
 import type { ResampleMethod } from '../../core/graphics/pixels/resample.ts';
@@ -15,6 +18,8 @@ import { selectedBounds } from '../../core/graphics/pixels/selection.ts';
 import {
   matrixFor,
   pixelsBox,
+  snapped,
+  transformedBounds,
   transformPixels,
   transformSelected,
   translation,
@@ -24,6 +29,7 @@ import {
 } from '../../core/graphics/pixels/transform.ts';
 import { EditError } from '../../core/model/errors.ts';
 import type { AnimationContext } from './context.ts';
+import { PAGE_PIXELS } from './pixel-ops.ts';
 
 /** Properties ▸ Pixel layer's numbers, and how the pixels are resampled (bicubic by default). */
 export interface PixelTransformChange extends TransformValues {
@@ -40,6 +46,13 @@ export interface PixelMove {
 
 const NOT_GRAPHICS = 'Pixel layers are for Graphics mode.';
 const NO_PIXEL_LAYER = 'Choose a pixel layer first.';
+const CHANGED = 'The layer changed while it was being worked on. Do it again.';
+
+/** A move by whole px only (the very tiles at a new place: nothing to resample). */
+const wholeMove = (m: Matrix): boolean => {
+  const t = snapped(m);
+  return t.a === 1 && t.b === 0 && t.c === 0 && t.d === 1 && Number.isInteger(t.e + t.f);
+};
 
 export function pixelTransformActions(ctx: AnimationContext) {
   const { store, patch, present, edit, currentLayer } = ctx;
@@ -74,19 +87,70 @@ export function pixelTransformActions(ctx: AnimationContext) {
     const layer = target();
     if (typeof layer === 'string') return layer;
     const sel = selection();
+    const p = layer.pixels;
+    let matrix: Matrix;
+    try {
+      matrix = matrixOf(sel ? selectedBounds(sel)! : pixelsBox(p));
+    } catch (error) {
+      // Typed values that cannot be (a width of 0): refused in words.
+      if (error instanceof EditError) return error.message;
+      throw error;
+    }
+    const named = sel ? `${label} (selected pixels)` : label;
+    const before = present();
+    const out = transformedBounds(pixelsBox(p), matrix);
+    const work = p.bitmap.width * p.bitmap.height + out.width * out.height;
+    if (work >= PAGE_PIXELS && !(wholeMove(matrix) && !sel)) return inWorker(named, matrix, method);
     let moved: Mask | undefined;
     const refused = edit({
-      label: sel ? `${label} (selected pixels)` : label,
+      label: named,
       apply: (doc) =>
-        changePixels(doc, layer.id, (p) => {
-          if (!sel) return transformPixels(p, matrixOf(pixelsBox(p)), method);
-          const out = transformSelected(p, sel, matrixOf(selectedBounds(sel)!), method);
-          moved = out.selection;
-          return out.pixels;
+        changePixels(doc, layer.id, (q) => {
+          if (!sel) return transformPixels(q, matrix, method);
+          const done = transformSelected(q, sel, matrix, method);
+          moved = done.selection;
+          return done.pixels;
         }),
     });
-    if (!refused && moved) patch({ pixelSelection: moved });
+    if (!refused && moved) ctx.moveSelection(before, moved);
     return refused;
+  }
+
+  /**
+   * GN2 (M23): the same for a big layer, in the pixel worker; refused at once on a locked or
+   * hidden layer, later (in the message) when nothing selected shows on it.
+   */
+  function inWorker(label: string, matrix: Matrix, method: ResampleMethod): string | null {
+    const layer = target() as Layer & { pixels: PixelContent };
+    const sel = selection();
+    const before = present();
+    try {
+      // A change of no consequence, to have a locked or hidden layer refused as any other edit.
+      changePixels(before, layer.id, (q) => ({ ...q }));
+    } catch (error) {
+      return (error as Error).message;
+    }
+    const p = layer.pixels;
+    ctx.inBackground(label, async () => {
+      const answer = await ctx.services.pixelWorker.run('transform', {
+        pixels: p,
+        matrix,
+        method,
+        ...(sel ? { selection: sel } : {}),
+      });
+      const done = pixelsFromAnswer(p, answer, sel);
+      const refused = edit({
+        label,
+        apply: (doc) =>
+          changePixels(doc, layer.id, (q) => {
+            if (q !== p) throw new EditError(CHANGED);
+            return done.pixels;
+          }),
+      });
+      if (refused) throw new EditError(refused);
+      if (done.selection) ctx.moveSelection(before, done.selection);
+    });
+    return null;
   }
 
   /** G3: the layer (or the selected pixels) moved by whole px. False when refused (it says why). */

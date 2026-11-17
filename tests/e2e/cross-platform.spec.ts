@@ -2,18 +2,27 @@
 // one OS is packaged (File ▸ Package Project), opened on the other OS with every file found, and
 // exported there the same: same size and length, and the same pictures (fonts included).
 // M17 step 3: the same for an animation with pictures (.mvea), packaged in Animation mode.
+// M23 step 5 (GN4): a Graphics image (.mveg: a filtered photo, gradient shapes, a screened layer
+// with a glow, words) made on one OS opens on the other with the very same pixel layers, and its
+// PNG export there has the same pixels (the words compared apart, as X6).
 // Run by .github/workflows/cross-platform.yml in two steps, on two computers:
 //   CROSS_STEP=make  CROSS_DIR=<folder>  → <folder>/package/Untitled.mve and <folder>/made.mp4;
 //                                          <folder>/anim-package/Cross.mvea and <folder>/anim-made.mp4
+//                                          <folder>/graphic/Cross.mveg and <folder>/graphic-made.png
 //   CROSS_STEP=check CROSS_DIR=<folder from the other OS> → opens them, exports, compares
 // Without CROSS_STEP the tests are skipped (they are not part of the normal E2E run).
 import { expect, test, type Page } from '@playwright/test';
 import { execFile } from 'node:child_process';
-import { existsSync, mkdirSync, mkdtempSync, writeFileSync } from 'node:fs';
+import { existsSync, mkdirSync, mkdtempSync, readFileSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { promisify } from 'node:util';
+import { comparePictures, crossGraphic } from '../../scripts/lib/cross-graphic.ts';
 import { FIXTURES, generateFixtures, selectFixtures } from '../../scripts/lib/fixtures.ts';
+import { readGraphicFile, writeGraphicFile } from '../../src/core/graphics/mveg.ts';
+import { readRegion } from '../../src/core/graphics/pixels/raster.ts';
+import { webCompression } from '../../src/core/image/deflate.ts';
+import { decodePng } from '../../src/core/image/png.ts';
 import { createNodeMediaEngine } from '../../src/main/media/engine.ts';
 import { bundledFfmpeg } from '../integration/helpers/ffmpeg.ts';
 import { measure } from '../integration/helpers/measure.ts';
@@ -312,4 +321,72 @@ test('check: the packaged animation opens on this OS with its pictures, and expo
   expect(textPsnr).toBeGreaterThanOrEqual(20);
   const [a, b] = await Promise.all([inkBox(join(DIR, 'anim-made.mp4'), TEXT), inkBox(check, TEXT)]);
   a.forEach((edge, i) => expect(Math.abs(edge - b[i]!), `text edge ${i}`).toBeLessThanOrEqual(1));
+});
+
+// ---- M23 step 5 (GN4): a Graphics image (.mveg) ----
+
+async function graphicsMode(page: Page) {
+  await page
+    .getByRole('navigation', { name: 'Mode' })
+    .getByRole('button', { name: 'Graphics' })
+    .click();
+}
+
+/** Opens the .mveg in Graphics mode and exports it as a PNG to `output`. */
+async function exportGraphic(file: string, output: string) {
+  const { app, window: page } = await launchApp();
+  await graphicsMode(page);
+  await answerDialogs(app, { open: [file] });
+  await menu(app, 'File', 'Open Image…');
+  await expect(page.getByText('480 × 320 px').first()).toBeVisible({ timeout: 30_000 });
+  await expect(page.getByText(/missing|could not be/i)).toHaveCount(0);
+  await answerDialogs(app, { exportTo: output });
+  await page.getByRole('button', { name: 'Export', exact: true }).click();
+  const box = page.getByRole('dialog', { name: 'Export image' });
+  await box.getByRole('radio', { name: /PNG/ }).first().check();
+  await box.getByRole('button', { name: 'Export…' }).click();
+  await expect(box).toBeHidden({ timeout: 60_000 });
+  await expect.poll(() => existsSync(output), { timeout: 60_000 }).toBe(true);
+  await app.close();
+}
+
+/** The pixel layers' bytes, bottom first. */
+const layerBytes = (doc: ReturnType<typeof crossGraphic>) =>
+  doc.layers.flatMap((l) => (l.pixels ? [Buffer.from(readRegion(l.pixels.bitmap).buffer)] : []));
+
+test('make (GN4): a Graphics image with a filtered photo, gradients, a glowing screened layer and words, saved and exported', async () => {
+  test.skip(STEP !== 'make');
+  mkdirSync(join(DIR, 'graphic'), { recursive: true });
+  const file = join(DIR, 'graphic', 'Cross.mveg');
+  writeFileSync(file, await writeGraphicFile(crossGraphic(), webCompression));
+  await exportGraphic(file, join(DIR, 'graphic-made.png'));
+});
+
+test('check (GN4): the other computer’s image has the very pixel layers made here, and exports the same pixels', async () => {
+  test.skip(STEP !== 'check');
+  const file = join(DIR, 'graphic', 'Cross.mveg');
+  // The adjustment and the filters are our own JavaScript: the same bytes on both computers.
+  const theirs = await readGraphicFile(readFileSync(file), webCompression);
+  const ours = layerBytes(crossGraphic());
+  const made = layerBytes(theirs);
+  expect(made).toHaveLength(ours.length);
+  made.forEach((bytes, i) => expect(bytes.equals(ours[i]!), `pixel layer ${i}`).toBe(true));
+
+  const check = join(DIR, 'graphic-check.png');
+  await exportGraphic(file, check);
+  const [a, b] = await Promise.all(
+    [join(DIR, 'graphic-made.png'), check].map((f) => decodePng(readFileSync(f), webCompression)),
+  );
+  expect([b!.width, b!.height]).toEqual([480, 320]);
+  const diff = comparePictures(a!, b!);
+  console.log(
+    `GN4: outside the words ${diff.psnr} dB (largest difference ${diff.largest}), the words ${diff.textPsnr} dB, ink ${JSON.stringify(diff.ink)}`,
+  );
+  // Everything but the words drawn alike by the two canvases (the shapes' edges, the gradients,
+  // the screen blend and the glow); the words by each OS's font engine: in the same place, alike.
+  expect(diff.psnr).toBeGreaterThanOrEqual(40);
+  expect(diff.textPsnr).toBeGreaterThanOrEqual(20);
+  diff.ink[0].forEach((edge, i) =>
+    expect(Math.abs(edge - diff.ink[1][i]!), `text edge ${i}`).toBeLessThanOrEqual(1),
+  );
 });

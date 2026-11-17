@@ -62,6 +62,9 @@ describe('menu actions follow the mode', () => {
     actions.learnInspect();
     actions.learnAnimation();
     expect(ui.learnTab).toBe('animation');
+    // GL1 (M23): Learn ▸ Graphics Theory.
+    actions.learnGraphics();
+    expect(ui.learnTab).toBe('graphics');
     leaveLearn();
     expect(ui.mode).toBe('Animation');
   });

@@ -346,7 +346,7 @@ Animation mode.
 
 | ID | Requirement |
 |---|---|
-| **GN1** | A 4128 × 2322 photo (the largest source, Ocean.jpg) with 6 layers and 50 undo steps stays under **1 GB** for the whole app; undo keeps only changed tiles and moves old steps to a temporary file past a limit. |
+| **GN1** | A 4128 × 2322 photo (the largest source, Ocean.jpg) with 6 layers and 50 undo steps stays under **1 GB** for the whole app; undo keeps only changed tiles, and past 400 MB of its own lets the oldest steps go (the newest always kept; said once) — decided 2026-11-17 over spilling them to a temporary file. |
 | **GN2** | A brush stroke follows the pointer at **≥ 30 fps** on that photo on the weakest pilot laptop; a filter's preview shows in **≤ 0.5 s** (on a reduced copy), and is applied in **≤ 3 s** for 12 megapixels. |
 | **GN3** | Opening a 12-megapixel JPEG takes **≤ 2 s**; an `.mveg` of that size **≤ 3 s**. |
 | **GN4** | The same document exports the same pixels on Windows and macOS (cross-platform job, as X6; text checked apart as for animations). |

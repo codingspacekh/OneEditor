@@ -48,6 +48,8 @@ export function fileActions(ctx: AnimationContext) {
       loop: { on: false },
       history: createHistory(doc),
       path,
+      // GC2 (M23): the photo an image was opened from belongs to that image.
+      original: undefined,
       saved,
       selection: [],
       // GB2 (M21): a selection belongs to the image it was made on.
@@ -120,6 +122,8 @@ export function fileActions(ctx: AnimationContext) {
   }
 
   async function writeTo(path: string): Promise<void> {
+    // M23 (GN2): a step the pixel worker is still making goes into the file too.
+    await ctx.pixelWork();
     const doc = present();
     try {
       await writeDoc(path, animationToDisk(doc, dirOf(path)));
@@ -220,7 +224,8 @@ export function fileActions(ctx: AnimationContext) {
         if (kind.kind === 'graphic' && isSvgPath(path)) {
           const { doc, message } = await svgAsImage(ctx, path);
           load(doc, null);
-          patch({ message: { kind: 'info', text: message } });
+          // GC2 (M23): an export never saves over the SVG it was opened from.
+          patch({ original: path, message: { kind: 'info', text: message } });
           return;
         }
         const doc = animationFromDisk(await readDoc(path), dirOf(path));

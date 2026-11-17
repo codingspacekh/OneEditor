@@ -4,10 +4,12 @@
 // (files, exporting, pictures, drawing, timeline, document) is a module taking this context.
 import type * as cmd from '../animation-commands.ts';
 import { createHistory, execute } from '../history.ts';
+import { HISTORY_BUDGET, keepWithin } from './history-budget.ts';
 import { createStore, type Store } from '../store.ts';
 import { roughTextWidth } from '../../core/animation/factory.ts';
 import { isShown } from '../../core/animation/frames.ts';
 import type { AnimationDoc, Id, Layer } from '../../core/animation/types.ts';
+import type { Mask } from '../../core/graphics/pixels/raster.ts';
 import { EditError, MediaError, ProjectFileError } from '../../core/model/errors.ts';
 import type { PageAssets, StageRenderer } from '../../core/ports.ts';
 import { fileNameOf } from '../../core/project/relocate.ts';
@@ -47,6 +49,7 @@ export function createAnimationContext(deps: AnimationDeps) {
     pageAssets: deps.pageAssets ?? NO_PAGE_ASSETS,
     autosaveMs: deps.autosaveMs ?? 60_000,
     pixelWorker: deps.pixelWorker ?? IN_PROCESS_PIXELS,
+    historyBudget: deps.historyBudget ?? HISTORY_BUDGET,
   };
   /** M18: an animation, or Graphics mode's image (one frame, its own file type). */
   const kind = deps.kind ?? ANIMATION_KIND;
@@ -141,11 +144,82 @@ export function createAnimationContext(deps: AnimationDeps) {
 
   // ---- running commands ----
 
+  /**
+   * M23 (GB2): the pixel selection before and after each edit that moved it with the picture
+   * (Image size, Canvas size, a crop, the selected pixels transformed, cut to a new layer), by the
+   * document the edit started from: undo puts back the one there was, redo the one it left.
+   */
+  const selectionMoves = new WeakMap<
+    AnimationDoc,
+    { before: Mask | undefined; after: Mask | undefined }
+  >();
+
+  /** GN1 (M23): said once, the first time old undo steps are let go. */
+  let toldOfLimit = false;
+
+  /** One undo step more (or none, when it changed nothing). */
+  function executed(command: cmd.AnimCommand): void {
+    let dropped = 0;
+    store.update((s) => {
+      const next = execute(s.history, command);
+      if (next === s.history) return s;
+      // A new edit from this picture: any edit undone from it before is gone.
+      selectionMoves.delete(s.history.present);
+      // GN1 (M23): a big photo's oldest undo steps are let go past the memory budget.
+      const kept = keepWithin(next, services.historyBudget);
+      dropped = kept.dropped;
+      return { ...s, history: kept.history };
+    });
+    if (dropped > 0 && !toldOfLimit) {
+      toldOfLimit = true;
+      patch({
+        message: {
+          kind: 'info',
+          text: 'This picture is big: to keep the computer’s memory free, the oldest undo steps are let go as you work.',
+        },
+      });
+    }
+  }
+
+  /**
+   * M23 (GB2): the edit just done, from `before`, takes the pixel selection to `after` (moved,
+   * resized or cropped with the picture; undefined: none), and undo will put it back. Nothing
+   * when that edit was refused or changed nothing.
+   */
+  function moveSelection(before: AnimationDoc, after: Mask | undefined): void {
+    const { history, pixelSelection } = store.get();
+    if (history.present === before || history.past.at(-1)?.project !== before) return;
+    selectionMoves.set(before, { before: pixelSelection, after });
+    patch({ pixelSelection: after });
+  }
+
+  // ---- M23 (GN2): big pixel work in the pixel worker ----
+
+  /** Pixel work waiting or under way, one after another; how many. */
+  let pixelWork: Promise<void> = Promise.resolve();
+  let working = 0;
+
+  /**
+   * M23 (GN2): `work` (pixel jobs in the worker, then its one undo step) after any still under
+   * way, `label…` shown meanwhile, so a 12-megapixel image never stalls the window. A refusal
+   * (an EditError thrown) or a fault becomes the message.
+   */
+  function inBackground(label: string, work: () => Promise<void>): void {
+    working++;
+    patch({ busy: `${label}…` });
+    pixelWork = pixelWork
+      .then(work)
+      .catch(showError)
+      .finally(() => {
+        if (--working === 0) patch({ busy: null });
+      });
+  }
+
   /** Applies a command as one undo step; a refused edit becomes a message. True when applied. */
   function run(command: cmd.AnimCommand): boolean {
     pause();
     try {
-      store.update((s) => ({ ...s, history: execute(s.history, command) }));
+      executed(command);
       return true;
     } catch (error) {
       showError(error);
@@ -157,7 +231,7 @@ export function createAnimationContext(deps: AnimationDeps) {
   function edit(command: cmd.AnimCommand): string | null {
     pause();
     try {
-      store.update((s) => ({ ...s, history: execute(s.history, command) }));
+      executed(command);
       return null;
     } catch (error) {
       return error instanceof EditError ? error.message : unexpected(error);
@@ -179,6 +253,12 @@ export function createAnimationContext(deps: AnimationDeps) {
     setSoundtrack: (track: typeof soundtrack) => void (soundtrack = track),
     run,
     edit,
+    moveSelection,
+    /** M23 (GB2): how an edit from `doc` moved the pixel selection, if it did (undo, redo). */
+    selectionMove: (doc: AnimationDoc) => selectionMoves.get(doc),
+    inBackground,
+    /** M23 (GN2): settles when the pixel work waiting or under way is done (tests, saving). */
+    pixelWork: (): Promise<void> => pixelWork,
     /** The selected objects still there and on the stage at the playhead (AN14: in its drawing). */
     liveSelection: (): Id[] =>
       store.get().selection.filter((id) => isShown(present(), id, store.get().frame)),

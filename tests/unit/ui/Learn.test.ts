@@ -29,7 +29,7 @@ async function learnMode(tab?: string) {
 }
 const card = (name: string) => screen.getByRole('region', { name });
 const inspect = async (t: Awaited<ReturnType<typeof learnMode>>, path: string) => {
-  t.dialogs.openMedia.mockResolvedValueOnce([path]);
+  t.dialogs.openInspect.mockResolvedValueOnce(path);
   await fireEvent.click(
     within(card('Media inspector')).getByRole('button', { name: /Choose a file/ }),
   );
@@ -49,6 +49,7 @@ describe('Learn mode layout (screens 21–22)', () => {
       'Inspector & sampling',
       'Formats & compression',
       'Animation',
+      'Graphics',
       'Task checker',
     ]);
     for (const name of [

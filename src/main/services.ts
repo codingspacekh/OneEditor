@@ -37,6 +37,9 @@ const MEDIA_EXTENSIONS = [
   'wma',
 ];
 
+/** GL2 (M23): the picture formats FFmpeg's media list leaves out (syllabus 19.1's seven). */
+const IMAGE_ONLY_EXTENSIONS = ['svg', 'pdf', 'jpe', 'jfif', 'dib'];
+
 /** AN15: the file types of the animation exports. */
 /** G11 (M18): what each image export is saved as. */
 const GRAPHIC_EXPORTS: Record<GraphicExportFormat, { label: string; extension: string }> = {
@@ -174,12 +177,27 @@ export function electronDialogs(window: () => BrowserWindow | undefined): Dialog
         properties: ['openFile', 'multiSelections'],
         filters: [
           {
-            name: 'Exported video, sound, GIF, web page or PNG sequence',
-            extensions: [...MEDIA_EXTENSIONS, 'html', 'htm'],
+            // GL2 (M23): a picture of any of the seven formats too.
+            name: 'Exported video, sound, picture, web page or PNG sequence',
+            extensions: [...MEDIA_EXTENSIONS, ...IMAGE_ONLY_EXTENSIONS, 'html', 'htm'],
           },
         ],
       });
       return r.canceled ? [] : r.filePaths;
+    },
+    async openInspect() {
+      const r = await dialog.showOpenDialog(win(), {
+        title: 'Inspect a file',
+        properties: ['openFile'],
+        filters: [
+          {
+            name: 'Video, sound and pictures (PNG, JPG, GIF, BMP, TIFF, SVG, PDF)',
+            extensions: [...MEDIA_EXTENSIONS, ...IMAGE_ONLY_EXTENSIONS],
+          },
+          { name: 'All files', extensions: ['*'] },
+        ],
+      });
+      return r.canceled ? null : (r.filePaths[0] ?? null);
     },
     async openFrames() {
       const r = await dialog.showOpenDialog(win(), {

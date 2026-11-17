@@ -40,3 +40,43 @@ export function checkCandidate(input: {
     return { field: 'name', error: `Please keep the name to ${MAX_NAME} letters or fewer.` };
   return { candidate: { centre, number: typed.padStart(4, '0'), name } };
 }
+
+/** P8, GL2 (M23): the name, centre and candidate number a file's name holds in the papers' form. */
+export function candidateInName(
+  fileName: string,
+): { base: string; centre: string; number: string } | null {
+  const stem = fileName.replace(/\.[^.]*$/, '');
+  const match = /^(.*)_([A-Za-z]{2}\d{3})_(\d{4})$/.exec(stem);
+  return match ? { base: match[1]!, centre: match[2]!, number: match[3]! } : null;
+}
+
+/** The numbers the papers print as an example; a candidate puts their own instead. */
+const EXAMPLE = 'ZZ999_9999';
+
+/**
+ * P8, GL2 (M23): whether a file is named as the papers ask, <name>_<centre>_<candidate>: the name
+ * the task gives (`base`, if any; capitals do not matter), and the student's own numbers when
+ * File ▸ Candidate Details… holds them. `why` says what is wrong.
+ */
+export function checkExamName(
+  fileName: string,
+  candidate: Candidate | null,
+  base?: string,
+): { pass: boolean; expected: string; actual: string; why?: string } {
+  const numbers = candidate ? `${candidate.centre}_${candidate.number}` : '<centre>_<candidate>';
+  const expected = `${base || '<name>'}_${numbers}`;
+  const actual = fileName.replace(/\.[^.]*$/, '');
+  const found = candidateInName(fileName);
+  const fail = (why: string) => ({ pass: false, expected, actual, why });
+  if (!found) return fail('it does not end with a centre and candidate number');
+  if (base && found.base.toLowerCase() !== base.toLowerCase())
+    return fail(`it starts with ${found.base}, not ${base}`);
+  const theirs = `${found.centre.toUpperCase()}_${found.number}`;
+  if (candidate && theirs !== numbers)
+    return fail(
+      theirs === EXAMPLE
+        ? `${EXAMPLE} is the papers' example: put your own centre and candidate number`
+        : `${theirs} are not your numbers (${numbers})`,
+    );
+  return { pass: true, expected, actual };
+}

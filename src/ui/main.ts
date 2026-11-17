@@ -2,6 +2,7 @@ import { mount } from 'svelte';
 import { createApp } from '../app/app.ts';
 import { createCanvasTextRenderer } from '../adapters/canvas/text-renderer.ts';
 import { createCanvasStageRenderer } from '../adapters/canvas/stage-renderer.ts';
+import { createCanvasPictureCodec } from '../adapters/canvas/picture-codec.ts';
 import { createElectronMediaEngine } from '../adapters/electron/media-engine.ts';
 import { createElectronPageAssets } from '../adapters/electron/page-assets.ts';
 import {
@@ -83,6 +84,8 @@ if (!window.mve) {
     files: createElectronProjectFiles(api),
     text: createCanvasTextRenderer(),
     stageRenderer: createCanvasStageRenderer(),
+    // GC1 (M23): Learn ▸ Graphics's JPEGs and decoding, on an OffscreenCanvas.
+    pictureCodec: createCanvasPictureCodec(),
     pageAssets,
     updates: createElectronUpdates(api),
     website: openWebsite(api),

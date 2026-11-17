@@ -8,8 +8,6 @@
 import type { Point } from '../../core/animation/geometry.ts';
 import type { Rect } from '../../core/graphics/pixels/raster.ts';
 import { ellipsePoints } from '../../core/graphics/pixels/selection.ts';
-import { compositeLayers, drawnPixelLayers } from '../../core/graphics/pixels/merge.ts';
-import type { PixelSample } from '../../app/animation/pixel-selection.ts';
 import type { AnimationApp } from '../../app/animation.ts';
 import type { PixelPointer, PixelToolHandler } from './pixel-pointer.ts';
 import { modeOf, selUi } from './selection-ui.svelte.ts';
@@ -59,20 +57,6 @@ const options = (e: { shiftKey: boolean; altKey: boolean }) => ({
 /** A click that did not drag: deselects (a new selection), else leaves it. */
 function clicked(anim: AnimationApp, mode: string): void {
   if (mode === 'new') anim.deselectPixels();
-}
-
-/**
- * What the wand and colour select look at: the current layer (undefined), or with "All layers"
- * the visible pixel layers merged as they are drawn (their opacity, blend modes, masks and
- * clipping), over the whole image. Vector layers are left out: drawing them into pixels takes
- * the renderer (as Merge visible does), and the wand is for photos.
- */
-export function sampleFor(anim: AnimationApp): PixelSample | undefined {
-  const doc = anim.store.get().history.present;
-  const layers = drawnPixelLayers(doc);
-  if (layers.length === 0) return undefined;
-  const area = { x: 0, y: 0, width: doc.stage.width, height: doc.stage.height };
-  return { bitmap: compositeLayers(layers, area), x: 0, y: 0 };
 }
 
 function marquee(shape: 'rect' | 'ellipse'): PixelToolHandler {
@@ -227,7 +211,8 @@ const MAGIC_WAND: PixelToolHandler = {
       ...options(e),
       tolerance: selUi.tolerance,
       contiguous: selUi.contiguous,
-      ...(selUi.allLayers ? { sample: sampleFor(p.anim) } : {}),
+      // M23: "All layers": the picture as drawn, vector layers too (the app draws it).
+      ...(selUi.allLayers ? { allLayers: true } : {}),
     });
   },
 };
@@ -238,7 +223,7 @@ const COLOUR_SELECT: PixelToolHandler = {
     p.anim.selectByColour(p.at(e), {
       ...options(e),
       fuzziness: selUi.fuzziness,
-      ...(selUi.allLayers ? { sample: sampleFor(p.anim) } : {}),
+      ...(selUi.allLayers ? { allLayers: true } : {}),
     });
   },
 };

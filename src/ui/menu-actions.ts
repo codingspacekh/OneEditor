@@ -177,6 +177,7 @@ export function menuActions(app: App): Record<MenuAction, () => unknown> {
     learnInspect: () => openLearn('inspect'),
     learnFormats: () => openLearn('formats'),
     learnAnimation: () => openLearn('animation'),
+    learnGraphics: () => openLearn('graphics'),
     learnTask: () => openLearn('task'),
     glossary: () => {
       ui.glossary = true;

@@ -218,6 +218,7 @@ export function menuTemplate(
         item('Inspector & Sampling', '', 'learnInspect'),
         item('Formats & Compression', '', 'learnFormats'),
         item('Animation Theory', '', 'learnAnimation'),
+        item('Graphics Theory', '', 'learnGraphics'),
         item('Task Checker', '', 'learnTask'),
         { type: 'separator' },
         item('Glossary', '', 'glossary'),

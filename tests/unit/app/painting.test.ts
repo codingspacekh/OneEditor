@@ -292,7 +292,7 @@ describe('M21 GB4: the settings, colours and presets', () => {
 describe('M21 GB3: the bucket and the gradient in the app', () => {
   it('the bucket fills through the pixel worker as one undo step', async () => {
     const run = vi.fn(IN_PROCESS_PIXELS.run);
-    const s = setup({}, { run });
+    const s = setup({}, { run: run as PixelWorker['run'] });
     s.g.setPaintColours({ foreground: '#00ff00' });
     const before = s.steps();
     expect(await s.g.fillAt({ x: 5, y: 5 })).toBe(true);

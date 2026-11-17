@@ -57,6 +57,7 @@
     ['inspect', 'Inspector & sampling'],
     ['formats', 'Formats & compression'],
     ['animation', 'Animation'],
+    ['graphics', 'Graphics'],
     ['task', 'Task checker'],
   ];
   let settingsOpen = $state(false);

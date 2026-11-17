@@ -200,6 +200,7 @@ describe.skipIf(!hasPapers)('9626/04 J/22 Task 1: Scene2, Scene3, Scene4', () =>
         keepProportions: true,
       }),
     ).toBeNull();
+    await s.g.pixelWork();
     s.g.moveLayer(sunset, 0);
     expect(s.doc().layers.map((l) => l.id)).toEqual([sunset, scene]);
     const shown = drawnImage(s.doc());
@@ -296,6 +297,7 @@ describe.skipIf(!hasPapers)('9626/04 O/N/24 Task 2: NightScene in 8 steps', () =
         keepProportions: true,
       }),
     ).toBeNull();
+    await s.g.pixelWork();
     // Step 6: a halo round it (a glow on the Moon's layer).
     expect(s.g.setLayerEffects(moon, [glow('#dfe8ff', 40)])).toBeNull();
     // Step 7: stars in the sky, lights on the headland and on the boat, on a layer of their own.
@@ -323,6 +325,7 @@ describe.skipIf(!hasPapers)('9626/04 O/N/24 Task 2: NightScene in 8 steps', () =
         keepProportions: true,
       }),
     ).toBeNull();
+    await s.g.pixelWork();
 
     const names = s.doc().layers.map((l) => l.id);
     expect(names).toEqual([sky, bay, blue, moon, lights, reflection]);
@@ -391,6 +394,7 @@ describe.skipIf(!hasPapers)('9626/04 O/N/21 Task 1: Lens', () => {
     expect(s.g.setLayerEffects(blooms, [glow('#ffffff', 18, 70)])).toBeNull();
     // The whole image 500 px high.
     expect(s.g.resizeImage({ width: 625, height: 500, method: 'bicubic' })).toBeNull();
+    await s.g.pixelWork();
     const file = await s.png(await s.exportTo('/out/Lens_ZZ999_9999.png', { format: 'png' }));
     expect(file.height).toBe(500);
     const blooming = s.doc().layers.find((l) => l.id === blooms)!;

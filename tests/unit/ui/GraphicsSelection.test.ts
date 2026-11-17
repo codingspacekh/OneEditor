@@ -301,15 +301,35 @@ describe('M21 GB2: drawing selections', () => {
     expect(s.bounds()).toBeNull();
   });
 
-  it('with All layers on, the wand and colour select look at the visible pixel layers as drawn', async () => {
+  it('with All layers on, the wand and colour select look at the picture as drawn, vector layers too (M23)', async () => {
     const s = await open();
+    // The renderer stands in for the canvas: the photo's red square and the vector square, blue.
+    s.stageRenderer.renderPixels.mockImplementation(async (doc) => {
+      const { width, height } = doc.stage;
+      const data = new Uint8ClampedArray(width * height * 4);
+      const paint = (r: { x: number; y: number; width: number; height: number }, c: number[]) => {
+        for (let y = r.y; y < r.y + r.height; y++)
+          for (let x = r.x; x < r.x + r.width; x++) data.set(c, (y * width + x) * 4);
+      };
+      paint({ x: 0, y: 0, width: 200, height: 100 }, [255, 255, 255, 255]);
+      paint({ x: 100, y: 30, width: 40, height: 40 }, [255, 0, 0, 255]);
+      paint({ x: 300, y: 300, width: 50, height: 50 }, [0, 0, 255, 255]);
+      return { width, height, data };
+    });
     selUi.allLayers = true;
     s.g.setTool('magic-wand');
     await click(s.stage(), 110, 40);
+    await s.g.pixelWork();
     expect(s.bounds()).toEqual({ x: 100, y: 30, width: 40, height: 40 });
+    await click(s.stage(), 310, 310);
+    await s.g.pixelWork();
+    expect(s.bounds()).toEqual({ x: 300, y: 300, width: 50, height: 50 });
     s.g.setTool('colour-select');
     await click(s.stage(), 110, 40);
+    await s.g.pixelWork();
     expect(s.bounds()).toEqual({ x: 100, y: 30, width: 40, height: 40 });
+    // Drawn once for the picture as it is.
+    expect(s.stageRenderer.renderPixels).toHaveBeenCalledTimes(1);
   });
 
   it('other keys pass by a polygonal lasso being drawn; an emptied field is the lowest value', async () => {

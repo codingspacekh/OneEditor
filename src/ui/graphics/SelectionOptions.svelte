@@ -95,7 +95,9 @@
         </label>
       {/if}
       {#if tool === 'magic-wand' || tool === 'colour-select'}
-        <label title="Look at every visible pixel layer as drawn, not only the current layer">
+        <label
+          title="Look at the picture as drawn (every visible layer, shapes and text too), not only the current layer"
+        >
           <input type="checkbox" bind:checked={selUi.allLayers} /> All layers
         </label>
       {:else}

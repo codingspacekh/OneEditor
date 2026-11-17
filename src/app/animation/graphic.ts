@@ -2,7 +2,8 @@
 // resolution, units, background), cropping the canvas (G8), align and distribute (G5, in
 // Animation mode too), exporting PNG, JPG, SVG and PDF (M19) at a size and of the chosen objects
 // (G11), and what is sent to Animation mode (GL3). M21: each layer exported in a file of its own
-// (G11), and pixel layers sent to Animation mode as pictures.
+// (G11), and pixel layers sent to Animation mode as pictures. M23: GIF, BMP, TIFF and PNG at a
+// colour depth by our own writers (D5), and never over the photo the image was opened from (GC2).
 import * as cmd from '../animation-commands.ts';
 import { findObject, pictureIdsOf } from '../../core/animation/layers.ts';
 import type { AnimObject, AnimationDoc, Picture } from '../../core/animation/types.ts';
@@ -38,6 +39,7 @@ import { rasterPng } from '../../core/graphics/mveg.ts';
 import { isLayerShown } from '../../core/graphics/pixels/clipping.ts';
 import { applyMask } from '../../core/graphics/pixels/pixel-layers.ts';
 import { webCompression } from '../../core/image/deflate.ts';
+import { encodeBitmap, encodeOptions, type BitmapFormat } from '../../core/image/encode/index.ts';
 import { newId } from '../../core/model/factory.ts';
 import { withoutTemplates } from '../../core/animation/template.ts';
 import { EditError } from '../../core/model/errors.ts';
@@ -53,6 +55,9 @@ const ALIGN_LABELS: Record<AlignEdge, string> = {
   middle: 'Align middles',
   bottom: 'Align bottom',
 };
+
+const isBitmapFormat = (format: string): format is BitmapFormat =>
+  format === 'png' || format === 'gif' || format === 'bmp' || format === 'tiff';
 
 export function graphicActions(
   ctx: AnimationContext,
@@ -97,10 +102,47 @@ export function graphicActions(
       });
       return { bytes: jpegWithDpi(jpeg, size.dpi), size, missing: [] };
     }
-    if (options.format !== 'png')
-      throw new EditError(`Saving as ${options.format.toUpperCase()} is not ready yet.`);
-    const png = await (scaled ? renderer.renderPng(doc, 0, scaled) : renderer.renderPng(doc, 0));
-    return { bytes: pngWithDpi(png, size.dpi), size, missing: [] };
+    const format = options.format;
+    const encoding = encodeOptions({ ...options, format }, size.dpi);
+    // A 32-bit PNG (the default) is the canvas's own, as before M23: as quick as our writer on 12
+    // megapixels (both about 2 s) and the one the papers' tests were made with.
+    if (format === 'png' && encoding.depth === 32) {
+      const png = await (scaled ? renderer.renderPng(doc, 0, scaled) : renderer.renderPng(doc, 0));
+      return { bytes: pngWithDpi(png, size.dpi), size, missing: [] };
+    }
+    // G11 (M23): the other depths and formats by our own writers (D5), from the stage's pixels.
+    const pixels = await (scaled ? renderer.renderPixels(doc, scaled) : renderer.renderPixels(doc));
+    const image = {
+      width: pixels.width,
+      height: pixels.height,
+      data:
+        pixels.data instanceof Uint8ClampedArray
+          ? pixels.data
+          : Uint8ClampedArray.from(pixels.data),
+    };
+    return {
+      bytes: await encodeBitmap(format, image, encoding, webCompression),
+      size,
+      missing: [],
+    };
+  }
+
+  /** "C:\\Photos\\Castle.jpg" is "c:/photos/castle.JPG": Windows and macOS do not mind case. */
+  const sameFile = (a: string, b: string): boolean =>
+    a.replace(/\\/g, '/').toLowerCase() === b.replace(/\\/g, '/').toLowerCase();
+
+  /** GC2 (M23): "Castle.jpg" → "Castle-edited.jpg", a name that is not the original's. */
+  const editedName = (path: string): string => fileNameOf(path).replace(/(\.[^.]*)?$/, '-edited$1');
+
+  /** GC2 (M23): refuses to save over the photo (or SVG) the image was opened from. */
+  function keepOriginal(outputs: readonly string[]): void {
+    const original = store.get().original;
+    if (!original) return;
+    const over = outputs.find((o) => sameFile(o, original));
+    if (over)
+      throw new EditError(
+        `${fileNameOf(over)} is the file this image was opened from: saving over it would lose the original. Export it with another name, such as ${editedName(over)}.`,
+      );
   }
 
   return {
@@ -160,7 +202,8 @@ export function graphicActions(
 
     /**
      * G11: exports the image (or the selected objects, or each one in a file of its own in a
-     * folder chosen) as PNG, JPG or SVG, with its resolution in the file. Returns the files made.
+     * folder chosen) as PNG, JPG or SVG (M19: PDF; M23: GIF, BMP, TIFF, at a colour depth), with
+     * its resolution in the file, never over the file it was opened from (GC2). Returns the files.
      */
     async exportImage(options: GraphicExportOptions): Promise<string[] | null> {
       if (store.get().busy) return null;
@@ -191,6 +234,9 @@ export function graphicActions(
         if (options.format === 'pdf')
           for (const p of parts) pdfPageSize({ ...p.doc, graphic: graphicOf(doc) }, options.size);
         if (options.format === 'jpg') jpegQuality(options.quality);
+        // M23: and a bitmap's colour depth and options.
+        if (isBitmapFormat(options.format))
+          encodeOptions({ ...options, format: options.format }, graphicOf(doc).dpi);
       } catch (error) {
         showError(error);
         return null;
@@ -205,9 +251,19 @@ export function graphicActions(
         const nameFor = ctx.services.fileName ?? ((n: string) => n);
         outputs = parts.map((p) => `${dir}${sep}${nameFor(p.name)}.${info.extension}`);
       } else {
-        const output = await dialogs.exportGraphic(parts[0]!.name, options.format);
+        // GC2 (M23): the photo's own name and format offered as another name.
+        const original = store.get().original;
+        const name = parts[0]!.name;
+        const own = original && sameFile(fileNameOf(original), `${name}.${info.extension}`);
+        const output = await dialogs.exportGraphic(own ? `${name}-edited` : name, options.format);
         if (!output) return null;
         outputs = [output];
+      }
+      try {
+        keepOriginal(outputs);
+      } catch (error) {
+        showError(error);
+        return null;
       }
       patch({ busy: 'Exporting…' });
       try {

@@ -33,6 +33,7 @@ import {
   tileRect,
   type Bitmap,
   type Mask,
+  type Raster,
   type Rect,
 } from './pixels/raster.ts';
 import { resampleBitmap, resampleMask, type ResampleMethod } from './pixels/resample.ts';
@@ -76,32 +77,57 @@ function scaledObjects(
   return setSize(group, to.width, to.height).children;
 }
 
+/**
+ * How a layer's bitmap or mask is made another size (M23: the app has the pixel worker do it
+ * first for a big image, and gives back what it made).
+ */
+export type Resampler = <C extends 1 | 4>(
+  raster: Raster<C>,
+  width: number,
+  height: number,
+  method: ResampleMethod,
+) => Raster<C>;
+
+/** GB6: a bitmap or a mask resampled here and now. */
+export const resampleRaster: Resampler = <C extends 1 | 4>(
+  r: Raster<C>,
+  width: number,
+  height: number,
+  method: ResampleMethod,
+) =>
+  (r.channels === 4
+    ? resampleBitmap(r as Bitmap, width, height, method)
+    : resampleMask(r as Mask, width, height, method)) as Raster<C>;
+
 /** A pixel layer's pixels at the scale (its edges rounded to whole image px). */
 function scaledPixels(
   p: PixelContent,
   sx: number,
   sy: number,
   method: ResampleMethod,
+  resample: Resampler,
 ): PixelContent {
   const x = Math.round(p.x * sx);
   const y = Math.round(p.y * sy);
   const width = Math.max(1, Math.round((p.x + p.bitmap.width) * sx) - x);
   const height = Math.max(1, Math.round((p.y + p.bitmap.height) * sy) - y);
   return {
-    bitmap: resampleBitmap(p.bitmap, width, height, method),
+    bitmap: resample(p.bitmap, width, height, method),
     x,
     y,
-    ...(p.mask ? { mask: resampleMask(p.mask, width, height, method) } : {}),
+    ...(p.mask ? { mask: resample(p.mask, width, height, method) } : {}),
   };
 }
 
 /**
  * GB6: Image size: the image `width` × `height` px, everything on it scaled to fit (resampled
- * by `method`). The resolution stays: change it alone with setImage's dpi (no resampling).
+ * by `method`, through `resample`). The resolution stays: change it alone with setImage's dpi
+ * (no resampling).
  */
 export function resizeImage(
   doc: AnimationDoc,
   size: { width: number; height: number; method: ResampleMethod },
+  resample: Resampler = resampleRaster,
 ): AnimationDoc {
   const { width, height, method } = size;
   const from = doc.stage;
@@ -116,7 +142,7 @@ export function resizeImage(
     layers: doc.layers.map((l) => ({
       ...l,
       objects: scaledObjects(l.objects, from, stage),
-      ...(l.pixels ? { pixels: scaledPixels(l.pixels, sx, sy, method) } : {}),
+      ...(l.pixels ? { pixels: scaledPixels(l.pixels, sx, sy, method, resample) } : {}),
     })),
     guides: { x: doc.guides.x.map((g) => g * sx), y: doc.guides.y.map((g) => g * sy) },
   };
@@ -359,4 +385,33 @@ export function contentBox(
     height: Math.ceil(box.y + box.height) - top,
   };
   return intersect(whole, canvas);
+}
+
+/** G10 (M23): below this a print looks blocky. */
+export const PRINT_DPI = 150;
+
+/** G10 (M23): the screen a web picture is measured against (Full HD). */
+export const SCREEN = { width: 1920, height: 1080 } as const;
+
+/**
+ * G10 (M23): what is wrong with an image's resolution: a print below 150 dpi at its printed size
+ * looks blocky (`print`: the image is sized for paper); a picture more than 4 times a 1920 × 1080
+ * screen is far bigger than the web needs (it loads slowly and is shown smaller anyway).
+ */
+export function resolutionWarnings(
+  size: { width: number; height: number },
+  dpi: number,
+  { print }: { print: boolean },
+): string[] {
+  const { width, height } = size;
+  const out: string[] = [];
+  if (print && dpi < PRINT_DPI)
+    out.push(
+      `At ${dpi} dpi a print looks blocky (pixelated): ${width} × ${height} px prints ${roundIn(fromPx(width, 'cm', dpi), 'cm')} × ${roundIn(fromPx(height, 'cm', dpi), 'cm')} cm. Print at ${PRINT_DPI} dpi or more (300 is usual).`,
+    );
+  if (width > 4 * SCREEN.width || height > 4 * SCREEN.height)
+    out.push(
+      `Far bigger than a screen needs: ${width} × ${height} px is more than 4 times a ${SCREEN.width} × ${SCREEN.height} screen. For the web, a picture a little bigger than it is shown is enough (and loads faster).`,
+    );
+  return out;
 }

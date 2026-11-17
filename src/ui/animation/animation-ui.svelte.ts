@@ -1,6 +1,6 @@
 // UI-only state of Animation mode shared by its panels (not part of the animation, not undoable).
 import type { AnimationFormat } from '../../core/animation/export.ts';
-import type { GraphicFormat } from '../../core/graphics/export.ts';
+import type { ColourDepth, GraphicFormat, TiffCompression } from '../../core/graphics/export.ts';
 
 export type AnimDialog =
   | 'stage'
@@ -37,6 +37,15 @@ export const animUi = $state({
   exportFormat: 'mp4' as AnimationFormat,
   /** G11 (M18): the format last chosen in Graphics mode's export dialog (PNG at first). */
   graphicFormat: 'png' as GraphicFormat,
+  /**
+   * G11 (M23): the export's bitmap choices last made: each format's colour depth, the palette
+   * (the image's colours or greys), dithering, keeping see-through parts and TIFF compression.
+   */
+  graphicDepths: {} as Partial<Record<GraphicFormat, ColourDepth>>,
+  graphicPalette: 'colours' as 'colours' | 'greys',
+  graphicDither: true,
+  graphicTransparent: true,
+  graphicTiff: 'lzw' as TiffCompression,
   /** The Properties panel's W / H lock. */
   lockRatio: false,
   /** A text object was just made: the Properties panel focuses its words. */

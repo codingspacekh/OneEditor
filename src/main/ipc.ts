@@ -221,6 +221,7 @@ export function registerIpc(s: MainServices): void {
     'dialog:openSound': () => s.dialogs.openSound(),
     'dialog:openFrames': () => s.dialogs.openFrames(),
     'dialog:openExport': () => s.dialogs.openExport(),
+    'dialog:openInspect': () => s.dialogs.openInspect(),
     'dialog:saveAnimation': (name) => s.dialogs.saveAnimation(name),
     'dialog:exportAnimation': (name, format) => s.dialogs.exportAnimation(name, format),
     'dialog:openGraphic': () => s.dialogs.openGraphic(),

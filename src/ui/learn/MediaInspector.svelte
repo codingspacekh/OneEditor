@@ -1,15 +1,22 @@
 <script lang="ts">
   // T1 media inspector (screen 21): choose or drop any file and see what is inside it. Each row
-  // explains itself when clicked.
+  // explains itself when clicked. GL2 (M23): a picture shows its own facts (dpi, printed size,
+  // colour depth, see-through pixels, a JPEG's quality, an SVG's bitmaps) and its name (P8).
   import type { LearnApp } from '../../app/learn.ts';
-  import { FILE_VS_CONTAINER, inspect } from '../../core/teaching/inspect.ts';
+  import { FILE_VS_CONTAINER, inspect, inspectImage } from '../../core/teaching/inspect.ts';
   import Icon from '../Icon.svelte';
   import LearnCard from './LearnCard.svelte';
 
   let { learn }: { learn: LearnApp } = $props();
   const store = $derived(learn.store);
   const inspected = $derived($store.inspected);
-  const rows = $derived(inspected ? inspect(inspected.info) : []);
+  const rows = $derived(
+    !inspected
+      ? []
+      : inspected.image
+        ? inspectImage(inspected.image.facts, inspected.name, inspected.image.candidate)
+        : inspect(inspected.info),
+  );
   const size = $derived(rows.find((r) => r.label === 'File size')?.value);
   let open: string | null = $state(null);
   let over = $state(false);
@@ -24,7 +31,7 @@
   const [title, ...rest] = FILE_VS_CONTAINER.split('. ');
 </script>
 
-<LearnCard title="Media inspector" icon="locate" tag="containers · codecs">
+<LearnCard title="Media inspector" icon="locate" tag="containers · codecs · pictures">
   <div
     class="drop"
     class:over
@@ -73,7 +80,8 @@
   {:else}
     <p class="hint">
       Choose a video, sound or picture — for example one of the coursebook files — to see its
-      container, codecs, resolution, sample rate and more.
+      container, codecs, resolution, sample rate and more. A picture (PNG, JPG, GIF, BMP, TIFF, SVG
+      or PDF) shows its dpi, printed size, colour depth and see-through pixels.
     </p>
   {/if}
 

@@ -170,6 +170,7 @@ describe('X3 native menus', () => {
       'Inspector & Sampling',
       'Formats & Compression',
       'Animation Theory',
+      'Graphics Theory',
       'Task Checker',
       'Glossary',
     ]);
@@ -178,6 +179,7 @@ describe('X3 native menus', () => {
       'learnInspect',
       'learnFormats',
       'learnAnimation',
+      'learnGraphics',
       'learnTask',
       'glossary',
     ]);

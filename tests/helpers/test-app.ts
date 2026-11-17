@@ -66,14 +66,20 @@ export function testApp(
       height: 1,
       data: new Uint8ClampedArray([255, 255, 255, 255]),
     })),
-    /** G2 (M21): the stage as pixels: red where anything is drawn would need a canvas; all red. */
-    renderPixels: vi.fn<StageRenderer['renderPixels']>(async (doc) => ({
-      width: doc.stage.width,
-      height: doc.stage.height,
-      data: new Uint8ClampedArray(doc.stage.width * doc.stage.height * 4).map((_, i) =>
-        i % 4 === 0 || i % 4 === 3 ? 255 : 0,
-      ),
-    })),
+    /**
+     * G2 (M21): the stage as pixels: red where anything is drawn would need a canvas; all red.
+     * G11 (M23): at `size` when given.
+     */
+    renderPixels: vi.fn<StageRenderer['renderPixels']>(async (doc, size) => {
+      const { width, height } = size ?? doc.stage;
+      return {
+        width,
+        height,
+        data: new Uint8ClampedArray(width * height * 4).map((_, i) =>
+          i % 4 === 0 || i % 4 === 3 ? 255 : 0,
+        ),
+      };
+    }),
   };
   /** AN15: the web page's player and files, as data: URLs named after the file. */
   const pageAssets = {

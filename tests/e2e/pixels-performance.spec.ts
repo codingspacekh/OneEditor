@@ -184,7 +184,7 @@ async function subMenu(app: ElectronApplication, path: string[]) {
   }, path);
 }
 
-test('GN2 a filter and an adjustment are applied to a 12-megapixel photo in 3 s', async () => {
+test('GN2 a filter, zoom blur (M23) and an adjustment are applied to a 12-megapixel photo in 3 s', async () => {
   test.setTimeout(300_000);
   const { app, window: page } = await launchApp();
   await openPhoto(app, page);
@@ -208,6 +208,8 @@ test('GN2 a filter and an adjustment are applied to a 12-megapixel photo in 3 s'
     'Radius value',
     '20',
   );
+  // M23: zoom blur at its most (the slowest filter: 5.3 s in Node before M23, 2.5 s after).
+  const zoom = await timed(['Filter', 'Blur', 'Zoom Blur…'], 'Zoom blur', 'Amount value', '100');
   const hue = await timed(
     ['Image', 'Adjustments', 'Hue / Saturation…'],
     'Hue / saturation',
@@ -216,9 +218,10 @@ test('GN2 a filter and an adjustment are applied to a 12-megapixel photo in 3 s'
   );
   test.info().annotations.push({
     type: 'GN2 apply',
-    description: `blur ${blur} s, hue/saturation ${hue} s`,
+    description: `blur ${blur} s, zoom blur ${zoom} s, hue/saturation ${hue} s`,
   });
   expect(blur).toBeLessThanOrEqual(3 * SLOW);
+  expect(zoom).toBeLessThanOrEqual(3 * SLOW);
   expect(hue).toBeLessThanOrEqual(3 * SLOW);
   await app.close();
 });

@@ -43,6 +43,7 @@ describe.skipIf(!hasPapers)('9626/04 O/N/19 Task 2: the pearl', () => {
     // Image ▸ Image Size…: 210 px wide, the height in proportion.
     const h = Math.round((210 * height) / width);
     expect(s.g.resizeImage({ width: 210, height: h, method: 'bicubic' })).toBeNull();
+    await s.g.pixelWork();
     const file = await s.png(await s.exportTo('/out/Pearl_ZZ999_9999.png', { format: 'png' }));
     expect([file.width, file.height]).toEqual([210, h]);
     expect(file.data[3]).toBe(0);
@@ -266,6 +267,7 @@ describe.skipIf(!hasPapers)('9626/04 J/22 Task 1: Balloon1', () => {
     // The photo underneath is hidden: only the balloon is saved.
     for (const l of s.doc().layers) if (l.id !== balloon) s.g.toggleLayer(l.id, 'visible');
     expect(s.g.resizeImage({ width: 3000, height: 2250, method: 'bicubic' })).toBeNull();
+    await s.g.pixelWork();
     const file = await s.png(await s.exportTo('/out/Balloon1_ZZ999_9999.png', { format: 'png' }));
     expect([file.width, file.height]).toEqual([3000, 2250]);
     expect(file.data[3]).toBe(0);
@@ -288,6 +290,7 @@ describe.skipIf(!hasPapers)('Workbook Chapter 6 Task 3.5: the resolution for ema
     const { width, height } = s.doc().stage;
     const h = Math.round((640 * height) / width);
     expect(s.g.resizeImage({ width: 640, height: h, method: 'bicubic' })).toBeNull();
+    await s.g.pixelWork();
     expect(s.doc().stage).toMatchObject({ width: 640, height: h });
     expect(s.pixels().bitmap).toMatchObject({ width: 640, height: h });
     await s.exportTo('/out/Chapter06_Task3_5.jpg', { format: 'jpg', quality: 80 });
@@ -353,6 +356,7 @@ describe.skipIf(!hasPapers)('9626/04 O/N/23 Task 1: Castle, Ocean and Sky as thr
         keepProportions: false,
       }),
     ).toBeNull();
+    await s.g.pixelWork();
     expect(s.pixels()).toMatchObject({ x: 930, y: 0 });
     expect(s.pixels().bitmap).toMatchObject({ width: 2135, height: 760 });
     // CastleLayer: the view between the towers selected with the polygonal lasso and deleted.
@@ -374,6 +378,7 @@ describe.skipIf(!hasPapers)('9626/04 O/N/23 Task 1: Castle, Ocean and Sky as thr
     const ocean = s.layer().id;
     expect(s.g.renameLayer(ocean, 'OceanLayer')).toBeNull();
     s.g.flipPixels('vertical');
+    await s.g.pixelWork();
     expect(
       s.g.transformPixelLayer({
         reference: 'top-left',
@@ -383,6 +388,7 @@ describe.skipIf(!hasPapers)('9626/04 O/N/23 Task 1: Castle, Ocean and Sky as thr
         keepProportions: true,
       }),
     ).toBeNull();
+    await s.g.pixelWork();
     expect(s.pixels().bitmap.width).toBe(2135);
     expect(s.pixels().bitmap.height).toBe(Math.round((2135 * 2322) / 4128));
     // In order: the sky at the back, then the ocean, the castle in front.
@@ -426,10 +432,12 @@ describe.skipIf(!hasPapers)(
       expect(
         s.g.transformPixelLayer({ reference: 'top-left', x: 200, y: 150, rotate: -12 }),
       ).toBeNull();
+      await s.g.pixelWork();
       expect(s.g.setLayerLook(pearl, { opacity: 0.7 })).toBeNull();
       await s.addLayer('2021_03_March/WorldMap.png');
       const map = s.layer().id;
       s.g.rotatePixels(20);
+      await s.g.pixelWork();
       expect(s.g.setLayerLook(map, { opacity: 0.5 })).toBeNull();
       const layers = s.doc().layers;
       expect(layers.map((l) => l.opacity ?? 1)).toEqual([1, 0.7, 0.5]);

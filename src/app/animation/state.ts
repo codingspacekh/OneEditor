@@ -91,6 +91,11 @@ export interface AnimationState {
   history: History<AnimationDoc>;
   /** The .mvea file, or null for an animation that was never saved. */
   path: string | null;
+  /**
+   * GC2 (M23): the picture file this image was opened from (File ▸ Open a photo as an image):
+   * an export never saves over it. Not saved; forgotten when another document opens.
+   */
+  original?: string;
   /** The document as last saved or opened: anything else is unsaved work. */
   saved: AnimationDoc;
   /** Selected objects (top-level ones). */
@@ -173,6 +178,8 @@ export interface AnimationDeps {
   autosaveMs?: number;
   /** D3, GN2 (M21): where the heavy pixel jobs run (a Web Worker in the app; absent: the page). */
   pixelWorker?: PixelWorker;
+  /** GN1 (M23): what the undo history may hold of its own, in bytes (default 400 MB). */
+  historyBudget?: number;
   /** M18: an animation (the default) or Graphics mode's image. */
   kind?: EditorKind;
   /** P8: a file name in the papers' form ("Casing" → "Casing_ZZ999_9999"), for files named here. */

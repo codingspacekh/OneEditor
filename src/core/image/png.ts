@@ -14,8 +14,8 @@ const SIGNATURE = [137, 80, 78, 71, 13, 10, 26, 10];
 export interface PngImage {
   width: number;
   height: number;
-  /** 4: RGBA; 1: grey (a mask). */
-  channels: 1 | 4;
+  /** 4: RGBA; 1: grey (a mask). M23: 3: RGB (a 24-bit export). */
+  channels: 1 | 3 | 4;
   data: Uint8ClampedArray | Uint8Array;
 }
 
@@ -40,7 +40,8 @@ const putU32 = (b: Uint8Array, at: number, n: number): void => {
 const u32 = (b: Uint8Array, at: number): number =>
   ((b[at]! << 24) | (b[at + 1]! << 16) | (b[at + 2]! << 8) | b[at + 3]!) >>> 0;
 
-function chunk(type: string, data: Uint8Array): Uint8Array {
+/** One PNG chunk: its length, type, data and CRC. M23: the bitmap writers' too (encode/png.ts). */
+export function chunk(type: string, data: Uint8Array): Uint8Array {
   const out = new Uint8Array(12 + data.length);
   putU32(out, 0, data.length);
   for (let i = 0; i < 4; i++) out[4 + i] = type.charCodeAt(i);
@@ -56,7 +57,7 @@ function chunk(type: string, data: Uint8Array): Uint8Array {
 export async function encodePngRows(
   width: number,
   height: number,
-  channels: 1 | 4,
+  channels: 1 | 3 | 4,
   rows: (y: number, count: number) => Uint8Array | Uint8ClampedArray,
   compression: Compression,
   { band = 256, dpi }: { band?: number; dpi?: number } = {},
@@ -94,17 +95,25 @@ export async function encodePngRows(
   putU32(header, 0, width);
   putU32(header, 4, height);
   header[8] = 8; // bits a channel
-  header[9] = channels === 4 ? 6 : 0; // RGBA or grey
+  header[9] = channels === 4 ? 6 : channels === 3 ? 2 : 0; // RGBA, RGB or grey
   const parts = [Uint8Array.from(SIGNATURE), chunk('IHDR', header)];
-  if (dpi !== undefined) {
-    const phys = new Uint8Array(9);
-    const ppm = Math.round(dpi / 0.0254);
-    putU32(phys, 0, ppm);
-    putU32(phys, 4, ppm);
-    phys[8] = 1; // pixels per metre
-    parts.push(chunk('pHYs', phys));
-  }
+  if (dpi !== undefined) parts.push(physChunk(dpi));
   parts.push(chunk('IDAT', await compression.deflate(filtered)), chunk('IEND', new Uint8Array()));
+  return joinBytes(parts);
+}
+
+/** G10: a pHYs chunk: the resolution as pixels a metre. */
+export function physChunk(dpi: number): Uint8Array {
+  const phys = new Uint8Array(9);
+  const ppm = Math.round(dpi / 0.0254);
+  putU32(phys, 0, ppm);
+  putU32(phys, 4, ppm);
+  phys[8] = 1; // pixels per metre
+  return chunk('pHYs', phys);
+}
+
+/** The parts one after another. */
+export function joinBytes(parts: readonly Uint8Array[]): Uint8Array {
   const out = new Uint8Array(parts.reduce((n, p) => n + p.length, 0));
   let at = 0;
   for (const p of parts) {
@@ -113,6 +122,8 @@ export async function encodePngRows(
   }
   return out;
 }
+
+export const PNG_SIGNATURE: readonly number[] = SIGNATURE;
 
 /** A PNG of a whole image held in one array. */
 export const encodePng = (

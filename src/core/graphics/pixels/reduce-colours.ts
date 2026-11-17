@@ -126,6 +126,64 @@ function nearestOf(palette: Uint8Array): (r: number, g: number, b: number) => nu
   };
 }
 
+/**
+ * The palette entry for each pixel of RGBA `data` (dithered: Floyd–Steinberg), one byte a
+ * pixel; a pixel that does not show (alpha 0) is given 0 and passes on no error. M23 (D5): the
+ * same mapping the bitmap writers use for a 1-, 4- or 8-bit file (core/image/encode/palette.ts).
+ */
+export function paletteIndices(
+  data: Uint8ClampedArray,
+  width: number,
+  height: number,
+  palette: Uint8Array,
+  dither: boolean,
+): Uint8Array {
+  const out = new Uint8Array(width * height);
+  if (palette.length === 0) return out;
+  const nearest = nearestOf(palette);
+  // The errors carried to this row and the next, 3 a pixel, with a pixel's room either side.
+  let here = new Float32Array((width + 2) * 3);
+  let next = new Float32Array((width + 2) * 3);
+  for (let y = 0; y < height; y++) {
+    for (let x = 0; x < width; x++) {
+      const k = y * width + x;
+      const i = k * 4;
+      if (data[i + 3] === 0) continue;
+      let r = data[i]!;
+      let g = data[i + 1]!;
+      let b = data[i + 2]!;
+      const e = (x + 1) * 3;
+      if (dither) {
+        r = Math.min(255, Math.max(0, r + here[e]!));
+        g = Math.min(255, Math.max(0, g + here[e + 1]!));
+        b = Math.min(255, Math.max(0, b + here[e + 2]!));
+      }
+      const n = nearest(r, g, b);
+      out[k] = n;
+      if (!dither) continue;
+      const p = n * 3;
+      const er = r - palette[p]!;
+      const eg = g - palette[p + 1]!;
+      const eb = b - palette[p + 2]!;
+      here[e + 3]! += (er * 7) / 16;
+      here[e + 4]! += (eg * 7) / 16;
+      here[e + 5]! += (eb * 7) / 16;
+      next[e - 3]! += (er * 3) / 16;
+      next[e - 2]! += (eg * 3) / 16;
+      next[e - 1]! += (eb * 3) / 16;
+      next[e]! += (er * 5) / 16;
+      next[e + 1]! += (eg * 5) / 16;
+      next[e + 2]! += (eb * 5) / 16;
+      next[e + 3]! += er / 16;
+      next[e + 4]! += eg / 16;
+      next[e + 5]! += eb / 16;
+    }
+    [here, next] = [next, here];
+    next.fill(0);
+  }
+  return out;
+}
+
 /** The pixels in place, each the nearest palette colour (dithered: Floyd–Steinberg). */
 function mapToPalette(
   data: Uint8ClampedArray,
@@ -135,34 +193,13 @@ function mapToPalette(
   dither: boolean,
 ): void {
   if (palette.length === 0) return;
-  const nearest = nearestOf(palette);
-  // The errors carried to this row and the next, 3 a pixel, with a pixel's room either side.
-  let here = new Float32Array((width + 2) * 3);
-  let next = new Float32Array((width + 2) * 3);
-  for (let y = 0; y < height; y++) {
-    for (let x = 0; x < width; x++) {
-      const i = (y * width + x) * 4;
-      if (data[i + 3] === 0) continue;
-      const e = (x + 1) * 3;
-      const r = dither ? Math.min(255, Math.max(0, data[i]! + here[e]!)) : data[i]!;
-      const g = dither ? Math.min(255, Math.max(0, data[i + 1]! + here[e + 1]!)) : data[i + 1]!;
-      const b = dither ? Math.min(255, Math.max(0, data[i + 2]! + here[e + 2]!)) : data[i + 2]!;
-      const p = nearest(r, g, b) * 3;
-      data[i] = palette[p]!;
-      data[i + 1] = palette[p + 1]!;
-      data[i + 2] = palette[p + 2]!;
-      if (!dither) continue;
-      const err = [r - palette[p]!, g - palette[p + 1]!, b - palette[p + 2]!];
-      for (let ch = 0; ch < 3; ch++) {
-        const v = err[ch]!;
-        here[e + 3 + ch]! += (v * 7) / 16;
-        next[e - 3 + ch]! += (v * 3) / 16;
-        next[e + ch]! += (v * 5) / 16;
-        next[e + 3 + ch]! += v / 16;
-      }
-    }
-    [here, next] = [next, here];
-    next.fill(0);
+  const indices = paletteIndices(data, width, height, palette, dither);
+  for (let k = 0, i = 0; k < indices.length; k++, i += 4) {
+    if (data[i + 3] === 0) continue;
+    const p = indices[k]! * 3;
+    data[i] = palette[p]!;
+    data[i + 1] = palette[p + 1]!;
+    data[i + 2] = palette[p + 2]!;
   }
 }
 

@@ -20,6 +20,7 @@ export function createElectronDialogs(api: MveApi): Dialogs {
     openSound: () => unwrap(api.invoke('dialog:openSound')),
     openFrames: () => unwrap(api.invoke('dialog:openFrames')),
     openExport: () => unwrap(api.invoke('dialog:openExport')),
+    openInspect: () => unwrap(api.invoke('dialog:openInspect')),
     saveAnimation: (name) => unwrap(api.invoke('dialog:saveAnimation', name)),
     exportAnimation: (name, format) => unwrap(api.invoke('dialog:exportAnimation', name, format)),
     openGraphic: () => unwrap(api.invoke('dialog:openGraphic')),

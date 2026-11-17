@@ -270,7 +270,7 @@ describe('reading a picture’s pixels for Trace bitmap (AN5)', () => {
     await expect(renderer.pixels('/m/gone.png', 100)).rejects.toThrow(MediaError);
   });
 
-  it('M21 G2 draws the stage at its size and reads its pixels back (a vector layer merged)', async () => {
+  it('M21 G2, G11 (M23) draws the stage at its size or another and reads its pixels back (a vector layer merged)', async () => {
     const calls: string[] = [];
     const canvas = fakeCanvas(calls);
     const renderer = createCanvasStageRenderer({
@@ -303,6 +303,13 @@ describe('reading a picture’s pixels for Trace bitmap (AN5)', () => {
     expect(canvas.options).toContainEqual({ willReadFrequently: true });
     expect(calls).toContain('getImageData(0,0,600,400)');
     expect(calls[0]).toBe('fillRect(0,0,600,400)');
+    // G11 (M23): at an export's size, the stage drawn scaled onto a canvas of that size.
+    calls.length = 0;
+    const scaled = await renderer.renderPixels(doc(), { width: 300, height: 200 });
+    expect(scaled).toMatchObject({ width: 300, height: 200 });
+    expect(canvas.sizes.at(-1)).toEqual([300, 200]);
+    expect(calls).toContain('scale(0.5,0.5)');
+    expect(calls).toContain('getImageData(0,0,300,200)');
   });
 
   it('M21 G2 says so when there is no canvas to draw on', async () => {

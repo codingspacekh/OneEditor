@@ -92,6 +92,8 @@ export interface Channels {
   'dialog:openSound': { args: []; result: string | null };
   'dialog:openFrames': { args: []; result: string[] };
   'dialog:openExport': { args: []; result: string[] };
+  /** T1, GL2 (M23): a file for Learn ▸ Inspect. */
+  'dialog:openInspect': { args: []; result: string | null };
   'dialog:saveAnimation': { args: [suggestedName: string]; result: string | null };
   'dialog:exportAnimation': {
     args: [suggestedName: string, format: AnimationExportFormat];
@@ -186,6 +188,7 @@ export const CHANNELS: readonly Channel[] = [
   'dialog:openSound',
   'dialog:openFrames',
   'dialog:openExport',
+  'dialog:openInspect',
   'dialog:saveAnimation',
   'dialog:exportAnimation',
   'dialog:openGraphic',
@@ -299,6 +302,7 @@ export type MenuAction =
   | 'learnInspect'
   | 'learnFormats'
   | 'learnAnimation'
+  | 'learnGraphics'
   | 'learnTask'
   | 'glossary'
   | 'toggleLeft'

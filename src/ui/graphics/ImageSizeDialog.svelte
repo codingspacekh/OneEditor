@@ -3,13 +3,15 @@
   // at a resolution, its proportions kept or not, every layer resampled (bicubic, bilinear or
   // nearest neighbour); or, with Resample off, only the resolution changed: the pixels stay and
   // the printed size changes. Shows the pixels, the printed size and the memory before and after,
-  // and warns when a print would be blocky or a web picture far bigger than a screen.
+  // and warns when a print would be blocky or a web picture far bigger than a screen (G10, M23:
+  // both at once when both are so, below 150 dpi at the printed size and over 4 times a screen).
   import { untrack } from 'svelte';
   import type { App } from '../../app/app.ts';
   import { graphicOf } from '../../core/graphics/document.ts';
   import {
     checkedSize,
     pxToSize,
+    resolutionWarnings,
     SIZE_UNITS,
     sizeToPx,
     type SizeUnit,
@@ -57,6 +59,13 @@
       : { ...now, error: null },
   );
   const problem = $derived(dpiError ?? after.error);
+  /** G10 (M23): an image sized for paper (its own units, or the ones typed in) is a print. */
+  const onPaper = (u: SizeUnit | typeof settings.units): boolean => u !== 'px' && u !== '%';
+  const warnings = $derived(
+    problem
+      ? []
+      : resolutionWarnings(after, dpi, { print: onPaper(settings.units) || onPaper(units) }),
+  );
   const megabytes = (w: number, h: number) => `${((w * h * 4) / 1e6).toFixed(1)} MB`;
   const printed = (w: number, h: number) =>
     `${formatLength(w, 'cm', dpi).replace(' cm', '')} × ${formatLength(h, 'cm', dpi)}`;
@@ -176,14 +185,10 @@
       {dpi} dpi.
     {/if}
   </p>
+  {#each warnings as warning (warning)}<p class="warn" role="note">{warning}</p>{/each}
   <p class="hint">
     {#if !resample}
       The pixels stay as they are: only how big the image prints changes.
-    {:else if dpi < 150 && units !== 'px' && units !== '%'}
-      At {dpi} dpi a print looks blocky (pixelated): 300 dpi is usual for print.
-    {:else if after.width > 4 * 1920}
-      Far bigger than a screen needs: for the web, a picture a little bigger than it is shown is
-      enough (and loads faster).
     {:else if after.width > now.width}
       Making a bitmap bigger adds pixels guessed from those around them: it does not add detail.
     {:else}
@@ -244,6 +249,11 @@
     margin: 0;
     color: var(--tx-2);
     font-size: 11.5px;
+  }
+  .warn {
+    margin: 0 0 6px;
+    color: var(--warn, #e8590c);
+    font-size: 12px;
   }
   .error {
     margin: 0;

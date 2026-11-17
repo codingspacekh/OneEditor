@@ -32,6 +32,12 @@ export type PixelOperation = (
 /** GN2: the reduced copy a live preview works on. */
 export const PREVIEW_PIXELS = 1_000_000;
 
+/**
+ * M23 (GN2): Image size, Reduce colours and the transforms on fewer pixels than this are done at
+ * once in the page; on more, in the pixel worker (the window kept free, the step made after).
+ */
+export const PAGE_PIXELS = 1_000_000;
+
 const CHANGED = 'The layer changed while it was being worked on. Do it again.';
 
 export function pixelOpActions(ctx: AnimationContext) {

@@ -1,6 +1,7 @@
 // M21 step 3 (GB2, G8, G13): the pixel selection in Graphics mode. It is kept beside the document
 // (AnimationState.pixelSelection, image-sized): not saved and not an undo step, as in Photoshop,
-// so Undo undoes the last change to the picture. It is made by the marquee, lasso, magic wand
+// so Undo undoes the last change to the picture (M23: and puts back a selection that change moved
+// or dropped). It is made by the marquee, lasso, magic wand
 // and colour select tools, from vector shapes and text or from a layer's pixels, joined to the
 // one there is (new, add, subtract, intersect) and changed (all, none, invert, feather, grow,
 // shrink, smooth). What is done with it on the current pixel layer is one undo step each,
@@ -9,7 +10,14 @@
 import type { Point } from '../../core/animation/geometry.ts';
 import { addLayer, changeLayer, findObject } from '../../core/animation/layers.ts';
 import { objectAt } from '../../core/animation/tween.ts';
-import type { AnimObject, Id, Layer, PixelContent } from '../../core/animation/types.ts';
+import { TRANSPARENT } from '../../core/animation/rules.ts';
+import type {
+  AnimObject,
+  AnimationDoc,
+  Id,
+  Layer,
+  PixelContent,
+} from '../../core/animation/types.ts';
 import { lettersGroup } from '../../core/graphics/text-outlines.ts';
 import {
   copySelected,
@@ -19,9 +27,17 @@ import {
   selectionFromLayer,
 } from '../../core/graphics/pixels/cutout.ts';
 import { floodMask, similarMask } from '../../core/graphics/pixels/flood.ts';
+import { isLayerShown } from '../../core/graphics/pixels/clipping.ts';
 import { changePixels, isPixelLayer, pixelLayerOf } from '../../core/graphics/pixels/layers.ts';
 import { magneticPath } from '../../core/graphics/pixels/magnetic.ts';
-import { pixelAt, type Bitmap, type Mask, type Rect } from '../../core/graphics/pixels/raster.ts';
+import { compositeLayers, drawnPixelLayers } from '../../core/graphics/pixels/merge.ts';
+import {
+  bitmapFromRGBA,
+  pixelAt,
+  type Bitmap,
+  type Mask,
+  type Rect,
+} from '../../core/graphics/pixels/raster.ts';
 import { objectsMask } from '../../core/graphics/pixels/select-objects.ts';
 import {
   combineMasks,
@@ -60,17 +76,32 @@ export interface WandOptions extends SelectOptions {
   /** 0–255 a channel. */
   tolerance: number;
   contiguous: boolean;
-  /**
-   * What the wand looks at: the current layer's pixels by default; "all layers" passes the
-   * picture as drawn (every layer merged).
-   */
+  /** What the wand looks at: the current layer's pixels by default, or these. */
   sample?: PixelSample;
+  /** M23: "All layers": the picture as it is drawn, every visible layer (vector ones too). */
+  allLayers?: boolean;
 }
 
 export interface ColourOptions extends SelectOptions {
   /** 0–255: how far a colour may be from the one picked; the selection fades out to it. */
   fuzziness: number;
   sample?: PixelSample;
+  /** M23: "All layers", as the wand's. */
+  allLayers?: boolean;
+}
+
+/**
+ * M23 (GB2): a layer "All layers" can only see drawn by the renderer: vector shapes or text
+ * showing, or a pixel layer with effects (template and AN12 mask layers are not drawn).
+ */
+function needsDrawing(doc: AnimationDoc): boolean {
+  return doc.layers.some(
+    (l, i) =>
+      isLayerShown(doc.layers, i) &&
+      !l.template &&
+      !l.mask &&
+      (l.pixels ? (l.effects?.length ?? 0) > 0 : l.objects.length > 0),
+  );
 }
 
 const NOTHING_SELECTED = 'Select part of the image first.';
@@ -119,6 +150,36 @@ export function pixelSelectionActions(ctx: AnimationContext) {
     return m;
   }
 
+  /** M23: the last picture "All layers" had drawn, kept while the document is the same. */
+  let drawn: { doc: AnimationDoc; sample: PixelSample } | null = null;
+
+  /**
+   * GB2: what "All layers" looks at, over the whole image: the visible pixel layers merged as
+   * they are drawn (opacity, blend modes, masks, clipping), at once; M23: with vector layers or
+   * layer effects showing, the whole picture drawn by the renderer (on no background), then
+   * `use` is called (the drawing in the background, a failure said in words). Undefined: there
+   * is nothing to look at (the current layer is used).
+   */
+  function allLayers(use: (sample: PixelSample | undefined) => void): void {
+    const doc = present();
+    if (!needsDrawing(doc)) {
+      const layers = drawnPixelLayers(doc);
+      const area = { x: 0, y: 0, width: doc.stage.width, height: doc.stage.height };
+      return use(layers.length ? { bitmap: compositeLayers(layers, area), x: 0, y: 0 } : undefined);
+    }
+    if (drawn?.doc === doc) return use(drawn.sample);
+    ctx.inBackground('Looking at all layers', async () => {
+      const px = await ctx.services.renderer.renderPixels({
+        ...doc,
+        stage: { ...doc.stage, background: TRANSPARENT },
+      });
+      const data = px.data instanceof Uint8ClampedArray ? px.data : Uint8ClampedArray.from(px.data);
+      drawn = { doc, sample: { bitmap: bitmapFromRGBA(px.width, px.height, data), x: 0, y: 0 } };
+      // A click on a picture that has changed since is let go.
+      if (present() === doc) use(drawn.sample);
+    });
+  }
+
   function change(edit: (m: Mask) => Mask): void {
     const m = needed();
     if (m) set(edit(m));
@@ -138,6 +199,7 @@ export function pixelSelectionActions(ctx: AnimationContext) {
     const layer = m ? pixelLayer() : null;
     if (!m || !layer) return;
     const made: { id?: Id } = {};
+    const before = present();
     const done = run({
       label: cut ? 'Cut to new layer' : 'Copy to new layer',
       apply: (doc) => {
@@ -150,7 +212,38 @@ export function pixelSelectionActions(ctx: AnimationContext) {
         return changeLayer(next, added.id, (l) => ({ ...l, pixels: copy }));
       },
     });
-    if (done && made.id) patch({ layerId: made.id, pixelSelection: undefined });
+    if (!done || !made.id) return;
+    patch({ layerId: made.id });
+    ctx.moveSelection(before, undefined);
+  }
+
+  /** GB2 magic wand: the pixels like the one clicked (image px), on the layer or `sample`. */
+  function selectByWand(at: Point, options: WandOptions): void {
+    if (options.allLayers && !options.sample) {
+      return allLayers((sample) =>
+        selectByWand(at, { ...options, allLayers: false, ...(sample ? { sample } : {}) }),
+      );
+    }
+    const sample = sampleOf(options.sample);
+    if (!sample) return;
+    const { width, height } = size();
+    const found = floodMask(sample.bitmap, at.x - sample.x, at.y - sample.y, options);
+    select(placeMask(found, sample.x, sample.y, width, height), options);
+  }
+
+  /** GB2 colour select: every pixel near the clicked one's colour, fading out (fuzziness). */
+  function selectByColour(at: Point, options: ColourOptions): void {
+    if (options.allLayers && !options.sample) {
+      return allLayers((sample) =>
+        selectByColour(at, { ...options, allLayers: false, ...(sample ? { sample } : {}) }),
+      );
+    }
+    const sample = sampleOf(options.sample);
+    if (!sample) return;
+    const colour = pixelAt(sample.bitmap, Math.floor(at.x - sample.x), Math.floor(at.y - sample.y));
+    const { width, height } = size();
+    const found = similarMask(sample.bitmap, colour, { tolerance: options.fuzziness, soft: true });
+    select(placeMask(found, sample.x, sample.y, width, height), options);
   }
 
   return {
@@ -178,30 +271,8 @@ export function pixelSelectionActions(ctx: AnimationContext) {
       const antiAlias = options.antiAlias ?? true;
       select(polygonMask(width, height, [points], { antiAlias }), options);
     },
-    /** GB2 magic wand: the pixels like the one clicked (image px), on the layer or `sample`. */
-    selectByWand(at: Point, options: WandOptions): void {
-      const sample = sampleOf(options.sample);
-      if (!sample) return;
-      const { width, height } = size();
-      const found = floodMask(sample.bitmap, at.x - sample.x, at.y - sample.y, options);
-      select(placeMask(found, sample.x, sample.y, width, height), options);
-    },
-    /** GB2 colour select: every pixel near the clicked one's colour, fading out (fuzziness). */
-    selectByColour(at: Point, options: ColourOptions): void {
-      const sample = sampleOf(options.sample);
-      if (!sample) return;
-      const colour = pixelAt(
-        sample.bitmap,
-        Math.floor(at.x - sample.x),
-        Math.floor(at.y - sample.y),
-      );
-      const { width, height } = size();
-      const found = similarMask(sample.bitmap, colour, {
-        tolerance: options.fuzziness,
-        soft: true,
-      });
-      select(placeMask(found, sample.x, sample.y, width, height), options);
-    },
+    selectByWand,
+    selectByColour,
     /**
      * GB2 Select ▸ From shape: the selected vector objects' areas (text as its letters, read
      * from the font the first time). M/25 Tier: the jigsaw piece selects the part to cut. Returns
@@ -292,8 +363,9 @@ export function pixelSelectionActions(ctx: AnimationContext) {
     /** G8 Image ▸ Crop to selection: the image becomes the selection's bounds. */
     cropToPixelSelection(): void {
       const m = needed();
+      const before = present();
       if (m && run({ label: 'Crop to selection', apply: (doc) => cropToSelection(doc, m) }))
-        set(undefined);
+        ctx.moveSelection(before, undefined);
     },
     /** GB2: the selection as the current pixel layer's mask (the Layers panel shows it). */
     maskFromPixelSelection(): void {

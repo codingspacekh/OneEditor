@@ -4,7 +4,6 @@
 // changed tiles handed back. If the worker cannot start (or fails), the jobs run in the page
 // instead: slower on a big photo, but the tools keep working.
 import { IN_PROCESS_PIXELS, type PixelReply } from '../../core/graphics/pixels/jobs.ts';
-import type { TilePatch } from '../../core/graphics/pixels/jobs.ts';
 import { EditError } from '../../core/model/errors.ts';
 import type { PixelWorker } from '../../core/ports.ts';
 
@@ -19,7 +18,7 @@ export interface WorkerLike {
 interface Waiting {
   job: Parameters<PixelWorker['run']>[0];
   input: Parameters<PixelWorker['run']>[1];
-  resolve(patch: TilePatch): void;
+  resolve(result: unknown): void;
   reject(error: Error): void;
 }
 
@@ -54,7 +53,7 @@ export function createWebPixelWorker(
       const w = waiting.get(reply.id);
       if (!w) return;
       waiting.delete(reply.id);
-      if (reply.ok) w.resolve(reply.patch);
+      if (reply.ok) w.resolve(reply.result);
       else w.reject(reply.edit ? new EditError(reply.message) : new Error(reply.message));
     };
     worker.onerror = fail;
@@ -65,7 +64,7 @@ export function createWebPixelWorker(
     run(job, input) {
       const w = started();
       if (!w) return fallback.run(job, input);
-      return new Promise<TilePatch>((resolve, reject) => {
+      return new Promise((resolve, reject) => {
         const id = next++;
         try {
           w.postMessage({ id, job, input });

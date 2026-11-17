@@ -418,153 +418,184 @@ function streak(
 
 // ---- zoom blur ----
 
-/** Bilinear sample of a 16-bit premultiplied buffer at (sx, sy), the edges repeated, into `to`. */
-function bilinear16(
-  d: Uint16Array,
+/**
+ * For one zoom pass at `scale` about `cx`: for each x, the first of the two columns its sample
+ * reads (as an offset of `n` values a pixel, the edges repeated), the second, and their weights
+ * times `share` (the sample's part of the pixel's new value). The same down the whole picture.
+ */
+function zoomColumns(
   W: number,
-  H: number,
-  c: number,
-  sx: number,
-  sy: number,
-  to: Float64Array,
+  n: number,
+  cx: number,
+  scale: number,
+  share: number,
+  cols: ZoomColumns,
 ): void {
-  const u = sx - 0.5;
-  const v = sy - 0.5;
-  let x0 = Math.floor(u);
-  let y0 = Math.floor(v);
-  const fx = u - x0;
-  const fy = v - y0;
-  let x1 = x0 + 1;
-  let y1 = y0 + 1;
-  if (x0 < 0) x0 = 0;
-  else if (x0 > W - 1) x0 = W - 1;
-  if (x1 < 0) x1 = 0;
-  else if (x1 > W - 1) x1 = W - 1;
-  if (y0 < 0) y0 = 0;
-  else if (y0 > H - 1) y0 = H - 1;
-  if (y1 < 0) y1 = 0;
-  else if (y1 > H - 1) y1 = H - 1;
-  const p00 = (y0 * W + x0) * c;
-  const p10 = (y0 * W + x1) * c;
-  const p01 = (y1 * W + x0) * c;
-  const p11 = (y1 * W + x1) * c;
-  const w00 = (1 - fx) * (1 - fy);
-  const w10 = fx * (1 - fy);
-  const w01 = (1 - fx) * fy;
-  const w11 = fx * fy;
-  for (let ch = 0; ch < c; ch++)
-    to[ch] = d[p00 + ch]! * w00 + d[p10 + ch]! * w10 + d[p01 + ch]! * w01 + d[p11 + ch]! * w11;
+  const last = W - 1;
+  for (let x = 0; x < W; x++) {
+    const u = cx + (x + 0.5 - cx) * scale - 0.5;
+    const i = Math.floor(u);
+    const g = u - i;
+    cols.c0[x] = (i < 0 ? 0 : i > last ? last : i) * n;
+    cols.c1[x] = (i + 1 < 0 ? 0 : i + 1 > last ? last : i + 1) * n;
+    cols.g0[x] = share * (1 - g);
+    cols.g1[x] = share * g;
+  }
+}
+
+type ZoomColumns = { c0: Int32Array; c1: Int32Array; g0: Float64Array; g1: Float64Array };
+
+const zoomColumnsFor = (W: number): ZoomColumns => ({
+  c0: new Int32Array(W),
+  c1: new Int32Array(W),
+  g0: new Float64Array(W),
+  g1: new Float64Array(W),
+});
+
+/** The two rows a zoom sample of row `y` reads (as offsets), and how far it is between them. */
+function zoomRows(y: number, H: number, rowLength: number, cy: number, scale: number) {
+  const v = cy + (y + 0.5 - cy) * scale - 0.5;
+  const ri = Math.floor(v);
+  const last = H - 1;
+  return {
+    r0: (ri < 0 ? 0 : ri > last ? last : ri) * rowLength,
+    r1: (ri + 1 < 0 ? 0 : ri + 1 > last ? last : ri + 1) * rowLength,
+    fy: v - ri,
+  };
 }
 
 /**
- * One row of a zoom pass on RGBA: each pixel the mean of the bilinear samples at the two scales
- * (`ka` to row `ya`, `kb` to row `yb`) about the centre, written out for speed.
+ * One zoom pass: each pixel of `to` is half the same pixel of `from` and half the bilinear
+ * sample of `from` scaled by `scale` about the centre (edges repeated). `n` values a pixel: 1 (a
+ * mask), 3 (an opaque photo: its alpha left out) or 4 (premultiplied RGBA).
  */
-function zoomRow4(
-  d: Uint16Array,
+function zoomPass(
+  from: Uint16Array,
   to: Uint16Array,
   W: number,
   H: number,
-  y: number,
-  cx: number,
-  ka: number,
-  ya: number,
-  kb: number,
-  yb: number,
+  n: 1 | 3 | 4,
+  centre: Point,
+  scale: number,
+  cols: ZoomColumns,
 ): void {
-  const lastX = W - 1;
-  const lastY = H - 1;
-  // The rows each sample reads, and how far between them, the same along the whole row.
-  const va = ya - 0.5;
-  const vb = yb - 0.5;
-  const ra = Math.floor(va);
-  const rb = Math.floor(vb);
-  const fa = va - ra;
-  const fb = vb - rb;
-  const a0 = (ra < 0 ? 0 : ra > lastY ? lastY : ra) * W;
-  const a1 = (ra + 1 < 0 ? 0 : ra + 1 > lastY ? lastY : ra + 1) * W;
-  const b0 = (rb < 0 ? 0 : rb > lastY ? lastY : rb) * W;
-  const b1 = (rb + 1 < 0 ? 0 : rb + 1 > lastY ? lastY : rb + 1) * W;
-  const row = y * W * 4;
-  for (let x = 0; x < W; x++) {
-    const px = x + 0.5 - cx;
-    const ua = cx + px * ka - 0.5;
-    const ub = cx + px * kb - 0.5;
-    const ca = Math.floor(ua);
-    const cb = Math.floor(ub);
-    const ga = ua - ca;
-    const gb = ub - cb;
-    const xa0 = ca < 0 ? 0 : ca > lastX ? lastX : ca;
-    const xa1 = ca + 1 < 0 ? 0 : ca + 1 > lastX ? lastX : ca + 1;
-    const xb0 = cb < 0 ? 0 : cb > lastX ? lastX : cb;
-    const xb1 = cb + 1 < 0 ? 0 : cb + 1 > lastX ? lastX : cb + 1;
-    // Each sample's four weights, halved (the two samples' mean).
-    const w00 = 0.5 * (1 - ga) * (1 - fa);
-    const w10 = 0.5 * ga * (1 - fa);
-    const w01 = 0.5 * (1 - ga) * fa;
-    const w11 = 0.5 * ga * fa;
-    const z00 = 0.5 * (1 - gb) * (1 - fb);
-    const z10 = 0.5 * gb * (1 - fb);
-    const z01 = 0.5 * (1 - gb) * fb;
-    const z11 = 0.5 * gb * fb;
-    const p00 = (a0 + xa0) * 4;
-    const p10 = (a0 + xa1) * 4;
-    const p01 = (a1 + xa0) * 4;
-    const p11 = (a1 + xa1) * 4;
-    const q00 = (b0 + xb0) * 4;
-    const q10 = (b0 + xb1) * 4;
-    const q01 = (b1 + xb0) * 4;
-    const q11 = (b1 + xb1) * 4;
-    const o = row + x * 4;
-    to[o] =
-      d[p00]! * w00 +
-      d[p10]! * w10 +
-      d[p01]! * w01 +
-      d[p11]! * w11 +
-      d[q00]! * z00 +
-      d[q10]! * z10 +
-      d[q01]! * z01 +
-      d[q11]! * z11 +
-      0.5;
-    to[o + 1] =
-      d[p00 + 1]! * w00 +
-      d[p10 + 1]! * w10 +
-      d[p01 + 1]! * w01 +
-      d[p11 + 1]! * w11 +
-      d[q00 + 1]! * z00 +
-      d[q10 + 1]! * z10 +
-      d[q01 + 1]! * z01 +
-      d[q11 + 1]! * z11 +
-      0.5;
-    to[o + 2] =
-      d[p00 + 2]! * w00 +
-      d[p10 + 2]! * w10 +
-      d[p01 + 2]! * w01 +
-      d[p11 + 2]! * w11 +
-      d[q00 + 2]! * z00 +
-      d[q10 + 2]! * z10 +
-      d[q01 + 2]! * z01 +
-      d[q11 + 2]! * z11 +
-      0.5;
-    to[o + 3] =
-      d[p00 + 3]! * w00 +
-      d[p10 + 3]! * w10 +
-      d[p01 + 3]! * w01 +
-      d[p11 + 3]! * w11 +
-      d[q00 + 3]! * z00 +
-      d[q10 + 3]! * z10 +
-      d[q01 + 3]! * z01 +
-      d[q11 + 3]! * z11 +
-      0.5;
+  zoomColumns(W, n, centre.x, scale, 0.5, cols);
+  const { c0, c1, g0, g1 } = cols;
+  const rowLength = W * n;
+  for (let y = 0; y < H; y++) {
+    const { r0, r1, fy } = zoomRows(y, H, rowLength, centre.y, scale);
+    const iy = 1 - fy;
+    let o = y * rowLength;
+    for (let x = 0; x < W; x++, o += n) {
+      const a = g0[x]!;
+      const b = g1[x]!;
+      const w00 = a * iy;
+      const w10 = b * iy;
+      const w01 = a * fy;
+      const w11 = b * fy;
+      const p00 = r0 + c0[x]!;
+      const p10 = r0 + c1[x]!;
+      const p01 = r1 + c0[x]!;
+      const p11 = r1 + c1[x]!;
+      // Written out channel by channel, for speed (GN2).
+      to[o] =
+        from[p00]! * w00 +
+        from[p10]! * w10 +
+        from[p01]! * w01 +
+        from[p11]! * w11 +
+        from[o]! * 0.5 +
+        0.5;
+      if (n === 1) continue;
+      to[o + 1] =
+        from[p00 + 1]! * w00 +
+        from[p10 + 1]! * w10 +
+        from[p01 + 1]! * w01 +
+        from[p11 + 1]! * w11 +
+        from[o + 1]! * 0.5 +
+        0.5;
+      to[o + 2] =
+        from[p00 + 2]! * w00 +
+        from[p10 + 2]! * w10 +
+        from[p01 + 2]! * w01 +
+        from[p11 + 2]! * w11 +
+        from[o + 2]! * 0.5 +
+        0.5;
+      if (n === 4)
+        to[o + 3] =
+          from[p00 + 3]! * w00 +
+          from[p10 + 3]! * w10 +
+          from[p01 + 3]! * w01 +
+          from[p11 + 3]! * w11 +
+          from[o + 3]! * 0.5 +
+          0.5;
+    }
+  }
+}
+
+/**
+ * The last zoom pass: each pixel of `to` the mean of the bilinear samples of `from` scaled by
+ * `inner` and by `outer` about the centre (the edges repeated).
+ */
+function zoomLastPass(
+  from: Uint16Array,
+  to: Uint16Array,
+  W: number,
+  H: number,
+  n: 1 | 3 | 4,
+  centre: Point,
+  inner: number,
+  outer: number,
+  cols: [ZoomColumns, ZoomColumns],
+): void {
+  const [ci, co] = cols;
+  zoomColumns(W, n, centre.x, inner, 0.5, ci);
+  zoomColumns(W, n, centre.x, outer, 0.5, co);
+  const rowLength = W * n;
+  for (let y = 0; y < H; y++) {
+    const i = zoomRows(y, H, rowLength, centre.y, inner);
+    const u = zoomRows(y, H, rowLength, centre.y, outer);
+    let o = y * rowLength;
+    for (let x = 0; x < W; x++, o += n) {
+      const p00 = i.r0 + ci.c0[x]!;
+      const p10 = i.r0 + ci.c1[x]!;
+      const p01 = i.r1 + ci.c0[x]!;
+      const p11 = i.r1 + ci.c1[x]!;
+      const q00 = u.r0 + co.c0[x]!;
+      const q10 = u.r0 + co.c1[x]!;
+      const q01 = u.r1 + co.c0[x]!;
+      const q11 = u.r1 + co.c1[x]!;
+      const w00 = ci.g0[x]! * (1 - i.fy);
+      const w10 = ci.g1[x]! * (1 - i.fy);
+      const w01 = ci.g0[x]! * i.fy;
+      const w11 = ci.g1[x]! * i.fy;
+      const z00 = co.g0[x]! * (1 - u.fy);
+      const z10 = co.g1[x]! * (1 - u.fy);
+      const z01 = co.g0[x]! * u.fy;
+      const z11 = co.g1[x]! * u.fy;
+      for (let ch = 0; ch < n; ch++)
+        to[o + ch] =
+          from[p00 + ch]! * w00 +
+          from[p10 + ch]! * w10 +
+          from[p01 + ch]! * w01 +
+          from[p11 + ch]! * w11 +
+          from[q00 + ch]! * z00 +
+          from[q10 + ch]! * z10 +
+          from[q01 + ch]! * z01 +
+          from[q11 + ch]! * z11 +
+          0.5;
+    }
   }
 }
 
 /**
  * GB5: zoom blur: each pixel streaked along the line to `centre` (raster px), the streak
  * `amount` % of its distance from the centre long (so the centre stays sharp and the edges rush
- * past). Done as repeated halvings: each pass averages every pixel with two copies of the
- * picture scaled about the centre, half as far apart as the last pass's, so after n passes each
- * pixel is the average of 2ⁿ evenly spaced samples along its streak (about a pixel apart).
+ * past). Done as repeated halvings: each pass averages every pixel with the picture scaled out
+ * about the centre, by half as much as the last pass did, so after n passes each pixel is the
+ * average of 2ⁿ evenly spaced samples along the outer part of its streak (about a pixel apart);
+ * a last pass moves the whole back in by half the streak, so it is centred on the pixel. M23
+ * (GN2): one sample read between pixels a pass, not two (the other is the pixel itself), and an
+ * opaque photo's alpha left out: within 3 s on 12 megapixels.
  */
 export function zoomBlur<C extends 1 | 4>(r: Raster<C>, centre: Point, amount: number): Raster<C> {
   const a = Math.min(100, amount) / 100;
@@ -585,9 +616,20 @@ export function zoomBlur<C extends 1 | 4>(r: Raster<C>, centre: Point, amount: n
   // Samples about 1.5 px apart: the bilinear sampling fills in between.
   const passes = Math.min(12, Math.max(1, Math.ceil(Math.log2(longest / 1.5))));
   const src = readRegion(r);
+  let opaque = c === 4;
+  for (let i = 3; opaque && i < src.length; i += 4) if (src[i] !== 255) opaque = false;
+  const n = c === 1 ? 1 : opaque ? 3 : 4;
+  const count = W * H;
   // Premultiplied, 256 steps a level (enough for a dozen passes without banding).
-  let from = new Uint16Array(src.length);
-  if (c === 4)
+  let from = new Uint16Array(count * n);
+  if (n === 1) for (let i = 0; i < count; i++) from[i] = src[i]! * 256;
+  else if (n === 3)
+    for (let i = 0, j = 0; j < from.length; i += 4, j += 3) {
+      from[j] = src[i]! * 256;
+      from[j + 1] = src[i + 1]! * 256;
+      from[j + 2] = src[i + 2]! * 256;
+    }
+  else
     for (let i = 0; i < src.length; i += 4) {
       const al = src[i + 3]!;
       const k = (al * 256) / 255;
@@ -596,43 +638,36 @@ export function zoomBlur<C extends 1 | 4>(r: Raster<C>, centre: Point, amount: n
       from[i + 2] = Math.round(src[i + 2]! * k);
       from[i + 3] = al * 256;
     }
-  else for (let i = 0; i < src.length; i++) from[i] = src[i]! * 256;
-  let to = new Uint16Array(src.length);
-  const s1 = new Float64Array(c);
-  const s2 = new Float64Array(c);
-  for (let k = 1; k <= passes; k++) {
+  let to = new Uint16Array(count * n);
+  const cols: [ZoomColumns, ZoomColumns] = [zoomColumnsFor(W), zoomColumnsFor(W)];
+  // The first passes one-sided (outwards), the whole moved in by as much at the last.
+  let moved = span / 2 ** (passes + 1);
+  for (let k = 1; k < passes; k++) {
     const step = span / 2 ** (k + 1);
-    const out = Math.exp(step);
-    const back = Math.exp(-step);
-    for (let y = 0; y < H; y++) {
-      const py = y + 0.5 - centre.y;
-      const ya = centre.y + py * out;
-      const yb = centre.y + py * back;
-      if (c === 4) {
-        zoomRow4(from, to, W, H, y, centre.x, out, ya, back, yb);
-        continue;
-      }
-      for (let x = 0; x < W; x++) {
-        const px = x + 0.5 - centre.x;
-        bilinear16(from, W, H, c, centre.x + px * out, ya, s1);
-        bilinear16(from, W, H, c, centre.x + px * back, yb, s2);
-        const o = (y * W + x) * c;
-        for (let ch = 0; ch < c; ch++) to[o + ch] = (s1[ch]! + s2[ch]!) * 0.5 + 0.5;
-      }
-    }
+    moved += step;
+    zoomPass(from, to, W, H, n, centre, Math.exp(2 * step), cols[0]);
     [from, to] = [to, from];
   }
+  const last = span / 2 ** (passes + 1);
+  zoomLastPass(from, to, W, H, n, centre, Math.exp(-moved), Math.exp(2 * last - moved), cols);
   const bytes = new Uint8ClampedArray(src.length);
-  if (c === 4)
+  if (n === 1) for (let i = 0; i < count; i++) bytes[i] = to[i]! / 256;
+  else if (n === 3)
+    for (let i = 0, j = 0; j < to.length; i += 4, j += 3) {
+      bytes[i] = to[j]! / 256;
+      bytes[i + 1] = to[j + 1]! / 256;
+      bytes[i + 2] = to[j + 2]! / 256;
+      bytes[i + 3] = 255;
+    }
+  else
     for (let i = 0; i < src.length; i += 4) {
-      const al = from[i + 3]!;
+      const al = to[i + 3]!;
       if (al < 128) continue;
-      bytes[i] = (from[i]! * 255) / al;
-      bytes[i + 1] = (from[i + 1]! * 255) / al;
-      bytes[i + 2] = (from[i + 2]! * 255) / al;
+      bytes[i] = (to[i]! * 255) / al;
+      bytes[i + 1] = (to[i + 1]! * 255) / al;
+      bytes[i + 2] = (to[i + 2]! * 255) / al;
       bytes[i + 3] = al / 256;
     }
-  else for (let i = 0; i < src.length; i++) bytes[i] = from[i]! / 256;
   return fromBytes(r, bytes);
 }
 

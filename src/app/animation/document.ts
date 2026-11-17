@@ -11,15 +11,20 @@ import type { Id, Stage, ViewSettings } from '../../core/animation/types.ts';
 import type { AnimationContext } from './context.ts';
 
 export function documentActions(ctx: AnimationContext) {
-  const { store, patch, present, run, edit, liveSelection } = ctx;
+  const { store, patch, present, run, edit, liveSelection, selectionMove } = ctx;
   return {
     undo(): void {
-      patch({ history: undo(store.get().history) });
-      patch({ selection: liveSelection() });
+      const before = store.get().history;
+      patch({ history: undo(before) });
+      // M23 (GB2): an edit that moved the pixel selection has it back as it was.
+      const move = store.get().history !== before ? selectionMove(present()) : undefined;
+      patch({ selection: liveSelection(), ...(move ? { pixelSelection: move.before } : {}) });
     },
     redo(): void {
-      patch({ history: redo(store.get().history) });
-      patch({ selection: liveSelection() });
+      const before = store.get().history;
+      patch({ history: redo(before) });
+      const move = store.get().history !== before ? selectionMove(before.present) : undefined;
+      patch({ selection: liveSelection(), ...(move ? { pixelSelection: move.after } : {}) });
     },
 
     // ---- stage, guides, view ----

@@ -48,6 +48,7 @@ export function inProcessBridge(engine: MediaEngine, overrides: Partial<MainServ
       openSound: async () => null,
       openFrames: async () => [],
       openExport: async () => [],
+      openInspect: async () => null,
       saveAnimation: async () => null,
       exportAnimation: async () => null,
       openGraphic: async () => null,

@@ -14,6 +14,8 @@ import { addOverlayItem } from './overlay-commands.ts';
 import { createOverlayItem } from '../core/model/overlay.ts';
 import { createAudioApp, SILENT_OUTPUT, type AudioOutput } from './audio.ts';
 import { createLearnApp } from './learn.ts';
+import { createGraphicsLearnApp } from './learn-graphics.ts';
+import type { PictureCodec } from '../core/teaching/graphics.ts';
 import { createHistory, execute, redo, undo, type Command, type History } from './history.ts';
 import { proxyPathFor } from './proxy-path.ts';
 import { createLayoutApp } from './layout.ts';
@@ -157,6 +159,8 @@ export interface AppDeps {
   autosaveMs?: number;
   /** D3, GN2 (M21): where Graphics mode's heavy pixel jobs run (a Web Worker in the app). */
   pixelWorker?: PixelWorker;
+  /** GC1 (M23): Learn ▸ Graphics's JPEG and picture decoding (the page's canvas in the app). */
+  pictureCodec?: PictureCodec;
 }
 
 export const isDirty = (s: AppState): boolean => s.history.present !== s.saved || s.audioDirty;
@@ -188,6 +192,7 @@ export function createApp({
   website = async () => {},
   autosaveMs = 60_000,
   pixelWorker,
+  pictureCodec,
 }: AppDeps) {
   const preferences = createPreferences(files, paths);
   /** File ▸ Candidate Details…: every dialog below suggests the papers' file names. */
@@ -498,7 +503,13 @@ export function createApp({
     ...(audioRecorder ? { recorder: audioRecorder } : {}),
   });
   /** Learn mode (T1, T3, T6): never changes the project. */
-  const learn = createLearnApp({ engine, dialogs, files, paths });
+  const learn = createLearnApp({
+    engine,
+    dialogs,
+    files,
+    paths,
+    candidate: () => candidate.store.get().candidate,
+  });
   const layout = createLayoutApp(preferences);
   const settings = createSettingsApp(preferences);
   /** GB4 (M21): the brush presets the student saves. */
@@ -532,6 +543,15 @@ export function createApp({
     ...(pageAssets ? { pageAssets } : {}),
   });
 
+  /** GL1, GC1 (M23): Learn ▸ Graphics, on a chosen picture or the image in Graphics mode. */
+  const learnGraphics = createGraphicsLearnApp({
+    dialogs,
+    files,
+    graphic: () => graphics.store.get().history.present,
+    ...(stageRenderer ? { renderer: stageRenderer } : {}),
+    ...(pictureCodec ? { codec: pictureCodec } : {}),
+  });
+
   // Every Audio mode edit (or undo back to the saved state) updates "unsaved changes".
   audio.store.subscribe(() => {
     if (audio.isDirty() !== store.get().audioDirty) syncAudioDirty();
@@ -542,6 +562,7 @@ export function createApp({
 
     audio,
     learn,
+    learnGraphics,
     animation,
     graphics,
     /** N16: the panels' sizes and which are shown. */

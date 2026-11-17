@@ -1,5 +1,10 @@
 import { describe, expect, it } from 'vitest';
-import { audioFileSize, group, whatIf } from '../../../../src/core/teaching/file-size.ts';
+import {
+  audioFileSize,
+  group,
+  imageFileSize,
+  whatIf,
+} from '../../../../src/core/teaching/file-size.ts';
 
 const question5a = { sampleRate: 44100, bits: 16, channels: 1, seconds: 120 };
 
@@ -51,5 +56,37 @@ describe('T2 audio file-size calculator', () => {
     expect(group(84672000)).toBe('84 672 000');
     expect(group(950)).toBe('950');
     expect(group(2.5)).toBe('2.5');
+  });
+});
+
+describe('GC1 (M23) image file-size calculator: width × height × bits ÷ 8', () => {
+  it('the coursebook’s photo: 1600 × 1200 at 2 bytes (16 bits) a pixel = 3.84 MB', () => {
+    const size = imageFileSize({ width: 1600, height: 1200, bits: 16 });
+    expect(size.pixels).toBe(1_920_000);
+    expect(size.bits).toBe(30_720_000);
+    expect(size.bytes).toBe(3_840_000);
+    expect(size.mb).toBeCloseTo(3.84, 6);
+    expect(size.steps).toEqual([
+      { label: 'Pixels', working: '1 600 × 1 200 = 1 920 000 pixels' },
+      { label: '× colour depth', working: '1 920 000 × 16 = 30 720 000 bits' },
+      { label: '÷ 8 → bytes', working: '30 720 000 ÷ 8 = 3 840 000 bytes' },
+      { label: '÷ 1 000 000 → MB', working: '3 840 000 ÷ 1 000 000 = 3.84 MB' },
+    ]);
+  });
+
+  it('100 pixels at 1 bit = 100 bits = 12.5 bytes; a small picture is worked out in KB', () => {
+    expect(imageFileSize({ width: 10, height: 10, bits: 1 }).bytes).toBe(12.5);
+    const icon = imageFileSize({ width: 200, height: 200, bits: 24 });
+    expect(icon.kb).toBe(120);
+    expect(icon.steps[3]).toEqual({
+      label: '÷ 1 000 → KB',
+      working: '120 000 ÷ 1 000 = 120.00 KB',
+    });
+  });
+
+  it('halving the bits halves the size; halving the width and height quarters it', () => {
+    const full = imageFileSize({ width: 800, height: 600, bits: 24 }).bytes;
+    expect(imageFileSize({ width: 800, height: 600, bits: 12 }).bytes).toBe(full / 2);
+    expect(imageFileSize({ width: 400, height: 300, bits: 24 }).bytes).toBe(full / 4);
   });
 });

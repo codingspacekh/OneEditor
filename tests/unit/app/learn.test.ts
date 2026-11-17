@@ -42,7 +42,7 @@ function setup() {
 describe('T1 inspecting a file', () => {
   it('asks for a file and shows what is inside it', async () => {
     const s = setup();
-    s.dialogs.openMedia.mockResolvedValueOnce(['/m/song.mp3']);
+    s.dialogs.openInspect.mockResolvedValueOnce('/m/song.mp3');
     await s.learn.inspect();
     expect(s.state().inspected).toMatchObject({
       path: '/m/song.mp3',

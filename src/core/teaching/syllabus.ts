@@ -3,7 +3,7 @@
 // labels). The teacher notes are made from this (scripts/guides.ts).
 
 export interface SyllabusPoint {
-  section: '11.1' | '11.2' | '19.1' | '19.2' | '19.3' | '19.5' | '20.1';
+  section: '11.1' | '11.2' | '19.1' | '19.2' | '19.3' | '19.4' | '19.5' | '20.1';
   group: string;
   point: string;
   /** Where in OneEditor (mode ▸ place). */
@@ -45,6 +45,7 @@ const an = (point: string, where: string, tools?: string[]) =>
 const GRAPHIC_TOOLS = 'Using software tools for the creation and editing of digital graphics';
 const VECTOR_TOOLS = 'Using software tools for the creation and editing of vector graphics';
 const BITMAP_TOOLS = 'Using software tools for the creation and editing of bitmap graphics';
+const COMPRESSION_19 = 'Compression';
 const g = (point: string, where: string, tools?: string[]) =>
   p('19.1', GRAPHIC_TOOLS, point, where, tools);
 
@@ -299,13 +300,19 @@ export const SYLLABUS: readonly SyllabusPoint[] = [
     ['19.1 alignment and distribution tools'],
   ),
   g(
-    'colour systems: RGB, HSL, CMYK',
-    'Graphics ▸ any colour box: the colour picker shows and takes RGB, HSL and CMYK numbers',
+    'colour systems: RGB, HSL, CMYK, CMS; how each produces colour; their properties, purpose and uses',
+    // G9 (M23): taught in Learn ▸ Graphics.
+    'Learn ▸ Graphics ▸ Colour systems (RGB light and CMYK ink mixers, the HSL wheel, the same colour in each system, a colour matching system and the eyedropper); Graphics ▸ any colour box: the colour picker shows and takes RGB, HSL and CMYK numbers',
   ),
   g(
     'the need for different image resolutions, including the impact of having too low/high resolution for an image on screen or in print',
-    'Graphics ▸ File ▸ New Image… and the canvas chip at the top (size in px, cm, mm or in at a resolution; screen and print presets)',
+    'Graphics ▸ File ▸ New Image… and the canvas chip at the top (size in px, cm, mm or in at a resolution; screen and print presets); Learn ▸ Graphics ▸ Resolution and print size, and Bitmap and vector (a zoom that pixelates the bitmap beside the vector)',
     ['19.1 the need for different image resolutions'],
+  ),
+  // GL1 (M23)
+  g(
+    'different bitmap and vector file formats, including their suitability and selection for use in a given scenario',
+    'Learn ▸ Graphics ▸ File formats (the seven formats side by side; choose a scenario — the web, print, a logo, transparency, animation — for the formats to use and to avoid, and why)',
   ),
   g(
     'exporting an image in different file formats',
@@ -352,6 +359,13 @@ export const SYLLABUS: readonly SyllabusPoint[] = [
     'Graphics (and Animation) ▸ Properties ▸ Envelope: arch, arc, bulge, flag, wave, rise or squeeze with a bend %, Perspective (drag the four corners) or Custom (drag the sides’ corners and handles); Apply makes plain paths',
     ['19.2 envelopes and perspective'],
   ),
+  // GV5 (M19), GL1 (M23)
+  p(
+    '19.2',
+    VECTOR_TOOLS,
+    'converting bitmap images into editable vector shapes, including trace bitmaps; advantages and disadvantages of converting a bitmap image into an editable vector shape',
+    'Graphics ▸ a picture, then Properties ▸ Trace bitmap… (colours, detail, smoothing, black and white); Learn ▸ Graphics ▸ Bitmap to vector (advantages and disadvantages)',
+  ),
   // ---- 19.3 Bitmap images (M21) ----
   p(
     '19.3',
@@ -394,6 +408,25 @@ export const SYLLABUS: readonly SyllabusPoint[] = [
     'tools/filters to alter parts of an image: distort, clone, erase, blur, smudge, sharpen, red eye removal',
     'Graphics ▸ Filter ▸ Blur (Gaussian, Motion, Zoom), Twirl…, Sharpen… and Distort ▸ Bulge / Pinch…, Perspective…, Warp… on a pixel layer, its mask or inside the selection, with a live preview (click the image for the centre; drag the corners or the mesh); the Eraser on the tool strip; the tool strip on a pixel layer: Clone stamp and Heal (Alt-click, Option-click on a Mac, the source; Properties ▸ Aligned, Copy from), Blur, Sharpen and Smudge brushes (Properties ▸ Strength), Red eye (click the eye or drag a box over it; Pupil size, Darken)',
     ['19.3 tools/filters to alter parts of an image'],
+  ),
+  // ---- 19.4 Compression (GC1, M23) ----
+  p(
+    '19.4',
+    COMPRESSION_19,
+    'what compression is',
+    'Learn ▸ Graphics ▸ Compression (what compression is, on your own picture or the image in Graphics mode)',
+  ),
+  p(
+    '19.4',
+    COMPRESSION_19,
+    'methods of compression: lossless compression, lossy compression',
+    'Learn ▸ Graphics ▸ Compression: the same picture as PNG, GIF, BMP, TIFF and JPG side by side with their sizes; the colour depth and the resolution reduced; the image file-size calculator (width × height × bits ÷ 8); Graphics ▸ Export (each format lossless or lossy)',
+  ),
+  p(
+    '19.4',
+    COMPRESSION_19,
+    'effects of different methods of compression on images',
+    'Learn ▸ Graphics ▸ Compression: a JPEG quality slider with the file size and a zoomed difference view (where data was lost), and a JPEG saved again and again',
   ),
   // ---- 19.5 Text (M20) ----
   p(

@@ -160,6 +160,8 @@ export function pixelLayerActions(
       if (!(await startWith(doc))) return false;
       const { width, height } = doc.stage;
       patch({
+        // GC2 (M23): kept, so an export never saves over it.
+        original: path,
         message: {
           kind: 'info',
           text: `Opened ${fileNameOf(path)} as a new image: ${width} × ${height} px at ${doc.graphic!.dpi} dpi.`,

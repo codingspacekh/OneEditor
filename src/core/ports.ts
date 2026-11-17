@@ -13,7 +13,7 @@ import type { CombinePlan } from './image/combine.ts';
 import type { UpdateState } from './updates.ts';
 import type { ResizeCrop } from './image/crop.ts';
 import type { ColourKey } from './image/colour-key.ts';
-import type { PixelJob, PixelJobInput, TilePatch } from './graphics/pixels/jobs.ts';
+import type { PixelJob, PixelJobInput, PixelJobOutput } from './graphics/pixels/jobs.ts';
 
 /** What a media file contains (T1 shows this to students). */
 export interface ProbeInfo {
@@ -228,6 +228,8 @@ export interface Dialogs {
    * sequence (AN17); [] when cancelled.
    */
   openExport(): Promise<string[]>;
+  /** T1, GL2 (M23): any file to inspect — a video, a sound, or a picture of the seven formats. */
+  openInspect(): Promise<string | null>;
   /** T6: where to save a task check for the students. */
   saveTaskCheck(suggestedName: string): Promise<string | null>;
   /** AN16: an animation (.mvea) to open. */
@@ -337,16 +339,18 @@ export interface StageRenderer {
   /**
    * G2 (M21): the stage drawn at its own size at frame 0, as RGBA pixels (not premultiplied): a
    * vector layer drawn into pixels when it is merged (core/graphics/pixels/merge.ts layerAlone).
+   * G11 (M23): or scaled to `size`, for a GIF, BMP, TIFF or palette PNG export (core/image/encode).
    */
-  renderPixels(doc: AnimationDoc): Promise<Pixels>;
+  renderPixels(doc: AnimationDoc, size?: { width: number; height: number }): Promise<Pixels>;
 }
 
 /**
  * D3, GN2 (M21): heavy pixel work (the paint bucket, the gradient) off the page's thread: a Web
- * Worker in the app, in the page in tests. Answers with only the tiles the job changed.
+ * Worker in the app, in the page in tests. Answers with only the tiles the job changed (M23: or
+ * the whole raster of another size, or a transform's pixels).
  */
 export interface PixelWorker {
-  run<J extends PixelJob>(job: J, input: PixelJobInput<J>): Promise<TilePatch>;
+  run<J extends PixelJob>(job: J, input: PixelJobInput<J>): Promise<PixelJobOutput<J>>;
 }
 
 /** Draws text as a transparent PNG with the bundled fonts (ARCHITECTURE §7.3). */

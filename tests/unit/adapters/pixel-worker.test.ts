@@ -109,7 +109,7 @@ describe('M21 GN2: the pixel worker, the page’s side', () => {
   it('ignores an answer to nothing it asked', () => {
     const worker = fakeWorker();
     createWebPixelWorker(() => worker).run('gradient', input);
-    expect(() => worker.onmessage?.({ data: { id: 99, ok: true, patch: {} } })).not.toThrow();
+    expect(() => worker.onmessage?.({ data: { id: 99, ok: true, result: {} } })).not.toThrow();
   });
 });
 

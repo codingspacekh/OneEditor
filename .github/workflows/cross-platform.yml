@@ -2,6 +2,8 @@ name: Cross-platform
 
 # M12 (X1, X2, X6): a project made and packaged on Windows opens and exports the same on macOS,
 # and the other way round (tests/e2e/cross-platform.spec.ts). M17: an animation with pictures too.
+# M23 (GN4): a Graphics image too (scripts/lib/cross-graphic.ts): its pixel layers the same bytes
+# on both, its PNG export the same pixels (the words compared apart).
 on:
   push:
     branches: [main, dev]
