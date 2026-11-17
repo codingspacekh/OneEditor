@@ -4,9 +4,15 @@
 // graphic they had made). The stage is the canvas.
 import { EditError } from '../model/errors.ts';
 import { createAnimation } from '../animation/factory.ts';
-import { boundsOf, moved, type Bounds } from '../animation/geometry.ts';
+import { drawnBounds, moved, type Bounds } from '../animation/geometry.ts';
 import { MIN_STAGE, TRANSPARENT, validateStage } from '../animation/rules.ts';
-import type { AnimationDoc, GraphicSettings, Stage, Unit } from '../animation/types.ts';
+import type {
+  AnimationDoc,
+  GraphicSettings,
+  PrintedSize,
+  Stage,
+  Unit,
+} from '../animation/types.ts';
 import { SCREEN_DPI, PRINT_DPI, isUnit, toPx, validateDpi } from './units.ts';
 
 /** A canvas may be bigger than an animation's stage: an A4 page at 300 dpi is 2480 × 3508. */
@@ -128,7 +134,14 @@ export function createGraphic({ name, size, background }: NewImage): AnimationDo
   return {
     ...base,
     stage,
-    graphic: { dpi: size.dpi, units: size.units },
+    graphic: {
+      dpi: size.dpi,
+      units: size.units,
+      // G6 (benchmark): 80 mm stays 80 mm in the files, though the canvas is 302 px.
+      ...(size.units !== 'px'
+        ? { size: { width: size.width, height: size.height, units: size.units } }
+        : {}),
+    },
     view: { ...base.view, rulers: true },
   };
 }
@@ -148,6 +161,23 @@ export function validateGraphicStage(stage: Stage): void {
 
 export const isGraphic = (doc: AnimationDoc): boolean => doc.graphic !== undefined;
 
+/**
+ * G6 (benchmark): the printed size typed, in inches, while it still comes to the canvas's pixels
+ * at its resolution (the canvas holds whole pixels: 80 mm at 96 dpi is 302 px, which is 79.9 mm);
+ * null for a screen image, or once the canvas or resolution has changed since.
+ */
+export function printedSize(doc: AnimationDoc): { width: number; height: number } | null {
+  const { size, dpi, units } = graphicOf(doc);
+  if (!size || units === 'px') return null;
+  const inches = (n: number) => n / { cm: 2.54, mm: 25.4, in: 1, pt: 72 }[size.units];
+  const width = inches(size.width);
+  const height = inches(size.height);
+  return Math.round(width * dpi) === doc.stage.width &&
+    Math.round(height * dpi) === doc.stage.height
+    ? { width, height }
+    : null;
+}
+
 /** The settings of an image (an animation opened here is treated as a screen picture). */
 export const graphicOf = (doc: AnimationDoc): GraphicSettings =>
   doc.graphic ?? { dpi: SCREEN_DPI, units: 'px' };
@@ -158,9 +188,20 @@ export const graphicOf = (doc: AnimationDoc): GraphicSettings =>
  */
 export function setImage(
   doc: AnimationDoc,
-  change: { width?: number; height?: number; background?: string; dpi?: number; units?: Unit },
+  change: {
+    width?: number;
+    height?: number;
+    background?: string;
+    dpi?: number;
+    units?: Unit;
+    /** G6: the printed size as typed (absent from a change of size in px: forgotten). */
+    size?: PrintedSize;
+  },
 ): AnimationDoc {
-  const graphic = { ...graphicOf(doc) };
+  const graphic: GraphicSettings = { ...graphicOf(doc) };
+  if (change.size) graphic.size = { ...change.size };
+  else if (change.width !== undefined || change.height !== undefined || change.dpi !== undefined)
+    delete graphic.size;
   if (change.dpi !== undefined) {
     validateDpi(change.dpi);
     graphic.dpi = change.dpi;
@@ -179,13 +220,16 @@ export function setImage(
   return { ...doc, stage, graphic };
 }
 
-/** The box round the visible objects (null when there are none). */
+/**
+ * The box round what the visible objects draw (null when there are none): B7, their outlines'
+ * outer halves, turned text, arcs in groups, shadows and glows inside it.
+ */
 export function drawingBounds(doc: AnimationDoc, ids?: ReadonlySet<string>): Bounds | null {
   const boxes = doc.layers
     .filter((l) => l.visible && !l.mask)
     .flatMap((l) => l.objects)
     .filter((o) => !ids || ids.has(o.id))
-    .map(boundsOf);
+    .map(drawnBounds);
   if (boxes.length === 0) return null;
   const x = Math.min(...boxes.map((b) => b.x));
   const y = Math.min(...boxes.map((b) => b.y));
@@ -218,7 +262,12 @@ export function canvasAround(doc: AnimationDoc, box: Bounds, min = 1): Animation
   return {
     ...doc,
     stage,
-    layers: doc.layers.map((l) => ({ ...l, objects: l.objects.map((o) => moved(o, -left, -top)) })),
+    layers: doc.layers.map((l) => ({
+      ...l,
+      objects: l.objects.map((o) => moved(o, -left, -top)),
+      // GB6, G8 (M21): a pixel layer's place moves with the drawing.
+      ...(l.pixels ? { pixels: { ...l.pixels, x: l.pixels.x - left, y: l.pixels.y - top } } : {}),
+    })),
     guides: {
       x: doc.guides.x.map((g) => g - left).filter((g) => g >= 0 && g <= width),
       y: doc.guides.y.map((g) => g - top).filter((g) => g >= 0 && g <= height),

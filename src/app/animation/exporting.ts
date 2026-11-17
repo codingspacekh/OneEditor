@@ -1,7 +1,8 @@
 // Exporting an animation (AN15, N12): MP4, AVI, MOV and GIF made by FFmpeg from frames drawn by
 // the preview's own drawing, a PNG sequence, one PNG, and the HTML web page — all of it or a
 // range of frames, at the stage's size or another width; the videos and the web page with the
-// animation's sounds (AN28) — and Test (AN18), the web page in a window of its own.
+// animation's sounds (AN28) — and Test (AN18), the web page in a window of its own. G2, GB1
+// (M21): an SVG carries each pixel layer as a PNG inside it.
 import { JobCancelledError } from '../../core/model/errors.ts';
 import {
   carriesSound,
@@ -16,13 +17,20 @@ import {
   type AnimationFormat,
 } from '../../core/animation/export.ts';
 import { soundPieces, soundsHeard } from '../../core/animation/sound.ts';
-import { fontsUsed } from '../../core/animation/draw.ts';
+import { BUTTON_FONT, fontOf, fontsUsed } from '../../core/animation/draw.ts';
+import { glyphsOf, loadGlyphsFor, textsIn } from '../../core/graphics/glyphs.ts';
+import { faceFor } from '../../core/text/fonts.ts';
 import { fontsNeeded, picturesUsed, webPage, type WebPageView } from '../../core/animation/html.ts';
-import type { AnimationDoc, Id } from '../../core/animation/types.ts';
+import type { AnimationDoc, AnimObject, Id, TextObject } from '../../core/animation/types.ts';
 import { TRANSPARENT } from '../../core/animation/rules.ts';
 import { stageSvg } from '../../core/animation/svg-export.ts';
+import { withoutTemplates } from '../../core/animation/template.ts';
 import { newId } from '../../core/model/factory.ts';
 import type { JobHandle } from '../../core/ports.ts';
+import { rasterPng } from '../../core/graphics/mveg.ts';
+import { applyMask } from '../../core/graphics/pixels/pixel-layers.ts';
+import { bytesToBase64 } from '../../core/image/base64.ts';
+import { webCompression } from '../../core/image/deflate.ts';
 import { fileNameOf } from '../../core/project/relocate.ts';
 import type { AnimationContext } from './context.ts';
 import type { AnimationExporting } from './state.ts';
@@ -59,6 +67,41 @@ export async function drawFrames(
   if (failure) throw (failure as { error: unknown }).error;
 }
 
+/** G4: a font made of just the letters an SVG uses, for one canvas font ('700 48px "Inter"'). */
+interface FontSubset {
+  font: string;
+  family: string;
+  url: string;
+}
+
+/**
+ * G4 (benchmark 2026-11-17): for each canvas font the objects' text uses, a font of just the
+ * letters it draws in it (once the fonts' outlines are loaded), so an SVG carries a few KB of
+ * font instead of whole files (Woodlands, two words in Inter: 1.15 MB before). None for a font
+ * whose outlines cannot be read: the whole file goes in for that one.
+ */
+function fontSubsets(objects: readonly AnimObject[]): FontSubset[] {
+  const byFont = new Map<string, { t: TextObject; text: string }>();
+  for (const t of textsIn(objects)) {
+    const font = fontOf(t);
+    byFont.set(font, {
+      t: byFont.get(font)?.t ?? t,
+      text: (byFont.get(font)?.text ?? '') + t.text,
+    });
+  }
+  return [...byFont].flatMap(([font, { t, text }]) => {
+    const glyphs = glyphsOf(t);
+    if (!glyphs?.subset) return [];
+    const family = `OE ${t.font} ${t.bold ? 700 : 400}${t.italic ? ' italic' : ''} ${Math.round(t.size * 100) / 100}`;
+    try {
+      const bytes = glyphs.subset(family, text, t.size);
+      return [{ font, family, url: `data:font/otf;base64,${bytesToBase64(bytes)}` }];
+    } catch {
+      return [];
+    }
+  });
+}
+
 /**
  * AN22, G11: the stage at `frame` as an SVG document, with its pictures and fonts inside (a
  * picture that cannot be read is left out and named in `missing`). `shown`: the width and height
@@ -71,7 +114,28 @@ export async function svgDocument(
   shown?: { width: string; height: string },
 ): Promise<{ svg: string; missing: string[] }> {
   const { renderer, pageAssets } = ctx.services;
-  const lettering = fontsUsed(doc.layers.flatMap((l) => l.objects));
+  const objects = doc.layers.flatMap((l) => l.objects);
+  const lettering = fontsUsed(objects);
+  // GT5 (M20): bent text is drawn as its letters' outlines; G4: and the fonts carried are made of
+  // the letters used, so the outlines are read first.
+  await loadGlyphsFor(objects);
+  const subsets = fontSubsets(objects);
+  const made = new Set(subsets.map((f) => f.font));
+  const fileOf = (t: Pick<TextObject, 'font' | 'bold' | 'italic'>) =>
+    faceFor(t.font, t.bold, t.italic)?.file;
+  const covered = new Set(
+    textsIn(objects)
+      .filter((t) => made.has(fontOf(t)))
+      .map(fileOf),
+  );
+  const wanted = new Set(
+    textsIn(objects)
+      .filter((t) => !made.has(fontOf(t)))
+      .map(fileOf),
+  );
+  // AN18: a button's label is in Inter.
+  if (lettering.some((f) => f.endsWith(`"${BUTTON_FONT}"`) && f.startsWith('600 ')))
+    wanted.add(fileOf({ font: BUTTON_FONT, bold: false, italic: false }));
   const [read, fonts, tops, widths] = await Promise.all([
     Promise.all(
       picturesUsed(doc).map(async (p) => ({
@@ -82,10 +146,12 @@ export async function svgDocument(
     // The fonts go inside, as in the web page: an SVG shows its words in the right font on any
     // computer.
     Promise.all(
-      fontsNeeded(doc).map(async (face) => ({
-        face,
-        url: await pageAssets.fontDataUrl(face.file),
-      })),
+      fontsNeeded(doc)
+        .filter((face) => !covered.has(face.file) || wanted.has(face.file))
+        .map(async (face) => ({
+          face,
+          url: await pageAssets.fontDataUrl(face.file),
+        })),
     ),
     // Where each font's baseline sits, measured as the stage draws it.
     renderer.textTops(lettering),
@@ -94,8 +160,16 @@ export async function svgDocument(
   ]);
   const pictures: Record<Id, string> = {};
   for (const { picture, url } of read) if (url) pictures[picture.id] = url;
+  // G2, GB1 (M21): each pixel layer shown, as a PNG inside, its layer mask applied.
+  const bitmaps: Record<Id, string> = {};
+  for (const layer of doc.layers) {
+    if (!layer.pixels || !layer.visible) continue;
+    const { bitmap, mask } = layer.pixels;
+    const png = await rasterPng(mask ? applyMask(bitmap, mask) : bitmap, webCompression);
+    bitmaps[layer.id] = `data:image/png;base64,${bytesToBase64(png)}`;
+  }
   return {
-    svg: stageSvg(doc, frame, pictures, fonts, tops, widths, shown),
+    svg: stageSvg(doc, frame, pictures, fonts, tops, widths, shown, bitmaps, subsets),
     missing: read.filter((r) => !r.url).map((r) => fileNameOf(r.picture.path)),
   };
 }
@@ -228,7 +302,8 @@ export function exportActions(ctx: AnimationContext) {
   ): Promise<string | null> {
     if (store.get().exporting || store.get().busy) return null;
     pause();
-    const drawn = present();
+    // GV8 (M19): a template layer is never exported.
+    const drawn = withoutTemplates(present());
     // The size and the frames are checked before the save box.
     let size: ReturnType<typeof exportSize>;
     let range: ReturnType<typeof exportedFrames>;
@@ -396,7 +471,7 @@ export function exportActions(ctx: AnimationContext) {
      * frames typed cannot be used.
      */
     exportSummary(format: AnimationFormat, options: AnimationExportOptions = {}) {
-      const doc = present();
+      const doc = withoutTemplates(present());
       const sounds = soundsHeard(doc).length;
       const picture = format === 'png' || format === 'svg';
       try {
@@ -436,7 +511,7 @@ export function exportActions(ctx: AnimationContext) {
     async testAnimation(): Promise<void> {
       if (store.get().busy) return;
       pause();
-      const doc = present();
+      const doc = withoutTemplates(present());
       patch({ busy: 'Opening the test…' });
       try {
         const { html, missing } = await makePage(doc);

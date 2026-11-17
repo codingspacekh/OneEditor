@@ -33,6 +33,39 @@ describe('Learn mode glossary', () => {
       expect(terms, word).toContain(word);
   });
 
+  it('GL1 (M23) has the key words of syllabus 19.1 and 19.4', () => {
+    const terms = GLOSSARY.map((e) => e.term.toLowerCase());
+    for (const word of [
+      'pixel',
+      'pixelation',
+      'bitmap',
+      'raster graphic',
+      'vector graphic',
+      'resolution (image)',
+      'dpi (dots per inch)',
+      'colour depth',
+      'rgb',
+      'cmyk',
+      'hsl',
+      'cms (colour matching system)',
+      'hexadecimal colour code',
+      'additive colour',
+      'subtractive colour',
+      'palette',
+      'dithering',
+      'lzw compression',
+      'run-length encoding (rle)',
+      'generation loss',
+      'alpha channel',
+      'opacity',
+      'transparency',
+    ])
+      expect(terms, word).toContain(word);
+    expect(searchGlossary('eyedropper').map((e) => e.term)).toContain(
+      'CMS (colour matching system)',
+    );
+  });
+
   it('finds words by their name or meaning, ignoring capitals', () => {
     expect(searchGlossary('')).toEqual(GLOSSARY);
     expect(searchGlossary('ASPECT').map((e) => e.term)).toContain('Aspect ratio');

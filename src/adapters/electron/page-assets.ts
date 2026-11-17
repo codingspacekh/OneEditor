@@ -20,6 +20,7 @@ export function createElectronPageAssets(
     soundDataUrl: (path) => unwrap(api.invoke('page:sound', path)),
     openTest: async (html, title, width, height) =>
       void (await unwrap(api.invoke('page:test', html, title, width, height))),
+    svgToPdf: (svg, page) => unwrap(api.invoke('page:pdf', svg, page.width, page.height)),
     async fontDataUrl(file) {
       const url = fontUrls[file];
       if (!url) throw new EditError(`${file} is not one of the fonts that come with OneEditor.`);

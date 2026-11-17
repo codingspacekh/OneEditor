@@ -94,6 +94,8 @@
         dpi,
         units,
         background,
+        // G6 (benchmark): a size typed in cm, mm, in or pt is kept exactly as typed.
+        ...(units !== 'px' ? { size: { width, height, units } } : {}),
       });
     }
     if (!error) onclose();

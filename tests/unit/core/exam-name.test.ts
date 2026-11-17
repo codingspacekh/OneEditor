@@ -2,7 +2,13 @@
 // (M/J/26 Task 3), TTTVideo_ZZ999_9999 (F/M/25). With the candidate's details set once, every
 // Save and Export dialog suggests that name.
 import { describe, expect, it } from 'vitest';
-import { checkCandidate, examName, type Candidate } from '../../../src/core/exam-name.ts';
+import {
+  candidateInName,
+  checkCandidate,
+  checkExamName,
+  examName,
+  type Candidate,
+} from '../../../src/core/exam-name.ts';
 
 const me: Candidate = { centre: 'KH012', number: '0042', name: 'Sok Dara' };
 
@@ -47,5 +53,50 @@ describe('exam file names', () => {
       field: 'name',
       error: 'Please keep the name to 80 letters or fewer.',
     });
+  });
+});
+
+describe('P8, GL2 (M23) the candidate details in a file name', () => {
+  it('reads the name, centre and candidate number from a file name', () => {
+    expect(candidateInName('Gas_ZZ999_9999.png')).toEqual({
+      base: 'Gas',
+      centre: 'ZZ999',
+      number: '9999',
+    });
+    expect(candidateInName('My_Logo_kh012_0042.svg')).toEqual({
+      base: 'My_Logo',
+      centre: 'kh012',
+      number: '0042',
+    });
+    expect(candidateInName('Gas.png')).toBeNull();
+    expect(candidateInName('Gas_ZZ999_99.png')).toBeNull();
+  });
+
+  it("passes the papers' form, with the student's own numbers when they are set", () => {
+    expect(checkExamName('Gas_KH012_0042.png', me, 'Gas')).toMatchObject({
+      pass: true,
+      expected: 'Gas_KH012_0042',
+      actual: 'Gas_KH012_0042',
+    });
+    expect(checkExamName('gas_kh012_0042.png', me, 'Gas').pass).toBe(true);
+    expect(checkExamName('Logo_ZZ999_9999.png', null)).toMatchObject({
+      pass: true,
+      expected: '<name>_<centre>_<candidate>',
+    });
+  });
+
+  it('says what is wrong: no numbers, another name, another candidate, the example numbers', () => {
+    expect(checkExamName('Gas.png', me, 'Gas')).toMatchObject({
+      pass: false,
+      why: 'it does not end with a centre and candidate number',
+    });
+    expect(checkExamName('Logo_KH012_0042.png', me, 'Gas')).toMatchObject({
+      pass: false,
+      why: 'it starts with Logo, not Gas',
+    });
+    expect(checkExamName('Gas_KH012_0043.png', me, 'Gas').why).toBe(
+      'KH012_0043 are not your numbers (KH012_0042)',
+    );
+    expect(checkExamName('Gas_ZZ999_9999.png', me).why).toMatch(/the papers' example/);
   });
 });

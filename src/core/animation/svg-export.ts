@@ -2,10 +2,13 @@
 // file"). The stage is drawn by the same drawStage as the preview and every export, through a
 // canvas that writes SVG elements instead of pixels, so the picture matches the stage: each shape
 // a path (its fill and outline on one element), gradients, text as text, pictures inside as data,
-// masks as clip paths. Pure: no DOM.
-import { drawStage, type CanvasGradientLike, type StageCanvas } from './draw.ts';
-import type { AnimationDoc, Id } from './types.ts';
-import { fontFaceRule, genericFamily, type FontFile } from '../text/fonts.ts';
+// masks as clip paths. Pure: no DOM. G2, GB1 (M21): a layer's blend mode as mix-blend-mode, a
+// clipping mask as an SVG mask of its base, a pixel layer as an <image> of its PNG.
+import { drawStage, type CanvasGradientLike, type LayerHow, type StageCanvas } from './draw.ts';
+import type { Bitmap } from '../graphics/pixels/raster.ts';
+import type { AnimationDoc, Id, ObjectFilter } from './types.ts';
+import { bevelShadows, shadowDeviation, type PatternTile } from './appearance.ts';
+import { fontFaceRule, genericFamily, subsetFaceRule, type FontFile } from '../text/fonts.ts';
 
 type Matrix = [number, number, number, number, number, number];
 
@@ -61,7 +64,12 @@ class Gradient implements CanvasGradientLike {
     this.base = base;
   }
   addColorStop(offset: number, colour: string): void {
-    this.stops.push(`<stop offset="${n(offset)}" stop-color="${escape(colour)}"/>`);
+    // G8 (M23): a colour with its own opacity as stop-opacity (not every reader takes #rrggbbaa).
+    const alpha = /^#[0-9a-f]{8}$/i.test(colour) ? parseInt(colour.slice(7), 16) / 255 : 1;
+    const own = alpha < 1 ? ` stop-opacity="${n(alpha)}"` : '';
+    this.stops.push(
+      `<stop offset="${n(offset)}" stop-color="${escape(alpha < 1 ? colour.slice(0, 7) : colour)}"${own}/>`,
+    );
   }
   /**
    * AN6: the gradient for an element placed by the transform `m` (text): an SVG reads its
@@ -87,6 +95,139 @@ class Gradient implements CanvasGradientLike {
   }
 }
 
+/**
+ * G12 (M19): a pattern fill as an SVG <pattern>: its tile's elements, repeated in stage space
+ * (the tile's matrix after the transform where it was made), or, for text, in the text's own.
+ */
+class Pattern {
+  readonly id: string;
+  private readonly size: { width: number; height: number };
+  private readonly content: string;
+  private readonly base: Matrix;
+  private element: Matrix | null = null;
+  constructor(id: string, size: { width: number; height: number }, content: string, base: Matrix) {
+    this.id = id;
+    this.size = size;
+    this.content = content;
+    this.base = base;
+  }
+  /** As a gradient's: read in the text's space, copied under `id` for another transform. */
+  forElement(m: Matrix, id: () => string): Pattern {
+    if (this.element === null) {
+      this.element = m;
+      return this;
+    }
+    if (sameMatrix(this.element, m)) return this;
+    const copy = new Pattern(id(), this.size, this.content, this.base);
+    copy.element = m;
+    return copy;
+  }
+  toString(): string {
+    const back = this.element ? inverse(this.element) : null;
+    const m = back ? times(back, this.base) : this.base;
+    return (
+      `<pattern id="${this.id}" patternUnits="userSpaceOnUse" width="${n(this.size.width)}" height="${n(this.size.height)}"` +
+      ` patternTransform="matrix(${m.map(n).join(' ')})">${this.content}</pattern>`
+    );
+  }
+}
+
+/**
+ * G14 (M19): the effects as SVG filter primitives, each on the result of the one before (as the
+ * stage draws them). Shadows and glows go under what they are cast from; inner shadows and the
+ * bevel's light and shade over it, inside its edge only. In sRGB, as a canvas mixes colours.
+ */
+function filterSvg(id: string, filters: readonly ObjectFilter[], width: number, height: number) {
+  const parts: string[] = [];
+  let input = 'SourceGraphic';
+  const flood = (colour: string, opacity: number, result: string) =>
+    `<feFlood flood-color="${escape(colour)}" flood-opacity="${n(opacity / 100)}" result="${result}"/>`;
+  const shadow = (
+    r: string,
+    f: { colour: string; dx: number; dy: number; blur: number; opacity: number },
+  ) => {
+    parts.push(
+      `<feGaussianBlur in="${input}" stdDeviation="${n(shadowDeviation(f.blur))}" result="${r}b"/>`,
+      `<feOffset in="${r}b" dx="${n(f.dx)}" dy="${n(f.dy)}" result="${r}o"/>`,
+      flood(f.colour, f.opacity, `${r}c`),
+      `<feComposite in="${r}c" in2="${r}o" operator="in" result="${r}s"/>`,
+      `<feMerge result="${r}"><feMergeNode in="${r}s"/><feMergeNode in="${input}"/></feMerge>`,
+    );
+    input = r;
+  };
+  const inner = (
+    r: string,
+    f: { colour: string; dx: number; dy: number; blur: number; opacity: number },
+  ) => {
+    parts.push(
+      flood(f.colour, f.opacity, `${r}c`),
+      `<feComposite in="${r}c" in2="${input}" operator="out" result="${r}i"/>`,
+      `<feGaussianBlur in="${r}i" stdDeviation="${n(shadowDeviation(f.blur))}" result="${r}b"/>`,
+      `<feOffset in="${r}b" dx="${n(f.dx)}" dy="${n(f.dy)}" result="${r}o"/>`,
+      `<feComposite in="${r}o" in2="${input}" operator="in" result="${r}s"/>`,
+      `<feMerge result="${r}"><feMergeNode in="${input}"/><feMergeNode in="${r}s"/></feMerge>`,
+    );
+    input = r;
+  };
+  filters.forEach((f, i) => {
+    const r = `r${i + 1}`;
+    switch (f.kind) {
+      case 'blur':
+        parts.push(`<feGaussianBlur in="${input}" stdDeviation="${n(f.radius)}" result="${r}"/>`);
+        input = r;
+        break;
+      case 'dropShadow':
+        shadow(r, f);
+        break;
+      case 'glow':
+        shadow(r, { ...f, dx: 0, dy: 0 });
+        break;
+      case 'innerShadow':
+        inner(r, f);
+        break;
+      case 'bevel': {
+        const [light, shade] = bevelShadows(f);
+        inner(`${r}l`, light);
+        inner(r, shade);
+        break;
+      }
+      case 'stroke': {
+        // G10 (M23): outside: the shape grown by the width, under it; inside: the ring between
+        // its edge and the shape shrunk, over it; centred: half each way, over it.
+        const out = f.position === 'outside' ? f.width : f.position === 'centred' ? f.width / 2 : 0;
+        const inn = f.position === 'inside' ? f.width : f.position === 'centred' ? f.width / 2 : 0;
+        parts.push(flood(f.colour, f.opacity, `${r}c`));
+        if (out > 0)
+          parts.push(
+            `<feMorphology in="${input}" operator="dilate" radius="${n(out)}" result="${r}d"/>`,
+          );
+        if (inn > 0)
+          parts.push(
+            `<feMorphology in="${input}" operator="erode" radius="${n(inn)}" result="${r}e"/>`,
+          );
+        if (inn === 0) {
+          parts.push(
+            `<feComposite in="${r}c" in2="${r}d" operator="in" result="${r}s"/>`,
+            `<feMerge result="${r}"><feMergeNode in="${r}s"/><feMergeNode in="${input}"/></feMerge>`,
+          );
+        } else {
+          parts.push(
+            `<feComposite in="${r}c" in2="${out > 0 ? `${r}d` : input}" operator="in" result="${r}f"/>`,
+            `<feComposite in="${r}f" in2="${r}e" operator="out" result="${r}s"/>`,
+            `<feMerge result="${r}"><feMergeNode in="${input}"/><feMergeNode in="${r}s"/></feMerge>`,
+          );
+        }
+        input = r;
+        break;
+      }
+    }
+  });
+  return (
+    `<filter id="${id}" filterUnits="userSpaceOnUse" x="0" y="0" width="${n(width)}" height="${n(height)}"` +
+    ` color-interpolation-filters="sRGB">${parts.join('')}</filter>`
+  );
+}
+
 /** The drawing's picture: what options.image gives drawStage for a picture with data. */
 interface Href {
   href: string;
@@ -103,15 +244,25 @@ class SvgCanvas implements StageCanvas {
   font = '10px sans-serif';
   textAlign = 'start';
   textBaseline = 'alphabetic';
+  /** G2 (M21): a pixel layer's blend mode (drawStage sets it for drawBitmap). */
+  globalCompositeOperation = 'source-over';
 
   private readonly textTops: Readonly<Record<string, number>>;
+  /** G2, GB1 (M21): each pixel layer's PNG (its mask applied) as a data URL, by layer id. */
+  private readonly bitmaps: Readonly<Record<string, string>>;
+  /** G4: the small font made for each canvas font used (its letters only), by font string. */
+  private readonly subsets: Readonly<Record<string, string>>;
   /** AN26: how wide words are in a font, as the stage measures them (curved text). */
   measureText?: (text: string) => { width: number };
   constructor(
     textTops: Readonly<Record<string, number>> = {},
     measure?: (font: string, text: string) => number,
+    bitmaps: Readonly<Record<string, string>> = {},
+    subsets: Readonly<Record<string, string>> = {},
   ) {
     this.textTops = textTops;
+    this.bitmaps = bitmaps;
+    this.subsets = subsets;
     if (measure) this.measureText = (text) => ({ width: measure(this.font, text) });
   }
 
@@ -123,18 +274,29 @@ class SvgCanvas implements StageCanvas {
   private groups = 0;
   private readonly gradients: Gradient[] = [];
   private readonly clips: string[] = [];
+  /** G12, G14 (M19): the pattern fills, and the effects (written once the stage's size is known). */
+  private readonly patterns: Pattern[] = [];
+  private readonly filters: ((width: number, height: number) => string)[] = [];
   private readonly body: string[] = [];
+  /**
+   * G2 (M21): the layers withLayer has open, each with where its content starts in `body` and, once
+   * a layer is clipped to it, the mask made of that content.
+   */
+  private readonly open: { start: number; mask?: string }[] = [];
+  private readonly all: { start: number; mask?: string } = { start: 0 };
+  private readonly masks: ((width: number, height: number) => string)[] = [];
   /** A filled path waiting for its outline, so both go on one element. */
-  private pending: { d: string; attrs: string } | null = null;
+  private pending: { d: string; attrs: string; fill?: string; alpha?: number } | null = null;
 
   // ---- state ----
 
   save(): void {
     this.flush();
     const { globalAlpha, fillStyle, strokeStyle, lineWidth, lineCap, lineJoin } = this;
-    const { font, textAlign, textBaseline } = this;
+    const { font, textAlign, textBaseline, globalCompositeOperation } = this;
     this.stack.push({
       state: {
+        globalCompositeOperation,
         globalAlpha,
         fillStyle,
         strokeStyle,
@@ -311,7 +473,9 @@ class SvgCanvas implements StageCanvas {
   }
 
   private paint(style: string | object): string {
-    return style instanceof Gradient ? `url(#${style.id})` : escape(String(style));
+    return style instanceof Gradient || style instanceof Pattern
+      ? `url(#${style.id})`
+      : escape(String(style));
   }
 
   private opacity(): string {
@@ -335,14 +499,17 @@ class SvgCanvas implements StageCanvas {
   fill(rule?: 'nonzero' | 'evenodd'): void {
     this.flush();
     const evenodd = rule === 'evenodd' ? ' fill-rule="evenodd"' : '';
-    this.pending = {
-      d: this.d,
-      attrs: ` fill="${this.paint(this.fillStyle)}"${evenodd}${this.opacity()}`,
-    };
+    const fill = ` fill="${this.paint(this.fillStyle)}"${evenodd}`;
+    this.pending = { d: this.d, attrs: `${fill}${this.opacity()}`, fill, alpha: this.globalAlpha };
   }
 
   stroke(): void {
-    if (this.pending?.d === this.d) this.pending.attrs += this.strokeAttrs();
+    const { pending } = this;
+    if (pending?.d === this.d && pending.fill !== undefined && pending.alpha !== this.globalAlpha) {
+      // G12 (M19): the fill and the outline each with its own opacity, still on one element.
+      const own = (what: string, a: number | undefined) => (a === 1 ? '' : ` ${what}="${n(a!)}"`);
+      pending.attrs = `${pending.fill}${own('fill-opacity', pending.alpha)}${own('stroke-opacity', this.globalAlpha)}${this.strokeAttrs()}`;
+    } else if (pending?.d === this.d) pending.attrs += this.strokeAttrs();
     else {
       this.flush();
       this.pending = { d: this.d, attrs: ` fill="none"${this.opacity()}${this.strokeAttrs()}` };
@@ -358,15 +525,73 @@ class SvgCanvas implements StageCanvas {
     this.groups++;
   }
 
-  /** A see-through group: its parts in one <g> with the opacity, so overlaps are no darker. */
-  withLayer(alpha: number, draw: (layer: StageCanvas) => void): void {
+  /**
+   * A see-through group: its parts in one <g> with the opacity, so overlaps are no darker. G2
+   * (M21): a layer in its blend mode (mix-blend-mode), or clipped to what the layer it is drawn
+   * in has drawn so far (its base): an SVG mask of that content, made white so its alpha is what
+   * shows (as the canvas's destination-in), in every SVG viewer.
+   */
+  withLayer(alpha: number, draw: (layer: StageCanvas) => void, how: LayerHow = {}): void {
     this.flush();
-    this.body.push(`<g opacity="${n(alpha)}">`);
+    const opacity = alpha === 1 ? '' : ` opacity="${n(alpha)}"`;
+    const blend = how.blend ? ` style="mix-blend-mode:${escape(how.blend)}"` : '';
+    const mask = how.clip ? this.baseMask() : '';
+    this.body.push(`<g${opacity}${mask ? ` mask="url(#${mask})"` : ''}${blend}>`);
+    this.open.push({ start: this.body.length });
     this.save();
     this.globalAlpha = 1;
+    this.globalCompositeOperation = 'source-over';
+    draw(this);
+    this.restore();
+    this.open.pop();
+    this.body.push('</g>');
+  }
+
+  /**
+   * G2 (M21): a mask of what the open layer has drawn so far (its base), made once; outside any
+   * layer, of everything drawn so far.
+   */
+  private baseMask(): string {
+    const parent = this.open.at(-1) ?? this.all;
+    if (parent.mask) return parent.mask;
+    const id = this.masks.length + 1;
+    this.body.splice(parent.start, 0, `<g id="b${id}">`);
+    this.body.push('</g>');
+    parent.mask = `m${id}`;
+    this.masks.push(
+      (width, height) =>
+        `<mask id="m${id}" maskUnits="userSpaceOnUse" x="0" y="0" width="${n(width)}" height="${n(height)}"><use href="#b${id}" filter="url(#white)"/></mask>`,
+    );
+    return parent.mask;
+  }
+
+  /** G14 (M19): the object in a <g> with its effects as one SVG filter. */
+  withFilters(filters: readonly ObjectFilter[], draw: (layer: StageCanvas) => void): void {
+    this.flush();
+    const id = `f${this.filters.length + 1}`;
+    const list = [...filters];
+    this.filters.push((width, height) => filterSvg(id, list, width, height));
+    this.body.push(`<g filter="url(#${id})">`);
+    this.save();
     draw(this);
     this.restore();
     this.body.push('</g>');
+  }
+
+  private newPatternId(): string {
+    return `p${this.patterns.length + 1}`;
+  }
+
+  /** G12 (M19): a pattern fill: its tile drawn as SVG elements inside a <pattern>. */
+  patternOf(tile: PatternTile): object {
+    const inside = new SvgCanvas();
+    tile.draw(inside);
+    inside.flush();
+    const content = inside.body.join('');
+    const size = { width: tile.width, height: tile.height };
+    const pattern = new Pattern(this.newPatternId(), size, content, times(this.m, tile.matrix));
+    this.patterns.push(pattern);
+    return pattern;
   }
 
   // ---- rectangles, text and pictures ----
@@ -427,8 +652,11 @@ class SvgCanvas implements StageCanvas {
           : this.textBaseline === 'middle'
             ? 'central'
             : 'alphabetic';
+    // G4: the font made of just the letters used first, where there is one.
+    const subset = this.subsets[this.font];
+    const families = `${subset ? `'${escape(subset)}', ` : ''}'${escape(family ?? '')}'`;
     const fontAttrs = font
-      ? ` font-family="'${escape(family!)}', ${genericFamily(family!)}" font-size="${size}" font-weight="${weight}"${italic ? ' font-style="italic"' : ''}`
+      ? ` font-family="${families}, ${genericFamily(family!)}" font-size="${size}" font-weight="${weight}"${italic ? ' font-style="italic"' : ''}`
       : '';
     this.body.push(
       `<text x="${n(x)}" y="${n(y)}"${fontAttrs} text-anchor="${anchor[this.textAlign as keyof typeof anchor] ?? 'start'}" dominant-baseline="${baseline}" xml:space="preserve"${paint}${this.opacity()}${this.matrixAttr()}>${escape(text)}</text>`,
@@ -440,8 +668,11 @@ class SvgCanvas implements StageCanvas {
     const style =
       this.fillStyle instanceof Gradient
         ? this.fillStyle.forElement([...this.m], () => this.newGradientId())
-        : this.fillStyle;
+        : this.fillStyle instanceof Pattern
+          ? this.fillStyle.forElement([...this.m], () => this.newPatternId())
+          : this.fillStyle;
     if (style instanceof Gradient && !this.gradients.includes(style)) this.gradients.push(style);
+    if (style instanceof Pattern && !this.patterns.includes(style)) this.patterns.push(style);
     this.text(text, x, y, ` fill="${this.paint(style)}"`);
   }
 
@@ -454,6 +685,21 @@ class SvgCanvas implements StageCanvas {
     const { href } = image as Href;
     this.body.push(
       `<image href="${escape(href)}" x="${n(x)}" y="${n(y)}" width="${n(w)}" height="${n(h)}" preserveAspectRatio="none"${this.opacity()}${this.matrixAttr()}/>`,
+    );
+  }
+
+  /**
+   * G2, GB1 (M21): a pixel layer as an <image> of its PNG where it lies, at its opacity and in its
+   * blend mode; a layer whose PNG is not given is left out.
+   */
+  drawBitmap(bitmap: Bitmap, x: number, y: number, key: string): void {
+    this.flush();
+    const href = this.bitmaps[key];
+    if (!href) return;
+    const op = this.globalCompositeOperation;
+    const blend = op !== 'source-over' ? ` style="mix-blend-mode:${escape(op)}"` : '';
+    this.body.push(
+      `<image href="${escape(href)}" x="${n(x)}" y="${n(y)}" width="${bitmap.width}" height="${bitmap.height}" preserveAspectRatio="none"${this.opacity()}${blend}${this.matrixAttr()}/>`,
     );
   }
 
@@ -514,7 +760,20 @@ class SvgCanvas implements StageCanvas {
     this.flush();
     for (; this.groups > 0; this.groups--) this.body.push('</g>');
     const style = styles.length ? [`<style>${styles.join('\n')}</style>`] : [];
-    const defs = [...style, ...this.gradients.map(String), ...this.clips];
+    const defs = [
+      ...style,
+      ...this.gradients.map(String),
+      ...this.patterns.map(String),
+      ...this.filters.map((f) => f(width, height)),
+      ...this.clips,
+      // G2 (M21): the clipping masks, and the filter that makes their content white.
+      ...this.masks.map((f) => f(width, height)),
+      ...(this.masks.length
+        ? [
+            `<filter id="white" filterUnits="userSpaceOnUse" x="0" y="0" width="${n(width)}" height="${n(height)}" color-interpolation-filters="sRGB"><feColorMatrix type="matrix" values="0 0 0 0 1 0 0 0 0 1 0 0 0 0 1 0 0 0 1 0"/></filter>`,
+          ]
+        : []),
+    ];
     return (
       `<svg xmlns="http://www.w3.org/2000/svg" width="${shown.width}" height="${shown.height}" viewBox="0 0 ${width} ${height}">\n` +
       (defs.length ? `<defs>${defs.join('')}</defs>\n` : '') +
@@ -533,6 +792,10 @@ class SvgCanvas implements StageCanvas {
  * `measure` how wide words are in a font, as the stage measures them (StageRenderer.textWidths),
  * so curved text (AN26) has its letters where the stage puts them. `shown`: the width and height
  * written on the SVG, e.g. "10cm" (G11, M18: an image's printed size); absent: the stage in px.
+ * `bitmaps` (G2, GB1, M21): each pixel layer's PNG, its mask applied, as a data URL by layer id.
+ * `subsets` (G4, benchmark 2026-11-17): for a canvas font its text uses ('700 48px "Inter"'), a
+ * font of just the letters used, carried instead of the whole file (`fonts` then holds only
+ * those for which none could be made).
  */
 export function stageSvg(
   doc: AnimationDoc,
@@ -542,8 +805,15 @@ export function stageSvg(
   textTops: Readonly<Record<string, number>> = {},
   measure?: (font: string, text: string) => number,
   shown?: { width: string; height: string },
+  bitmaps: Readonly<Record<Id, string>> = {},
+  subsets: readonly { font: string; family: string; url: string }[] = [],
 ): string {
-  const canvas = new SvgCanvas(textTops, measure);
+  const canvas = new SvgCanvas(
+    textTops,
+    measure,
+    bitmaps,
+    Object.fromEntries(subsets.map((f) => [f.font, f.family])),
+  );
   drawStage(canvas, doc, {
     frame,
     image: (id) => (pictures[id] ? ({ href: pictures[id] } satisfies Href) : null),
@@ -551,7 +821,13 @@ export function stageSvg(
   return canvas.finish(
     doc.stage.width,
     doc.stage.height,
-    fonts.map((f) => fontFaceRule(f.face, f.url)),
+    [
+      ...fonts.map((f) => fontFaceRule(f.face, f.url)),
+      ...subsets.map((f) => {
+        const [, italic, weight] = /^(italic )?(\d+) /.exec(f.font) ?? [];
+        return subsetFaceRule(f.family, !!italic, Number(weight ?? 400), f.url);
+      }),
+    ],
     shown,
   );
 }

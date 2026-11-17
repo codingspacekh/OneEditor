@@ -3,13 +3,15 @@
 <script lang="ts">
   // AN3: a selected pen path's points and curve handles (inside the stage's overlay), shown
   // instead of the box's handles: drag a point, Alt-drag for a curve, Alt-click for a corner,
-  // double-click to remove; drag a curve handle (Alt: that side alone).
+  // double-click to remove; drag a curve handle (Alt: that side alone). GV3: the nodes chosen
+  // (click, Shift-click, a box dragged round them) are drawn hollow, to be moved or changed together.
   import { anchorsOnStage } from '../../core/animation/pen.ts';
   import type { PathObject } from '../../core/animation/types.ts';
 
   let {
     path,
     size,
+    chosen = [],
     onanchor,
     oncurve,
     onremove,
@@ -18,6 +20,8 @@
     path: PathObject;
     /** A handle's size, in stage pixels (points are a little smaller). */
     size: number;
+    /** GV3: the nodes chosen (their indices). */
+    chosen?: readonly number[];
     onanchor: (e: PointerEvent, index: number) => void;
     oncurve: (e: PointerEvent, index: number, which: 'in' | 'out') => void;
     onremove: (e: MouseEvent, index: number) => void;
@@ -43,6 +47,8 @@
   <!-- svelte-ignore a11y_no_static_element_interactions -->
   <rect
     class="handle anchor"
+    class:chosen={chosen.includes(i)}
+    data-chosen={chosen.includes(i) ? 'true' : undefined}
     x={a.x - size / 2.5}
     y={a.y - size / 2.5}
     width={(2 * size) / 2.5}
@@ -53,7 +59,8 @@
     ondblclick={(e) => onremove(e, i)}
   >
     <title
-      >Drag to move · Alt-drag for a curve · Alt-click for a corner · double-click to remove</title
+      >Click to choose · Shift-click to choose more · drag to move · Alt-drag for a curve ·
+      Alt-click for a corner · double-click to remove</title
     >
   </rect>
 {/each}
@@ -68,6 +75,11 @@
     fill: var(--accent);
     stroke: #fff;
     cursor: move;
+  }
+  .handle.anchor.chosen {
+    fill: #fff;
+    stroke: var(--accent);
+    stroke-width: 2;
   }
   .handle.curve-handle {
     cursor: crosshair;

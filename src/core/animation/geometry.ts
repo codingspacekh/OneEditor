@@ -1,7 +1,18 @@
 // AN3, AN6: the shapes as points — outlines, bounds, centres, hit-testing, moving, resizing from
 // handles and turning. Every object is a box (x, y, width, height) turned about its centre, or
 // about the point chosen for it (AN27, its pivot); "local" coordinates are inside the box before the turn, with (0, 0) at its top-left corner.
-import type { AnimObject, MotionPath, PathPoint, Track, TweenProperty } from './types.ts';
+import { ellipseAnchors } from '../graphics/bezier.ts';
+import { bendPolyline } from '../graphics/envelope.ts';
+import type {
+  AnimObject,
+  MotionPath,
+  ObjectFilter,
+  PathPoint,
+  TextObject,
+  Track,
+  TweenProperty,
+} from './types.ts';
+import { lineHeightOf } from './text-layout.ts';
 
 export interface Point {
   x: number;
@@ -206,8 +217,12 @@ export function localOutline(o: AnimObject): Point[] {
   switch (o.kind) {
     case 'rect':
       return roundedRectPoints(w, h, o.radius);
-    case 'ellipse':
-      return ellipsePoints(w, h);
+    case 'ellipse': {
+      if (!o.arc) return ellipsePoints(w, h);
+      // GV1 (M19): an arc's line, and a pie slice's or a chord's way back.
+      const arc = ellipseAnchors(w, h, o.arc);
+      return flattenPath(arc.points, arc.closed);
+    }
     case 'star':
       return radialPoints(w, h, o.points, o.inner);
     case 'polygon':
@@ -224,7 +239,9 @@ export function localOutline(o: AnimObject): Point[] {
   }
 }
 
-export const isClosed = (o: AnimObject): boolean => o.kind !== 'path' || o.closed;
+/** Whether the outline goes all the way round: not an open path, nor (GV1) an open arc. */
+export const isClosed = (o: AnimObject): boolean =>
+  o.kind === 'path' ? o.closed : o.kind !== 'ellipse' || o.arc?.close !== 'open';
 
 /** A shape (it can morph, AN10); text, pictures, buttons and groups are boxes. */
 export const isShape = (o: AnimObject): boolean =>
@@ -232,7 +249,17 @@ export const isShape = (o: AnimObject): boolean =>
 
 /** The outline on the stage, turned. One polyline per object (lists, for masks and groups later). */
 export function outlineOf(o: AnimObject): Point[][] {
-  return [localOutline(o).map((p) => toStage(o, p))];
+  return [bentLocal(o, localOutline(o), isClosed(o)).map((p) => toStage(o, p))];
+}
+
+/**
+ * GV4 (M19): a local outline bent by the object's envelope, as it is drawn (pictures and buttons
+ * are never bent; GT5, M20: bent text by its box), so a bent object is picked, measured and
+ * snapped where it is seen.
+ */
+function bentLocal(o: AnimObject, pts: Point[], closed: boolean): Point[] {
+  const bendable = o.kind !== 'picture' && o.kind !== 'button';
+  return o.envelope && bendable ? bendPolyline(o.envelope, o.width, o.height, pts, closed) : pts;
 }
 
 export function boundsOf(o: AnimObject): Bounds {
@@ -242,6 +269,69 @@ export function boundsOf(o: AnimObject): Bounds {
   const x = Math.min(...xs);
   const y = Math.min(...ys);
   return { x, y, width: Math.max(...xs) - x, height: Math.max(...ys) - y };
+}
+
+/** A point of what is drawn, and how far ink reaches round it (half an outline, a shadow …). */
+interface Inked {
+  x: number;
+  y: number;
+  r: number;
+}
+
+/** A text's box, tall enough for its lines however small its box was typed. */
+function textExtent(t: TextObject): Point[] {
+  const height = Math.max(t.height, t.text.split('\n').length * lineHeightOf(t));
+  return [
+    { x: 0, y: 0 },
+    { x: t.width, y: 0 },
+    { x: t.width, y: height },
+    { x: 0, y: height },
+  ];
+}
+
+/** What an object draws, in its parent's coordinates (a group's parts through the group). */
+function inked(o: AnimObject): Inked[] {
+  let points: Inked[];
+  if (o.kind === 'group')
+    points = o.children.flatMap(inked).map((p) => ({ ...toStage(o, p), r: p.r }));
+  else {
+    const local = o.kind === 'text' ? textExtent(o) : localOutline(o);
+    // Letters on a path or in a shape stand up to a line's height off it.
+    const letters = o.kind === 'text' && (o.path || o.inShape) ? lineHeightOf(o) : 0;
+    const r = (o.stroke ? o.stroke.width / 2 : 0) + letters;
+    points = bentLocal(o, local, isClosed(o)).map((p) => ({ ...toStage(o, p), r }));
+  }
+  // Effects drawn round it: a shadow where it falls, a glow or a blur all round.
+  const extra: Inked[] = [];
+  for (const f of o.filters ?? [])
+    if (f.kind === 'dropShadow')
+      extra.push(...points.map((p) => ({ x: p.x + f.dx, y: p.y + f.dy, r: p.r + f.blur })));
+    else if (f.kind === 'glow') extra.push(...points.map((p) => ({ ...p, r: p.r + f.blur })));
+    else if (f.kind === 'blur') extra.push(...points.map((p) => ({ ...p, r: p.r + f.radius })));
+    // G10 (M23): a stroke effect outside the edge (or half of it, centred).
+    else if (f.kind === 'stroke' && f.position !== 'inside')
+      extra.push(
+        ...points.map((p) => ({
+          ...p,
+          r: p.r + (f.position === 'centred' ? f.width / 2 : f.width),
+        })),
+      );
+  return [...points, ...extra];
+}
+
+/**
+ * B7 (Graphics benchmark): the box round what an object draws — its outline's outer half, a
+ * turned text's letters, an arc's own line inside a group (not the group's box, which counts the
+ * whole ellipse), shadows and glows. For cropping the canvas to it (J/19, J/20) and exports of a
+ * part. (boundsOf is the outline itself: for picking, snapping and the handles.)
+ */
+export function drawnBounds(o: AnimObject): Bounds {
+  const pts = inked(o);
+  const x = Math.min(...pts.map((p) => p.x - p.r));
+  const y = Math.min(...pts.map((p) => p.y - p.r));
+  const right = Math.max(...pts.map((p) => p.x + p.r));
+  const bottom = Math.max(...pts.map((p) => p.y + p.r));
+  return { x, y, width: right - x, height: bottom - y };
 }
 
 function distanceToSegment(p: Point, a: Point, b: Point): number {
@@ -281,15 +371,15 @@ export function hitTest(o: AnimObject, p: Point): boolean {
   if (!isShape(o)) return insidePolygon(p, pts);
   const reach = Math.max(TOUCH, (o.stroke?.width ?? 0) / 2);
   if (distanceToPolyline(p, pts, isClosed(o)) <= reach) return true;
-  if (o.fill.kind === 'none' || !isClosed(o) || !insidePolygon(p, pts)) return false;
-  // AN24: a click in a hole goes through to what is behind.
+  if (o.fill.kind === 'none' || !isClosed(o)) return false;
+  // AN24: a click in a hole goes through to what is behind. G4 (M19): filled even-odd, so inside
+  // an odd number of its outlines (a piece of a combined path apart from its first is filled).
   const holes = o.kind === 'path' ? (o.holes ?? []) : [];
-  return !holes.some((h) =>
-    insidePolygon(
-      p,
-      flattenPath(h, true).map((q) => toStage(o, q)),
-    ),
-  );
+  const rings = [
+    pts,
+    ...holes.map((h) => bentLocal(o, flattenPath(h, true), true).map((q) => toStage(o, q))),
+  ];
+  return rings.filter((r) => insidePolygon(p, r)).length % 2 === 1;
 }
 
 /**
@@ -379,10 +469,30 @@ const scaledTrack = (tracks: Track[], property: TweenProperty, k: number): Track
       : t,
   );
 
+/** An effect's sizes (offsets, softness, depth) multiplied by k; its colours and angle kept. */
+function scaledFilter(f: ObjectFilter, k: number): ObjectFilter {
+  switch (f.kind) {
+    case 'dropShadow':
+    case 'innerShadow':
+      return { ...f, dx: f.dx * k, dy: f.dy * k, blur: f.blur * k };
+    case 'glow':
+      return { ...f, blur: f.blur * k };
+    case 'bevel':
+      return { ...f, depth: f.depth * k, blur: f.blur * k };
+    case 'stroke':
+      return { ...f, width: f.width * k };
+    case 'blur':
+      return { ...f, radius: f.radius * k };
+  }
+}
+
 /**
- * A part of a group that is resized, by the smaller of the two scales when it is stretched: text's
- * letters scale with it (O/N/22: OPEN DAY on the smaller plane) and so does every outline's width
- * (M/J/20: the meter redrawn smaller keeps thin lines), keyframes too.
+ * A part of a group that is resized: text's letters scale with it (O/N/22: OPEN DAY on the
+ * smaller plane), and so do every outline's width (M/J/20: the meter redrawn smaller keeps thin
+ * lines) and every effect's size (G3: Scale outlines and effects; keepOutlines puts them back
+ * when it is off), keyframes too. B2 (Graphics benchmark, M/17): stretched, by √(sx·sy), the one
+ * amount that is the same whether the width and height are typed together or one after the
+ * other (and in proportion, the scale itself).
  */
 function scaledWithGroup<T extends AnimObject>(o: T, k: number): T {
   if (k === 1) return o;
@@ -392,7 +502,37 @@ function scaledWithGroup<T extends AnimObject>(o: T, k: number): T {
     ...o,
     ...(o.stroke ? { stroke: { ...o.stroke, width: o.stroke.width * k } } : {}),
     ...(o.kind === 'text' ? { size: o.size * k } : {}),
+    ...(o.filters?.length ? { filters: o.filters.map((f) => scaledFilter(f, k)) } : {}),
     ...(tracks ? { tracks } : {}),
+  };
+}
+
+/** One object's outline width, effects and outline-width keyframes as they were in `before`. */
+function lookAsBefore<T extends AnimObject>(before: AnimObject, after: T): T {
+  const next: T = { ...after };
+  if (before.stroke && after.stroke) next.stroke = { ...after.stroke, width: before.stroke.width };
+  if (before.filters) next.filters = before.filters;
+  const was = before.tracks?.find((t) => t.property === 'strokeWidth');
+  if (was && after.tracks)
+    next.tracks = after.tracks.map((t) => (t.property === 'strokeWidth' ? was : t));
+  if (before.kind === 'group' && after.kind === 'group') return keepOutlines(before, after);
+  return next;
+}
+
+/**
+ * G3 (Graphics benchmark): Scale outlines and effects off — a resized group's parts keep the
+ * outline widths and effect sizes they had before (`before`: the group before it was resized;
+ * parts matched by id). The group's own look is not touched. Pure.
+ */
+export function keepOutlines<T extends AnimObject>(before: AnimObject, after: T): T {
+  if (before.kind !== 'group' || after.kind !== 'group') return after;
+  const was = new Map(before.children.map((c) => [c.id, c]));
+  return {
+    ...after,
+    children: after.children.map((c) => {
+      const b = was.get(c.id);
+      return b ? lookAsBefore(b, c) : c;
+    }),
   };
 }
 
@@ -413,6 +553,24 @@ export function setSize<T extends AnimObject>(o: T, width: number, height: numbe
       points: scaledPoints(o.points, o, { width, height }),
       ...(o.holes ? { holes: o.holes.map((h) => scaledPoints(h, o, { width, height })) } : {}),
     };
+  // GT2, GT3 (M20): a text's path or shape is in its box, so it scales with it too.
+  if (o.kind === 'text' && (o.path || o.inShape)) {
+    const scaled = (points: PathPoint[]) => scaledPoints(points, o, { width, height });
+    const { path, inShape } = o;
+    return {
+      ...sized,
+      ...(path ? { path: { ...path, points: scaled(path.points) } } : {}),
+      ...(inShape
+        ? {
+            inShape: {
+              ...inShape,
+              points: scaled(inShape.points),
+              ...(inShape.holes ? { holes: inShape.holes.map(scaled) } : {}),
+            },
+          }
+        : {}),
+    };
+  }
   if (o.kind === 'group') {
     // A group made 0 wide or high keeps its parts as they are and shows nothing, so it can grow
     // back from them (WB p.97: "Designs" grows from nothing); growing, it scales from its parts.
@@ -425,7 +583,7 @@ export function setSize<T extends AnimObject>(o: T, width: number, height: numbe
       ...sized,
       children: o.children.map((c) =>
         setSize(
-          scaledWithGroup({ ...c, x: c.x * sx, y: c.y * sy }, Math.min(sx, sy)),
+          scaledWithGroup({ ...c, x: c.x * sx, y: c.y * sy }, Math.sqrt(sx * sy)),
           c.width * sx,
           c.height * sy,
         ),

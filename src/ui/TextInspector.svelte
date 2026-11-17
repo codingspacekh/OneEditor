@@ -90,31 +90,37 @@
       value={item.text}
       onchange={(e) => (error = app.edit(setText(item.id, e.currentTarget.value)))}></textarea>
   </label>
-  <div class="grid2">
-    <div class="stack">
-      Font
+  <div class="prop-row">
+    <span class="prop-label">Font</span>
+    <div class="prop-wide">
       <FontPicker value={item.style.font} onchange={(font) => style({ font })} />
     </div>
-    <label class="stack">
-      Size
-      <input
-        aria-label="Size"
-        type="number"
-        min="8"
-        max="300"
-        value={item.style.size}
-        onchange={(e) => style({ size: Number(e.currentTarget.value) })}
-      />
-    </label>
   </div>
-  <div class="row">
-    <ColourPicker
-      label="Colour"
-      text="Colour"
-      value={item.style.colour}
-      onchange={(colour) => style({ colour })}
+  <div class="prop-row">
+    <span class="prop-label">Size</span>
+    <input
+      class="prop-half"
+      aria-label="Size"
+      type="number"
+      min="8"
+      max="300"
+      value={item.style.size}
+      onchange={(e) => style({ size: Number(e.currentTarget.value) })}
     />
-    <label class="check">
+  </div>
+  <div class="prop-row">
+    <span class="prop-label">Colour</span>
+    <div class="prop-wide colour">
+      <ColourPicker
+        label="Colour"
+        text={item.style.colour.toUpperCase()}
+        value={item.style.colour}
+        onchange={(colour) => style({ colour })}
+      />
+    </div>
+  </div>
+  <div class="prop-row">
+    <label class="prop-check half">
       <input
         type="checkbox"
         checked={item.style.bold}
@@ -122,7 +128,7 @@
       />
       Bold
     </label>
-    <label class="check">
+    <label class="prop-check half">
       <input
         type="checkbox"
         checked={item.style.italic}
@@ -263,8 +269,8 @@
 {#if title}
   <section>
     <h3>Background <span class="syl">11.4</span></h3>
-    <label class="stack">
-      Background
+    <div class="prop-row">
+      <span class="prop-label">Background</span>
       <select
         aria-label="Background"
         value={title.background.kind}
@@ -274,21 +280,24 @@
         <option value="image">Picture</option>
         <option value="video">Video</option>
       </select>
-    </label>
+    </div>
     {#if title.background.kind === 'colour'}
-      <div class="check">
-        <ColourPicker
-          label="Background colour"
-          text="Background colour"
-          value={title.background.colour}
-          onchange={(colour) =>
-            (error = app.edit(setTitleBackground(title.id, { kind: 'colour', colour })))}
-        />
+      <div class="prop-row">
+        <span class="prop-label">Colour</span>
+        <div class="prop-wide colour">
+          <ColourPicker
+            label="Background colour"
+            text={title.background.colour.toUpperCase()}
+            value={title.background.colour}
+            onchange={(colour) =>
+              (error = app.edit(setTitleBackground(title.id, { kind: 'colour', colour })))}
+          />
+        </div>
       </div>
     {:else}
       {@const kind = title.background.kind}
-      <label class="stack">
-        {kind === 'image' ? 'Background picture' : 'Background video'}
+      <div class="prop-row">
+        <span class="prop-label">{kind === 'image' ? 'Picture' : 'Video'}</span>
         <select
           aria-label={kind === 'image' ? 'Background picture' : 'Background video'}
           value={title.background.assetId}
@@ -301,21 +310,27 @@
             <option value={asset.id}>{fileNameOf(asset.path)}</option>
           {/each}
         </select>
-      </label>
+      </div>
     {/if}
   </section>
 {/if}
 
 <section>
   <h3>Effects <span class="syl">11.4</span></h3>
-  <TimeField label="Text fade in" value={item.fadeIn ?? 0} commit={(t) => effects({ fadeIn: t })} />
-  <TimeField
-    label="Text fade out"
-    value={item.fadeOut ?? 0}
-    commit={(t) => effects({ fadeOut: t })}
-  />
-  <label class="stack">
-    Entrance
+  <div class="prop-row">
+    <TimeField
+      label="Text fade in"
+      value={item.fadeIn ?? 0}
+      commit={(t) => effects({ fadeIn: t })}
+    />
+    <TimeField
+      label="Text fade out"
+      value={item.fadeOut ?? 0}
+      commit={(t) => effects({ fadeOut: t })}
+    />
+  </div>
+  <div class="prop-row">
+    <span class="prop-label">Entrance</span>
     <select
       aria-label="Entrance"
       value={item.entrance ?? 'none'}
@@ -325,9 +340,9 @@
         <option {value}>{name}</option>
       {/each}
     </select>
-  </label>
-  <label class="stack">
-    Exit
+  </div>
+  <div class="prop-row">
+    <span class="prop-label">Exit</span>
     <select
       aria-label="Exit"
       value={item.exit ?? 'none'}
@@ -337,16 +352,18 @@
         <option {value}>{name}</option>
       {/each}
     </select>
-  </label>
+  </div>
   {#if credits}
-    <label class="check">
-      <input
-        type="checkbox"
-        checked={credits.scroll !== false}
-        onchange={(e) => (error = effects({ scroll: e.currentTarget.checked }))}
-      />
-      Scroll up the screen
-    </label>
+    <div class="prop-row">
+      <label class="prop-check">
+        <input
+          type="checkbox"
+          checked={credits.scroll !== false}
+          onchange={(e) => (error = effects({ scroll: e.currentTarget.checked }))}
+        />
+        Scroll up the screen
+      </label>
+    </div>
   {/if}
 </section>
 
@@ -384,21 +401,29 @@
   textarea {
     resize: vertical;
   }
-  .grid2 {
-    display: grid;
-    grid-template-columns: 1fr 80px;
-    gap: 8px;
+  /* The property grid (props.css): rows keep their own spacing (the section's gap is for blocks). */
+  section > .prop-row {
+    margin-bottom: 0;
   }
-  .row {
-    display: flex;
-    gap: 12px;
-    flex-wrap: wrap;
+  /* Two tick boxes side by side, each across half the row (Bold | Italic). */
+  .prop-row > .prop-check.half {
+    grid-column: span 2;
   }
-  .check {
-    display: flex;
-    gap: 6px;
-    align-items: center;
-    font-size: 12px;
+  /* A colour across its field: the swatch on the left, the code on the right (as Graphics). */
+  .colour :global(.colour-button) {
+    width: 100%;
+    justify-content: space-between;
+  }
+  .colour :global(.colour-button .text) {
+    font: 500 12.5px var(--mono);
+  }
+  .prop-wide :global(button) {
+    width: 100%;
+  }
+  /* The font's button as tall as the other fields (it still shows the font in its own face). */
+  .prop-wide :global(.font-picker .current) {
+    height: 28px;
+    font-size: 13px;
   }
   .sub {
     font-size: 11.5px;

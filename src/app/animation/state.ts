@@ -2,12 +2,17 @@
 // derived facts the UI shows (unsaved work, the window title).
 import type { History } from '../history.ts';
 import type { AnimationFormat } from '../../core/animation/export.ts';
-import type { AnimationDoc, Id } from '../../core/animation/types.ts';
+import type { AnimationDoc, Id, PixelContent } from '../../core/animation/types.ts';
+import type { SpiralOptions } from '../../core/graphics/shapes.ts';
+import type { Mask } from '../../core/graphics/pixels/raster.ts';
+import type { PaintOptions } from '../../core/graphics/pixels/presets.ts';
+import type { RetouchOptions } from '../../core/graphics/pixels/retouch-options.ts';
 import type {
   AppPaths,
   Dialogs,
   MediaEngine,
   PageAssets,
+  PixelWorker,
   ProjectFiles,
   StageRenderer,
 } from '../../core/ports.ts';
@@ -22,25 +27,113 @@ export type Tool =
   | 'star'
   | 'polygon'
   | 'line'
+  /** GV1 (M19): part of an ellipse, a spiral, and straight lines clicked point to point. */
+  | 'arc'
+  | 'spiral'
+  | 'polyline'
   | 'pen'
   | 'brush'
   | 'text'
   | 'picture'
-  | 'button';
+  | 'button'
+  /** GB2 (M21): selections on pixel layers (Graphics mode). */
+  | 'select-rect'
+  | 'select-ellipse'
+  | 'lasso'
+  | 'polygon-lasso'
+  | 'magnetic-lasso'
+  | 'magic-wand'
+  | 'colour-select'
+  /** GB4, GB3 (M21): painting on a pixel layer or its mask; the paint bucket and gradient. */
+  | 'paintbrush'
+  | 'pencil'
+  | 'eraser'
+  | 'airbrush'
+  | 'bucket'
+  | 'gradient'
+  /** GB1 (M21): pan (also Space held) and zoom by clicking. */
+  | 'hand'
+  | 'zoom'
+  /** GB5 (M22): retouching on a pixel layer: clone stamp, heal, the blur / sharpen / smudge brushes, red eye. */
+  | 'clone'
+  | 'heal'
+  | 'blur-brush'
+  | 'sharpen-brush'
+  | 'smudge'
+  | 'red-eye';
 
-export type ShapeKind = 'rect' | 'ellipse' | 'star' | 'polygon';
+/** M21: the tools that work on a pixel layer's pixels (Graphics mode only). */
+export const PIXEL_TOOLS: readonly Tool[] = [
+  'select-rect',
+  'select-ellipse',
+  'lasso',
+  'polygon-lasso',
+  'magnetic-lasso',
+  'magic-wand',
+  'colour-select',
+  'paintbrush',
+  'pencil',
+  'eraser',
+  'airbrush',
+  'bucket',
+  'gradient',
+  'clone',
+  'heal',
+  'blur-brush',
+  'sharpen-brush',
+  'smudge',
+  'red-eye',
+];
+
+export type ShapeKind = 'rect' | 'ellipse' | 'star' | 'polygon' | 'arc' | 'spiral';
 
 export interface AnimationState {
   history: History<AnimationDoc>;
   /** The .mvea file, or null for an animation that was never saved. */
   path: string | null;
+  /**
+   * GC2 (M23): the picture file this image was opened from (File ▸ Open a photo as an image):
+   * an export never saves over it. Not saved; forgotten when another document opens.
+   */
+  original?: string;
   /** The document as last saved or opened: anything else is unsaved work. */
   saved: AnimationDoc;
   /** Selected objects (top-level ones). */
   selection: Id[];
+  /**
+   * GV3 (M19): the nodes chosen on the one pen path selected (its node indices). They belong to
+   * that very selection (`selection` is the same array): any new selection forgets them.
+   */
+  nodes?: { selection: Id[]; indices: number[] };
   /** The layer new objects go on. */
   layerId: Id;
   tool: Tool;
+  /** GV1 (M19): how the Spiral tool draws its next spiral (absent: 3 even turns from the middle). */
+  spiral?: SpiralOptions;
+  /**
+   * GB2 (M21): the pixels selected, on the whole image (its size, image px): 255 selected, 0 not,
+   * between: partly (feathered). Not part of the document: not saved, and not an undo step of
+   * its own, so Undo undoes the last change to the picture. Absent: none.
+   */
+  pixelSelection?: Mask;
+  /** GB2 (M21): paint on the current pixel layer's mask instead of its pixels. */
+  editingMask?: boolean;
+  /**
+   * M22 (GN2): an adjustment or filter shown live while its dialog is open: the stage draws these
+   * pixels (perhaps a reduced copy) instead of the layer's. Never saved, never an undo step.
+   */
+  pixelPreview?: { layerId: Id; pixels: PixelContent };
+  /**
+   * GB4, GB3 (M21): the painting tools' settings — the foreground and background colours, each
+   * brush tool's brush, the bucket's and the gradient's options (absent: DEFAULT_PAINT). Not saved.
+   */
+  paint?: PaintOptions;
+  /**
+   * GB5 (M22): the retouching tools' settings — their brushes, aligned, what they copy from, the
+   * strengths, red eye's pupil size and darkening — and the clone source (absent: DEFAULT_RETOUCH).
+   * Not saved.
+   */
+  retouch?: RetouchOptions;
   /** 1 = 100 %; 'fit' fills the window. */
   zoom: number | 'fit';
   /** AN8: the playhead, 0 to the stage's length (the end shows the last pose). */
@@ -83,6 +176,10 @@ export interface AnimationDeps {
   /** AN28: the speakers the animation's sounds play on while it plays (none: silent). */
   audioOutput?: AudioOutput;
   autosaveMs?: number;
+  /** D3, GN2 (M21): where the heavy pixel jobs run (a Web Worker in the app; absent: the page). */
+  pixelWorker?: PixelWorker;
+  /** GN1 (M23): what the undo history may hold of its own, in bytes (default 400 MB). */
+  historyBudget?: number;
   /** M18: an animation (the default) or Graphics mode's image. */
   kind?: EditorKind;
   /** P8: a file name in the papers' form ("Casing" → "Casing_ZZ999_9999"), for files named here. */

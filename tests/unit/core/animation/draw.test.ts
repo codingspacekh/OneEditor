@@ -70,6 +70,22 @@ describe('drawStage', () => {
     expect(calls.some((c) => c === 'fillRect(0,0,600,400)')).toBe(false);
   });
 
+  it('G11 (M23 B1): a transparent stage drawn for a JPG is painted with the background asked for, never cleared after it', () => {
+    const { ctx, calls } = recorder();
+    const doc = stageWith(createRect({ x: 10, y: 10 }));
+    drawStage(
+      ctx,
+      { ...doc, stage: { ...doc.stage, background: 'none' } },
+      { background: '#ffffff' },
+    );
+    expect(calls.some((c) => c.startsWith('clearRect('))).toBe(false);
+    expect(calls.slice(0, 2)).toEqual(['fillStyle=#ffffff', 'fillRect(0,0,600,400)']);
+    // A stage with its own colour keeps it.
+    const own = recorder();
+    drawStage(own.ctx, doc, { background: '#ffffff' });
+    expect(own.calls.slice(0, 2)).toEqual(['fillStyle=#808080', 'fillRect(0,0,600,400)']);
+  });
+
   it('AN13 a group made 0 wide or high draws nothing (its parts wait to grow back)', () => {
     const { ctx, calls } = recorder();
     const g = createGroup([createText('Designs', { x: 100, y: 200, size: 72 })]);

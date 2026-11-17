@@ -3,6 +3,7 @@
 import { EditError } from '../core/model/errors.ts';
 import {
   CENTRE_PIVOT,
+  keepOutlines,
   pivotOf,
   resizeFrom,
   rotated,
@@ -12,7 +13,12 @@ import {
   type Point,
 } from '../core/animation/geometry.ts';
 import * as layers from '../core/animation/layers.ts';
-import { combineObjects, flipObject, type CombineHow } from '../core/animation/combine.ts';
+import {
+  COMBINE_LABELS,
+  combineObjects,
+  flipObject,
+  type CombineHow,
+} from '../core/animation/combine.ts';
 import type { MeasureText } from '../core/animation/letters.ts';
 import { validateObject, validateStage } from '../core/animation/rules.ts';
 import { changeFps as changeFpsIn } from '../core/animation/time.ts';
@@ -39,6 +45,7 @@ import type {
 } from '../core/animation/types.ts';
 import type { Command } from './history.ts';
 import * as graphic from '../core/graphics/document.ts';
+import { cropImage } from '../core/graphics/image-size.ts';
 import type { Bounds } from '../core/animation/geometry.ts';
 
 export type AnimCommand = Command<AnimationDoc>;
@@ -133,7 +140,8 @@ export function setProperties(
   patch: Partial<AnimObject>,
   frame = 0,
 ): AnimCommand {
-  return changeAt(ids, frame, `Change ${Object.keys(patch).join(', ')}`, (o) => {
+  const sizing = patch.width !== undefined || patch.height !== undefined;
+  const change = changeAt(ids, frame, `Change ${Object.keys(patch).join(', ')}`, (o) => {
     // A new width or height keeps the top-left corner and scales a path's points.
     const sized =
       patch.width !== undefined || patch.height !== undefined
@@ -144,6 +152,25 @@ export function setProperties(
     // the workbook give x, y and the size, in any order (WB Task 1.1 keys the size at 193, 73).
     return next;
   });
+  return sizing ? keepingOutlines(change, ids) : change;
+}
+
+/**
+ * G3: with Scale outlines and effects off (the image's choice), a resize leaves the outline
+ * widths and effect sizes inside the resized groups as they were.
+ */
+function keepingOutlines(c: AnimCommand, ids: readonly Id[]): AnimCommand {
+  return {
+    ...c,
+    apply: (doc) => {
+      const next = c.apply(doc);
+      if (doc.view.scaleOutlines !== false) return next;
+      return ids.reduce((d, id) => {
+        const before = layers.findObject(doc, id)?.object;
+        return before ? layers.updateObject(d, id, (o) => keepOutlines(before, o)) : d;
+      }, next);
+    },
+  };
 }
 
 export function moveObjects(ids: readonly Id[], dx: number, dy: number, frame = 0): AnimCommand {
@@ -157,7 +184,10 @@ export function resizeObject(
   lockRatio: boolean,
   frame = 0,
 ): AnimCommand {
-  return changeAt([id], frame, 'Resize', (o) => resizeFrom(o, handle, pointer, { lockRatio }));
+  return keepingOutlines(
+    changeAt([id], frame, 'Resize', (o) => resizeFrom(o, handle, pointer, { lockRatio })),
+    [id],
+  );
 }
 
 export function rotateObject(id: Id, degrees: number, frame = 0): AnimCommand {
@@ -410,8 +440,7 @@ export function combineSelected(
   how: CombineHow,
   made: (ids: Id[]) => void,
 ): AnimCommand {
-  const labels = { union: 'Union', cutOut: 'Cut out', intersect: 'Intersect' };
-  return command(labels[how], (doc) => {
+  return command(COMBINE_LABELS[how], (doc) => {
     const { doc: next, ids: shapes } = combineObjects(doc, ids, how);
     made(shapes);
     return next;
@@ -435,9 +464,14 @@ export function ungroupObjects(ids: readonly Id[]): AnimCommand {
   );
 }
 
-export function duplicateObjects(ids: readonly Id[], made: (ids: Id[]) => void): AnimCommand {
+/** GV2 (M19): `offset` repeats the last Duplicate's move (absent: 10 px right and down). */
+export function duplicateObjects(
+  ids: readonly Id[],
+  made: (ids: Id[]) => void,
+  offset?: { dx: number; dy: number },
+): AnimCommand {
   return command(`Duplicate ${'' /* label below */}`.trim(), (doc) => {
-    const { doc: next, ids: copies } = layers.duplicateObjects(doc, ids);
+    const { doc: next, ids: copies } = layers.duplicateObjects(doc, ids, offset);
     made(copies);
     return next;
   });
@@ -449,12 +483,20 @@ export function pasteObjects(
   clipboard: { objects: readonly AnimObject[]; pictures: readonly Picture[] },
   made: (ids: Id[]) => void,
   frame = 0,
+  /** GV2 (M19): Paste in place: 0, where they were copied from. */
+  offset = 10,
 ): AnimCommand {
-  return command('Paste', (doc) => {
+  return command(offset === 0 ? 'Paste in place' : 'Paste', (doc) => {
     const layer = doc.layers.find((l) => l.id === layerId);
     // AN14: on a frame-by-frame layer the copies join the drawing shown.
     const placed = clipboard.objects.map((o) => (layer ? frames.placeIn(layer, o, frame) : o));
-    const { doc: next, ids } = layers.pasteObjects(doc, layerId, placed, clipboard.pictures);
+    const { doc: next, ids } = layers.pasteObjects(
+      doc,
+      layerId,
+      placed,
+      clipboard.pictures,
+      offset,
+    );
     made(ids);
     return next;
   });
@@ -485,7 +527,8 @@ export function setImage(change: Parameters<typeof graphic.setImage>[1]): AnimCo
 
 /** G8 (M18): the canvas cropped to a box (the selection, or the whole drawing). */
 export function cropCanvas(box: Bounds, label: string): AnimCommand {
-  return command(label, (doc) => graphic.cropCanvas(doc, box));
+  // G8 (M21): pixel layers move with the drawing; their pixels off the canvas are dropped.
+  return command(label, (doc) => cropImage(doc, box));
 }
 
 /**
@@ -573,9 +616,9 @@ export const setLayer = (
     (doc) => layers.setLayer(doc, id, change),
   );
 
-export function addFolder(name: string, made: (id: Id) => void): AnimCommand {
+export function addFolder(name: string, made: (id: Id) => void, layerId?: Id): AnimCommand {
   return command('New folder', (doc) => {
-    const { doc: next, folder } = layers.addFolder(doc, name);
+    const { doc: next, folder } = layers.addFolder(doc, name, layerId);
     made(folder.id);
     return next;
   });
@@ -589,6 +632,9 @@ export const removeFolder = (id: Id): AnimCommand =>
 
 export const moveLayerToFolder = (layerId: Id, folderId: Id | null): AnimCommand =>
   command('Move layer to folder', (doc) => layers.moveLayerToFolder(doc, layerId, folderId));
+
+export const dropLayer = (layerId: Id, target: layers.LayerDrop): AnimCommand =>
+  command('Move layer', (doc) => layers.dropLayer(doc, layerId, target));
 
 export type GuideAxis = 'x' | 'y';
 

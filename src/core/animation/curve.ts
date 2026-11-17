@@ -5,8 +5,8 @@
 // so each line has an arc of its own round the same centre (the lower line inside when it arches
 // up) and stays aligned as it was. Pure: the widths come from a function (a canvas in the app),
 // so the stage, every export, the web page and the SVG place the letters alike.
-import { LINE_HEIGHT } from './factory.ts';
 import { MAX_CURVE } from './rules.ts';
+import { layoutText } from './text-layout.ts';
 import type { TextObject } from './types.ts';
 
 export { MAX_CURVE };
@@ -44,29 +44,21 @@ export const curveOf = (t: Pick<TextObject, 'curve'>): number =>
  * inside out.
  */
 export function curvedText(
-  t: Pick<TextObject, 'text' | 'size' | 'align' | 'curve'>,
+  t: Pick<TextObject, 'text' | 'size' | 'align' | 'curve'> &
+    Partial<Pick<TextObject, 'letterSpacing' | 'kerning' | 'lineSpacing'>>,
   widthOf: WidthOf,
 ): CurvedText {
-  const lineHeight = t.size * LINE_HEIGHT;
-  const lines = t.text.split('\n');
-  const widths = lines.map((line) => (line === '' ? 0 : widthOf(line)));
-  const widest = Math.max(0, ...widths);
-  const height = lines.length * lineHeight;
+  // GT1 (M20): the straight words as the letter layout places them (spacing, kerning, lines).
+  const layout = layoutText(t, widthOf);
+  const { lineHeight, height } = layout;
+  const widest = layout.width;
   // The straight words, across from the middle of the widest line and down from the top.
-  const cells = lines.flatMap((line, row) => {
-    const start =
-      t.align === 'left'
-        ? -widest / 2
-        : t.align === 'centre'
-          ? -widths[row]! / 2
-          : widest / 2 - widths[row]!;
-    const chars = [...line];
-    return chars.map((char, i) => {
-      const before = i === 0 ? 0 : widthOf(chars.slice(0, i).join(''));
-      const width = widthOf(char);
-      return { char, u: start + before + width / 2, v: (row + 0.5) * lineHeight, width };
-    });
-  });
+  const cells = layout.cells.map((c) => ({
+    char: c.char,
+    u: c.x - widest / 2 + c.width / 2,
+    v: c.y + lineHeight / 2,
+    width: c.width,
+  }));
   const curve = curveOf(t);
   // The bend: 1 / radius, more than 0 arching up (the centre below the words).
   const sweep = (Math.abs(curve) / MAX_CURVE) * 2 * Math.PI;

@@ -52,7 +52,8 @@ describe('the timeline (AN8)', () => {
     s.anim.setFrame(72);
     s.anim.setProperties({ x: 396 });
     const ruler = within(s.timeline()).getByRole('slider', { name: 'Playhead' });
-    await fireEvent.pointerDown(ruler, { clientX: PAD + 10 * PX, button: 0 });
+    // The drag does not start a text selection across the app (false: default prevented).
+    expect(await fireEvent.pointerDown(ruler, { clientX: PAD + 10 * PX, button: 0 })).toBe(false);
     await fireEvent.pointerMove(window, { clientX: PAD + 36 * PX });
     await fireEvent.pointerUp(window, { clientX: PAD + 36 * PX });
     expect(s.state().frame).toBe(36);

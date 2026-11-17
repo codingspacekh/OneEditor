@@ -25,15 +25,37 @@ import {
 } from '../../core/animation/geometry.ts';
 import { drawOrder, updateObject } from '../../core/animation/layers.ts';
 import { moveAnchor, moveHandle, pullHandles } from '../../core/animation/pen.ts';
+import { moveNodes } from '../../core/graphics/nodes.ts';
 import type { AnimObject, AnimationDoc, Id } from '../../core/animation/types.ts';
+import { createArc, createSpiral, type SpiralOptions } from '../../core/graphics/shapes.ts';
 
-export type DrawTool = 'rect' | 'ellipse' | 'star' | 'polygon' | 'line';
+export type DrawTool = 'rect' | 'ellipse' | 'star' | 'polygon' | 'line' | 'arc' | 'spiral';
+
+const DRAW_TOOLS: readonly string[] = [
+  'rect',
+  'ellipse',
+  'star',
+  'polygon',
+  'line',
+  'arc',
+  'spiral',
+];
+/** The tools that drag out a shape or a line (AN3). */
+export const isDrawTool = (tool: string): tool is DrawTool => DRAW_TOOLS.includes(tool);
 
 /** What the pointer is doing on the stage, from pointer down to pointer up. */
 export type StageDrag =
   | { kind: 'move'; start: Point; ids: Id[]; union: Bounds; dx: number; dy: number }
   | { kind: 'marquee'; start: Point; now: Point }
-  | { kind: 'draw'; tool: DrawTool; start: Point; now: Point; square: boolean }
+  /** GV1 (M19): a spiral is drawn as the Spiral tool's options say (absent: its first ones). */
+  | {
+      kind: 'draw';
+      tool: DrawTool;
+      start: Point;
+      now: Point;
+      square: boolean;
+      spiral?: SpiralOptions;
+    }
   | { kind: 'brush'; points: Point[] }
   | { kind: 'resize'; id: Id; handle: Handle; now: Point; lock: boolean }
   | { kind: 'rotate'; id: Id; centre: Point; degrees: number }
@@ -42,7 +64,9 @@ export type StageDrag =
   | { kind: 'guide'; axis: 'x' | 'y'; index: number | null; value: number }
   /** AN3: a pen path's point moved, or its curve handles pulled out (Alt). */
   | { kind: 'anchor'; id: Id; index: number; now: Point; pull: boolean; moved: boolean }
-  | { kind: 'curve'; id: Id; index: number; which: 'in' | 'out'; now: Point; alone: boolean };
+  | { kind: 'curve'; id: Id; index: number; which: 'in' | 'out'; now: Point; alone: boolean }
+  /** GV3: the chosen nodes of a pen path dragged together. */
+  | { kind: 'nodes'; id: Id; indices: number[]; dx: number; dy: number };
 
 export type DrawDrag = Extract<StageDrag, { kind: 'draw' }>;
 
@@ -71,6 +95,8 @@ export function drawnShape(d: DrawDrag): AnimObject {
   const make = {
     rect: createRect,
     ellipse: createEllipse,
+    arc: createArc,
+    spiral: (b: typeof box) => createSpiral(b, d.spiral),
     star: createStar,
     polygon: createPolygon,
   };
@@ -119,6 +145,10 @@ export function previewDoc(doc: AnimationDoc, drag: StageDrag | null, layerId: I
     case 'curve':
       return updateObject(doc, d.id, (o) =>
         o.kind === 'path' ? moveHandle(o, d.index, d.which, d.now, !d.alone) : o,
+      );
+    case 'nodes':
+      return updateObject(doc, d.id, (o) =>
+        o.kind === 'path' ? moveNodes(o, d.indices, d.dx, d.dy) : o,
       );
     default:
       return doc;

@@ -117,12 +117,57 @@ export const WHY = {
     'The canvas is the picture you draw on: its size in pixels decides how much detail it holds, and its resolution (dots per inch) how big it prints. 300 dpi suits print, so an A4 page is 2480 × 3508 pixels; a screen needs only its own pixels, so a web logo can be 200 × 200 px at 96 dpi. Too low a resolution looks blocky (pixelated) when printed; too high makes big files that are slow to load. A transparent background lets the logo sit on any colour.',
   graphicLayers:
     'Layers hold the parts of an image on top of each other, like pieces of paper, so each part can be moved or changed without affecting the others. The top layer is in front. Locking a layer stops accidental changes; hiding it keeps it out of the way. A mask layer shows the layer beneath only through its shapes (a photo inside a circle).',
+  graphicNodes:
+    'Nodes are the points a vector shape’s outline passes through; their handles bend the curves between them. A cusp makes a sharp point (each handle on its own), a smooth node a flowing curve (the handles in line, each its own length: asymmetrical) and a symmetrical node an even curve (in line and the same length). Editing nodes changes the shape itself: a rectangle flared at the bottom, a traced outline made exact, a brush stroke simplified to a few nodes so it is smooth and quick to change.',
+  graphicEnvelope:
+    'An envelope bends a whole shape at once into another outline: an arch or a bulge for a badge, a wave for a flag, a rectangle flared into a road or a roller-coaster track. Perspective drags the four corners so a flat shape seems to lie back into the distance, its far end smaller. The bend stays live, so the shape can still be changed underneath, until Apply makes it ordinary paths whose nodes can be edited. Moving every node by hand would be slow and seldom even.',
   graphicAlign:
     'Align puts the edges or centres of objects in line, and distribute makes the space between three or more of them the same. A drawing then looks neat without measuring by eye: legs evenly spaced, buttons in a row. Relative to the canvas, one object is centred on it or put against an edge. Moving them by hand is slower and less exact.',
   graphicExport:
     'Export makes a file for where the image will be used. SVG keeps the shapes as vectors, so it can be any size without blurring: logos, icons, drawings. PNG keeps every pixel (lossless) and transparency: sharp edges, text, logos on a web page. JPG makes photographs small by losing detail you hardly see (lossy) and has no transparency. A part can be exported on its own, and the size can be a width or height in pixels, or a printed size at a resolution.',
   graphicSend:
     'Most graphics are made to be animated next: Send to Animation puts the drawing into Animation mode as editable shapes on a layer of its own, where it was drawn, so each part can still be moved, recoloured and tweened. Copy and Paste work between the two modes too.',
+  outlineView:
+    'The outline view shows every shape as a thin line, with no fills, so parts hidden under others can be seen, checked and selected: a bite cut out of an apple, a stalk behind a leaf, two shapes that should meet exactly. It only changes how the stage looks while working; the image and its exports are unchanged.',
+  templateLayer:
+    'A template is a picture placed faded and locked under the drawing, to trace over by hand with the pen and shapes: the drawing then has the right shape and proportions, and it stays vector. The template is only a guide, so it is never exported or sent to Animation mode.',
+  graphicPattern:
+    'A pattern fills a shape with a tile repeated: stripes, checks, dots, hatching, bricks or a picture. It shows a material (a brick wall, a woven basket, a checked cloth) without drawing every part, and stays a vector, so it is sharp at any size. The fill and the outline can each be made see-through on their own, so a shape can be pale but its outline strong.',
+  graphicFilters:
+    'Filters give flat shapes depth. A drop shadow lifts an object off the background; an inner shadow sinks it in; a glow makes a halo or a light bloom round it; a bevel lights one side and shades the other, for raised lettering, 3-D buttons and metal; a stroke draws an outline round whatever is drawn (outside, centred on or inside its edge), even round a photo clipped into a shape or a whole layer; a blur softens its edges. They change only how it is drawn, so the shape can still be edited, and in an SVG they stay filters.',
+  graphicShapes:
+    'Arcs, spirals and polylines are drawn exactly, as vector shapes, instead of by hand: an arc is part of an ellipse (the scale of a meter, a slice of a cake), left open, closed to the centre like a pie slice or straight across like a chord; a spiral goes round as many times as chosen, evenly or opening out; a polyline is straight lines clicked point to point, with Shift keeping them at 15° steps. Each can still be changed in Properties.',
+  graphicCurves:
+    'Convert to curves turns a shape (a rectangle, ellipse, arc, star or polygon) into a path of nodes and curves that looks the same, so every point can then be moved on its own: a star’s arm pulled out, a corner of a rounded rectangle made square, a circle squeezed into a leaf. The shape loses what made it a rectangle or a star (its corner radius, its number of points), so do it once its size and corners are right.',
+  graphicReplicate:
+    'Replication makes exact, evenly spaced copies instead of placing each one by eye. Step and repeat makes several copies at once, each moved and turned by the same amount: the spokes of a wheel round its hub, the legs of a chip along its side. Duplicate again after moving a copy repeats that move. Paste in place puts a copy exactly where the original is (on another layer, say), and Mirror copy makes the other half of a symmetrical drawing.',
+  textSpacing:
+    'Spacing makes words fit and read well. Letter spacing (tracking) opens up or closes up the whole text evenly: wide for a calm heading or a logo, tight to fit a name in a space. Kerning moves just two letters closer or apart, where their shapes leave a gap that looks too big or too small (AV, To). Line spacing sets how far apart the lines are: more for easy reading, less for a compact title. Spacing is in thousandths of the letters’ size, so it grows and shrinks with them.',
+  textPath:
+    'Text on a path makes words follow a line or go round a shape: round a badge or a logo, along the curve of a guitar or a road, over an arc. The letters stay text, so the words, font and size can still be changed. Start moves the words along the path; Side puts them outside it, hanging inside it, or centred so the outline runs through each letter; Flip runs them the other way (along the bottom of a circle, reading left to right). The path itself is usually hidden, so only the words show its shape.',
+  textShape:
+    'Text in a shape wraps the lines inside an outline (a circle, a speech bubble, a star) instead of a rectangle, so the block of words takes the shape of the design. Padding keeps the words away from the edge so they are easy to read. If not all the words fit, make the text smaller, the padding less or the shape bigger: words that do not fit are not shown.',
+  textCurves:
+    'Convert to curves turns text into the shapes of its letters, each a path of nodes and curves taken from the font itself, so a letter can be stretched, bent or reshaped as a drawing (a long tail on a “Q”, a logo’s letters joined). The words then look the same on any computer, even one without the font, but they can no longer be typed into: change the words, font and size first.',
+  textWarp:
+    'Warping bends the words into a shape, an arch over a logo, a bulge or a wave, while they are still text: the words, the font and the size can still be changed and the bend follows. Apply makes the bent letters ordinary paths. Effects such as a drop shadow, a glow or a bevel make the words stand out from what is behind them.',
+  // ---- Graphics mode, pixel layers (M21) ----
+  graphicPaint:
+    'Painting changes the pixels of a photo or a drawing by hand: the brush paints with a soft or hard edge, the pencil sets each pixel exactly (pixel art, a 1 px line), the airbrush builds up colour gently the longer it is held (a glow, a shadow), and the eraser takes pixels away to transparent. The size, hardness, opacity, flow and spacing change how each stroke looks, and a shape such as a star or a scatter of dots paints many stars and lights in one stroke (a night scene). A preset keeps a brush to use again; on a layer mask, black hides and white shows without losing any pixels.',
+  graphicFill:
+    'The paint bucket fills an area of one colour with another in one click (a sea recoloured light blue, land made green): the tolerance says how alike the colours must be, and contiguous fills only the pixels joined to the one clicked. The gradient tool fills the layer or the selection with colours that blend into each other along a line dragged across it, straight (linear) or out from a centre (radial), for a sky, a light, or a logo fading from light to dark.',
+  graphicTransform:
+    'Transforming a photo or part of one places it exactly where it is needed: moved so its edge sits on a line, scaled to fit a gap (with its proportions kept, so it is not stretched), turned to line up with the picture behind it, flipped to face the other way, or skewed to lean. Typed numbers are exact where dragging is not. Every change to a bitmap makes new pixels from the old (resampling): bicubic keeps photos smooth and sharp, nearest neighbour keeps the hard edges of pixel art; quarter turns and flips only move pixels, so nothing is lost.',
+  graphicAdjust:
+    'Adjustments change the colours and light of a whole photo (or the selected part) at once, as a photographer would: greyscale or black and white for an old or a dramatic look, brightness and contrast or levels to rescue a dull or dark photo, exposure to give it more or less light, shadows and highlights to show detail in the dark and bright parts without spoiling the rest, colour balance or temperature and tint to warm a cold picture or take away a colour cast, hue and saturation to make colours stronger or recolour something (colourise turns a grey Moon gold), and replace colour to change one colour only (the darker colours made brighter). Each is previewed before it is applied, is one undo step, and on a layer mask changes how much of the layer shows.',
+  graphicBlur:
+    'Blurring and sharpening change how much detail shows. A Gaussian blur softens a whole photo or the selected part: a background made soft so the subject stands out, a face or a number plate hidden, a harsh edge smoothed. Motion blur streaks the picture along a line, so something still looks as if it is moving fast; zoom blur streaks it out from a point, as if rushing towards it. Sharpen (an unsharp mask) makes edges crisper by making each side of an edge a little darker or lighter: the amount says how much, the radius how wide the edges are, and the threshold leaves small differences such as skin and noise alone. Too much blur loses detail that cannot be got back; too much sharpening shows bright halos.',
+  graphicDistort:
+    'Distorting moves the pixels of a photo instead of changing their colours. A twirl turns the middle of a circle round its centre, most at the centre and less towards the edge, for a swirl or a whirlpool; a bulge magnifies the inside of a circle like a lens or a magnifying glass (a pinch shrinks it). Perspective moves the four corners so the picture looks flat on a wall or a screen seen at an angle, or straightens a building photographed from below; a warp bends the picture with a mesh of points, to fit it round a mug or a flag. Done inside a selection only that part changes, and each is one undo step.',
+  graphicClone:
+    'The clone stamp and the heal brush take unwanted things out of a photo by painting over them with another part of the same photo: Alt-click (Option-click on a Mac) a clean place to copy from, such as empty sky, sea, sand or wall, then paint over the bin, the post, the wires or the person. The clone stamp copies the pixels exactly, so it suits patterns, edges and busy textures such as leaves; the heal brush copies them and then matches the colour and light of the place around the stroke, so the repair blends in on smooth surfaces such as sky, sea and skin, where a copy from a lighter or darker place would show. Aligned keeps the same distance between the brush and the source from stroke to stroke; a selection round the part to repair keeps the heal from borrowing colour from what is next to it. A good repair cannot be seen: the papers ask for the rubbish, posts and wires removed without cropping the picture.',
+  graphicRetouch:
+    'The blur, sharpen and smudge brushes change only the places they are painted on, not the whole photo: the blur brush softens a hard edge, a blemish or a distracting detail; the sharpen brush brings out detail in one part, such as the eyes in a portrait; the smudge brush drags colour along the stroke as a finger drags wet paint, to blend a join or give a soft, painted look. The strength says how much each stroke does, and going over again does more. Red eye removal fixes the red pupils a camera flash makes: click the middle of the eye, or drag a box over it, and only the red there is made dark and grey, so the skin and the white of the eye stay as they were.',
   animSound:
     'Sound is a secondary component of an animation: an alarm ringing, a door slamming or music under the action tells the audience what is happening and when. Each sound starts at a frame, so it is heard in time with the movement; a fade in or out stops it starting or ending suddenly. An MP4, AVI, MOV or web page carries the sounds; a GIF and pictures cannot.',
 } as const;
@@ -210,9 +255,51 @@ export const TOOLS: Tool[] = [
     '19.1 the need for different image resolutions',
   ),
   tool('graphicLayers', 'Layers', '19.1 graphics tools: layers'),
+  tool('graphicNodes', 'Nodes', '19.2 nodes: cusp, smooth and symmetrical'),
   tool('graphicAlign', 'Align and distribute', '19.1 alignment and distribution tools'),
+  tool('graphicEnvelope', 'Envelope and perspective', '19.2 envelopes and perspective'),
   tool('graphicExport', 'Export image', '19.1 exporting an image in different file formats'),
   tool('graphicSend', 'Send to Animation', '19.2 creating a vector graphic for its application'),
+  tool(
+    'graphicShapes',
+    'Arc, spiral and polyline',
+    '19.2 vector shapes: arcs, spirals and polylines',
+  ),
+  tool('graphicCurves', 'Convert to curves', '19.2 convert to curves and replication'),
+  tool(
+    'graphicReplicate',
+    'Step and repeat, mirror copy',
+    '19.2 convert to curves and replication',
+  ),
+  tool('outlineView', 'Outline view', '19.2 creating a vector graphic for its application'),
+  tool('templateLayer', 'Template layer', '19.2 creating a vector graphic for its application'),
+  tool('graphicPattern', 'Pattern fill and opacity', '19.1 changing solid and gradient fills'),
+  tool('graphicFilters', 'Filters', '19.1 changing solid and gradient fills'),
+  tool(
+    'textSpacing',
+    'Letter spacing, kerning and line spacing',
+    '19.5 font, size, kerning and spacing',
+  ),
+  tool('textPath', 'Text on a path', '19.5 fitting text to a path or shape'),
+  tool('textShape', 'Text in a shape', '19.5 setting text in a shape'),
+  tool('textCurves', 'Text to curves', '19.5 converting text to curves'),
+  tool('textWarp', 'Warped text', '19.5 warping text'),
+  tool('graphicPaint', 'Brush, pencil, airbrush and eraser', '19.3 brush, pencil and pen tools'),
+  tool('graphicFill', 'Paint bucket and gradient', '19.1 changing solid and gradient fills'),
+  tool('graphicTransform', 'Transform pixels', '19.3 creating and editing bitmap images'),
+  tool('graphicAdjust', 'Adjustments', '19.3 working with colour'),
+  tool('graphicClone', 'Clone stamp and heal', '19.3 tools/filters to alter parts of an image'),
+  tool(
+    'graphicRetouch',
+    'Blur, sharpen and smudge brushes, red eye',
+    '19.3 tools/filters to alter parts of an image',
+  ),
+  tool('graphicBlur', 'Blur and sharpen', '19.3 tools/filters to alter parts of an image'),
+  tool(
+    'graphicDistort',
+    'Twirl, bulge, perspective and warp',
+    '19.3 tools/filters to alter parts of an image',
+  ),
 ];
 
 export function toolById(id: ToolId): Tool {

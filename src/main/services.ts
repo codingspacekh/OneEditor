@@ -37,12 +37,20 @@ const MEDIA_EXTENSIONS = [
   'wma',
 ];
 
+/** GL2 (M23): the picture formats FFmpeg's media list leaves out (syllabus 19.1's seven). */
+const IMAGE_ONLY_EXTENSIONS = ['svg', 'pdf', 'jpe', 'jfif', 'dib'];
+
 /** AN15: the file types of the animation exports. */
 /** G11 (M18): what each image export is saved as. */
 const GRAPHIC_EXPORTS: Record<GraphicExportFormat, { label: string; extension: string }> = {
   png: { label: 'PNG picture', extension: 'png' },
   jpg: { label: 'JPG picture', extension: 'jpg' },
+  // M23: the other bitmap formats of syllabus 19.1.
+  gif: { label: 'GIF picture', extension: 'gif' },
+  bmp: { label: 'BMP picture', extension: 'bmp' },
+  tiff: { label: 'TIFF picture', extension: 'tif' },
   svg: { label: 'SVG vector picture', extension: 'svg' },
+  pdf: { label: 'PDF document', extension: 'pdf' },
 };
 
 const ANIMATION_EXPORTS: Record<AnimationExportFormat, { label: string; extension: string }> = {
@@ -169,12 +177,27 @@ export function electronDialogs(window: () => BrowserWindow | undefined): Dialog
         properties: ['openFile', 'multiSelections'],
         filters: [
           {
-            name: 'Exported video, sound, GIF, web page or PNG sequence',
-            extensions: [...MEDIA_EXTENSIONS, 'html', 'htm'],
+            // GL2 (M23): a picture of any of the seven formats too.
+            name: 'Exported video, sound, picture, web page or PNG sequence',
+            extensions: [...MEDIA_EXTENSIONS, ...IMAGE_ONLY_EXTENSIONS, 'html', 'htm'],
           },
         ],
       });
       return r.canceled ? [] : r.filePaths;
+    },
+    async openInspect() {
+      const r = await dialog.showOpenDialog(win(), {
+        title: 'Inspect a file',
+        properties: ['openFile'],
+        filters: [
+          {
+            name: 'Video, sound and pictures (PNG, JPG, GIF, BMP, TIFF, SVG, PDF)',
+            extensions: [...MEDIA_EXTENSIONS, ...IMAGE_ONLY_EXTENSIONS],
+          },
+          { name: 'All files', extensions: ['*'] },
+        ],
+      });
+      return r.canceled ? null : (r.filePaths[0] ?? null);
     },
     async openFrames() {
       const r = await dialog.showOpenDialog(win(), {
@@ -205,7 +228,20 @@ export function electronDialogs(window: () => BrowserWindow | undefined): Dialog
       const r = await dialog.showOpenDialog(win(), {
         title: 'Open image',
         properties: ['openFile'],
-        filters: [{ name: 'OneEditor image', extensions: ['mveg'] }],
+        // GV6 (M19): an SVG opens as a new image of its shapes.
+        filters: [
+          { name: 'OneEditor image or SVG', extensions: ['mveg', 'svg'] },
+          { name: 'OneEditor image', extensions: ['mveg'] },
+          { name: 'SVG picture', extensions: ['svg'] },
+        ],
+      });
+      return r.canceled ? null : (r.filePaths[0] ?? null);
+    },
+    async openSvg() {
+      const r = await dialog.showOpenDialog(win(), {
+        title: 'Import SVG',
+        properties: ['openFile'],
+        filters: [{ name: 'SVG picture', extensions: ['svg'] }],
       });
       return r.canceled ? null : (r.filePaths[0] ?? null);
     },
@@ -222,7 +258,17 @@ export function electronDialogs(window: () => BrowserWindow | undefined): Dialog
       const r = await dialog.showSaveDialog(win(), {
         title: 'Export image',
         defaultPath: `${name}.${extension}`,
-        filters: [{ name: label, extensions: extension === 'jpg' ? ['jpg', 'jpeg'] : [extension] }],
+        filters: [
+          {
+            name: label,
+            extensions:
+              extension === 'jpg'
+                ? ['jpg', 'jpeg']
+                : extension === 'tif'
+                  ? ['tif', 'tiff']
+                  : [extension],
+          },
+        ],
       });
       return r.canceled ? null : (r.filePath ?? null);
     },
@@ -273,6 +319,14 @@ export const projectFiles = (
   },
   async writeBytes(path, bytes) {
     await mkdir(dirname(path), { recursive: true });
-    await writeFile(path, bytes);
+    // D9 (M21): a .mveg image is bytes too: written whole or not at all, as a project.
+    const temp = `${path}.saving`;
+    try {
+      await writeFile(temp, bytes);
+      await rename(temp, path);
+    } finally {
+      await rm(temp, { force: true });
+    }
   },
+  readBytes: async (path) => new Uint8Array(await readFile(path)),
 });

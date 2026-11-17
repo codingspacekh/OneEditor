@@ -19,25 +19,47 @@
   } from '../../core/animation/geometry.ts';
   import { findObject } from '../../core/animation/layers.ts';
   import {
+    anchorsOnStage,
     cornerPoint,
     insertPoint,
     moveAnchor,
     moveHandle,
     pullHandles,
-    removePoint,
   } from '../../core/animation/pen.ts';
+  import { deleteNodes } from '../../core/graphics/nodes.ts';
   import { snapBox } from '../../core/animation/snap.ts';
+  import { angleStep } from '../../core/graphics/shapes.ts';
   import { stateAt } from '../../core/animation/state.ts';
   import type { PathObject } from '../../core/animation/types.ts';
   import { toMediaUrl } from '../../core/media-url.ts';
-  import { animUi, SNAP_PX } from './animation-ui.svelte.ts';
+  import { animUi, SNAP_PX, ZOOM_STEPS } from './animation-ui.svelte.ts';
   import { textBox } from './measure.ts';
+  import { bentWithText, loadGlyphsFor } from '../../core/graphics/glyphs.ts';
   import PathPoints from './PathPoints.svelte';
+  import EnvelopeHandles from './EnvelopeHandles.svelte';
+  import { previewEnvelope, shapedOnStage } from './envelope-handles.ts';
   import SelectionHandles from './SelectionHandles.svelte';
   import StageGuides from './StageGuides.svelte';
   import StageRulers from './StageRulers.svelte';
+  import PixelOverlay from '../graphics/PixelOverlay.svelte';
+  import { pixelToolOf, type PixelPointer, type StageView } from '../graphics/pixel-pointer.ts';
+  import { HAND } from '../graphics/view-tools.ts';
+  import { PIXEL_MOVE } from '../graphics/pixel-move.ts';
+  import { tick } from 'svelte';
+  import { shortcutAllowed } from '../keys.ts';
+  import {
+    GRAPHICS_ZOOM_STEPS,
+    needsViewport,
+    paperPad,
+    scrollToKeep,
+    sizeViewportCanvas,
+    smoothAt,
+    stepZoom,
+    visibleRect,
+  } from './stage-viewport.ts';
   import {
     drawnShape,
+    isDrawTool,
     marqueeBox,
     objectCorners,
     objectsInBox,
@@ -80,10 +102,86 @@
    * N16: the space around the stage on each axis — at least MARGIN, more to keep the stage in the
    * middle of its area whatever the panels' sizes and the zoom (as Video mode's preview).
    */
-  const padX = $derived(Math.max(MARGIN, Math.floor((areaW - rulerSize - stage.width * zoom) / 2)));
-  const padY = $derived(
-    Math.max(MARGIN, Math.floor((areaH - rulerSize - stage.height * zoom) / 2)),
+  const padX = $derived(paperPad(areaW, rulerSize, stage.width, zoom, MARGIN));
+  const padY = $derived(paperPad(areaH, rulerSize, stage.height, zoom, MARGIN));
+
+  // ---- GB1 (M21): the view at a high zoom ----
+  let area: HTMLDivElement | undefined = $state();
+  let scroll = $state({ left: 0, top: 0 });
+  const density = () => globalThis.devicePixelRatio || 1;
+  /** The part of the image on screen (all of it while the area's size is not known). */
+  const seen = $derived(
+    areaW > 0 && areaH > 0
+      ? visibleRect(
+          { ...scroll, width: areaW, height: areaH },
+          { left: rulerSize + padX, top: rulerSize + padY },
+          zoom,
+          stage,
+        )
+      : { x: 0, y: 0, width: stage.width, height: stage.height },
   );
+  /**
+   * A canvas of the whole image at this zoom would be too big (a photo at 3200 %): the canvas is
+   * then only the part on screen, drawn again as the area scrolls. Null: the whole image.
+   */
+  const port = $derived(
+    needsViewport(stage, zoom, density())
+      ? ((areaW > 0 && areaH > 0 ? seen : null) ?? { x: 0, y: 0, width: 1, height: 1 })
+      : null,
+  );
+  /** GB1: Space held pans whatever the tool (Graphics mode only: in Animation mode Space plays). */
+  let spaceHeld = $state(false);
+  const stageView: StageView = {
+    panBy(dx, dy) {
+      if (!area) return;
+      area.scrollLeft += dx;
+      area.scrollTop += dy;
+      scroll = { left: area.scrollLeft, top: area.scrollTop };
+    },
+    zoomAt: (direction, e) => void zoomAt(direction, e),
+  };
+
+  /** A step in or out, the image point under the pointer kept where it is. */
+  async function zoomAt(direction: 1 | -1, e: { clientX: number; clientY: number }) {
+    const next = stepZoom(zoom, direction, editor.still ? GRAPHICS_ZOOM_STEPS : ZOOM_STEPS);
+    if (next === zoom || !area) return;
+    const box = area.getBoundingClientRect();
+    const to = scrollToKeep(
+      { x: e.clientX - box.left, y: e.clientY - box.top },
+      { left: area.scrollLeft, top: area.scrollTop },
+      { left: rulerSize + padX, top: rulerSize + padY },
+      {
+        left: rulerSize + paperPad(areaW, rulerSize, stage.width, next, MARGIN),
+        top: rulerSize + paperPad(areaH, rulerSize, stage.height, next, MARGIN),
+      },
+      zoom,
+      next,
+    );
+    anim.setZoom(next);
+    await tick();
+    area.scrollLeft = to.left;
+    area.scrollTop = to.top;
+    scroll = { left: area.scrollLeft, top: area.scrollTop };
+  }
+
+  /** GB1: Ctrl/Cmd + wheel (and a trackpad's pinch) zooms about the pointer. */
+  $effect(() => {
+    if (!area) return;
+    const onWheel = (e: WheelEvent) => {
+      if (!e.ctrlKey && !e.metaKey) return;
+      e.preventDefault();
+      if (e.deltaY !== 0) void zoomAt(e.deltaY < 0 ? 1 : -1, e);
+    };
+    const el = area;
+    el.addEventListener('wheel', onWheel, { passive: false });
+    return () => el.removeEventListener('wheel', onWheel);
+  });
+
+  function holdSpace(e: KeyboardEvent): void {
+    if (e.key !== ' ' || !editor.still || !shortcutAllowed(e)) return;
+    e.preventDefault();
+    spaceHeld = true;
+  }
 
   let drag: StageDrag | null = $state(null);
   /** The pen's points so far (AN3). */
@@ -101,7 +199,30 @@
   const single = $derived(selected.length === 1 ? selected[0]! : null);
 
   /** The document as it looks during the drag. */
-  const shown = $derived(previewDoc(doc, drag, $store.layerId));
+  /** GV4 (M19): an envelope's corner or handle being dragged. */
+  let bending: Parameters<typeof previewEnvelope>[1] = $state(null);
+  /** G3 (M21): the Select tool moves the current pixel layer's pixels (Graphics mode). */
+  const movesPixels = $derived(
+    editor.still &&
+      $store.tool === 'select' &&
+      $store.history.present.layers.find((l) => l.id === $store.layerId)?.pixels !== undefined,
+  );
+  /** M21: what a pixel tool shows while its drag goes on (a stroke as it is painted). */
+  let pixelPreview: typeof doc | null = $state(null);
+  /** M22: an adjustment or filter previewed live: its pixels in place of the layer's. */
+  const withOperation = (d: typeof doc): typeof doc => {
+    const op = $store.pixelPreview;
+    if (!op) return d;
+    return {
+      ...d,
+      layers: d.layers.map((l) =>
+        l.id === op.layerId && l.pixels ? { ...l, pixels: op.pixels } : l,
+      ),
+    };
+  };
+  const shown = $derived(
+    withOperation(pixelPreview ?? previewEnvelope(previewDoc(doc, drag, $store.layerId), bending)),
+  );
 
   // ---- pictures (AN5): loaded once each; the stage is drawn again when one arrives ----
   // A plain cache, not state: the stage is drawn again through `loaded` when a picture arrives.
@@ -119,6 +240,13 @@
     images[picture.path] = img;
     return null;
   }
+
+  // GT5 (M20): bent text is drawn from its letters' outlines: read from the font files the first
+  // time (drawn unbent meanwhile), then the stage is drawn again.
+  $effect(() => {
+    const bent = bentWithText(doc.layers.flatMap((l) => l.objects));
+    if (bent.length) void loadGlyphsFor(bent).then((arrived) => arrived && loaded++);
+  });
 
   function drawGrid(ctx: StageCanvas): void {
     const size = Math.max(2, view.grid.size);
@@ -150,10 +278,19 @@
     // frame played in its caches (over 300 MB for 100 moving objects), for no faster a stage.
     const ctx = canvas?.getContext('2d', { willReadFrequently: true });
     if (!canvas || !ctx) return;
-    const dpr = globalThis.devicePixelRatio || 1;
+    const dpr = density();
     // N1: the same canvas from frame to frame, cleared and its settings reset as a resize would.
-    if (!sizeCanvas(canvas, stage, zoom, dpr)) ctx.reset();
-    ctx.setTransform(zoom * dpr, 0, 0, zoom * dpr, 0, 0);
+    // GB1 (M21): at a zoom too high for a whole-image canvas, only the part on screen.
+    if (port) {
+      if (!sizeViewportCanvas(canvas, port, zoom, dpr)) ctx.reset();
+      const k = zoom * dpr;
+      ctx.setTransform(k, 0, 0, k, -port.x * k, -port.y * k);
+    } else {
+      if (!sizeCanvas(canvas, stage, zoom, dpr)) ctx.reset();
+      ctx.setTransform(zoom * dpr, 0, 0, zoom * dpr, 0, 0);
+    }
+    // GB1: from 400 % each pixel a crisp square.
+    ctx.imageSmoothingEnabled = smoothAt(zoom);
     drawStage(withLayers(ctx) as unknown as StageCanvas, shown, {
       image,
       // AN12: a mask works on the stage while its layer is locked, as in the coursebook.
@@ -161,6 +298,8 @@
       ...(view.grid.show && !view.grid.over ? { afterBackground: drawGrid } : {}),
       // AN14: the drawings before and after, faintly, on frame-by-frame layers.
       ...($store.onionSkin ? { onionSkin: skinOf } : {}),
+      // GV7 (M19): View ▸ Outline: lines one screen pixel wide at any zoom.
+      ...(view.wireframe ? { wireframe: { lineWidth: 1 / zoom } } : {}),
     });
   });
 
@@ -201,9 +340,37 @@
   function onpointerdown(e: PointerEvent): void {
     if (e.button !== 0) return;
     const tool = $store.tool;
+    const pointer: PixelPointer = {
+      anim,
+      at,
+      zoom,
+      track: (move, up) =>
+        track(move, (u) => {
+          up(u);
+          pixelPreview = null;
+        }),
+      preview: (d) => (pixelPreview = d),
+      view: stageView,
+    };
+    // GB1 (M21): Space held: the hand, whatever the tool.
+    if (spaceHeld) {
+      HAND.down(e, pointer);
+      return;
+    }
+    // M21: the pixel tools (Graphics mode) are handlers of their own.
+    const pixelTool = pixelToolOf(tool);
+    if (pixelTool) {
+      pixelTool.down(e, pointer);
+      return;
+    }
     const raw = at(e);
     if (tool === 'select') {
       const hit = pickObject(doc, raw);
+      // G3 (M21): on a pixel layer, the empty stage drags the layer (or the selected pixels).
+      if (!hit && movesPixels) {
+        PIXEL_MOVE.down(e, pointer);
+        return;
+      }
       if (!hit) {
         drag = { kind: 'marquee', start: raw, now: raw };
         track(
@@ -216,6 +383,7 @@
               anim.select([]);
               return;
             }
+            if (chooseNodesIn(box, u.shiftKey)) return;
             const inside = objectsInBox(doc, box);
             anim.select(inside);
           },
@@ -279,8 +447,8 @@
       anim.addButton({ x: round(p.x), y: round(p.y) });
       return;
     }
-    if (tool === 'pen') {
-      const p = snapPoint(raw, e.altKey);
+    if (tool === 'pen' || tool === 'polyline') {
+      const p = clickedPoint(raw, e);
       const first = pen[0];
       if (first && pen.length >= 3 && Math.hypot(p.x - first.x, p.y - first.y) <= 6 / zoom) {
         finishPen(true);
@@ -304,8 +472,16 @@
       return;
     }
     // Shapes and lines are dragged out (AN3).
+    if (!isDrawTool(tool)) return;
     const start = snapPoint(raw, e.altKey);
-    drag = { kind: 'draw', tool, start, now: start, square: e.shiftKey };
+    drag = {
+      kind: 'draw',
+      tool,
+      start,
+      now: start,
+      square: e.shiftKey,
+      ...(tool === 'spiral' ? { spiral: anim.spiralOptions() } : {}),
+    };
     track(
       (m) => {
         if (drag?.kind === 'draw')
@@ -335,7 +511,17 @@
     const points = pen;
     pen = [];
     penNow = null;
-    if (points.length >= 2) anim.addPath(points, closed && points.length >= 3);
+    if (points.length < 2) return;
+    // GV1 (M19): the polyline's points are straight lines with a name of their own.
+    if ($store.tool === 'polyline') anim.addPolyline(points, closed && points.length >= 3);
+    else anim.addPath(points, closed && points.length >= 3);
+  }
+
+  /** The pen's or polyline's next point; GV1: Shift keeps a polyline's line to 15° steps. */
+  function clickedPoint(raw: Point, e: MouseEvent): Point {
+    const p = snapPoint(raw, e.altKey);
+    const from = pen.at(-1);
+    return $store.tool === 'polyline' && e.shiftKey && from ? angleStep(from, p) : p;
   }
 
   function startResize(e: PointerEvent, handle: Handle): void {
@@ -363,10 +549,47 @@
     return own?.kind === 'path' && single.kind === 'path' ? single : null;
   });
 
+  /** GV3: the nodes chosen on the edited path (drawn hollow; moved and changed together). */
+  const chosenNodes = $derived.by((): number[] => {
+    void $store;
+    return editablePath ? anim.chosenNodes() : [];
+  });
+
+  /**
+   * GV3: a box dragged round nodes of the edited path chooses them (Shift: added or taken
+   * away), and the path stays selected. True when the box held any.
+   */
+  function chooseNodesIn(
+    box: { x: number; y: number; width: number; height: number },
+    add: boolean,
+  ) {
+    if (!editablePath) return false;
+    const inside = anchorsOnStage(editablePath).flatMap((a, i) =>
+      a.x >= box.x && a.x <= box.x + box.width && a.y >= box.y && a.y <= box.y + box.height
+        ? [i]
+        : [],
+    );
+    if (inside.length === 0) return false;
+    anim.chooseNodes(inside, add);
+    return true;
+  }
+
   function startAnchor(e: PointerEvent, index: number): void {
     e.stopPropagation();
     if (!editablePath) return;
     const id = editablePath.id;
+    // GV3: Shift-click chooses one more node (or takes it away); a click chooses this one, unless
+    // it is one of those chosen: then a drag moves all of them.
+    if (e.shiftKey) {
+      anim.chooseNodes([index], true);
+      return;
+    }
+    if (!chosenNodes.includes(index) || e.altKey) anim.chooseNodes([index]);
+    const together = e.altKey ? [] : chosenNodes;
+    if (together.length > 1) {
+      startNodesDrag(e, id, together, index);
+      return;
+    }
     const pull = e.altKey;
     drag = { kind: 'anchor', id, index, now: at(e), pull, moved: false };
     track(
@@ -380,6 +603,24 @@
         if (!moved && pull) anim.editPath(id, 'Corner point', (p) => cornerPoint(p, index));
         else if (moved && pull) anim.editPath(id, 'Curve point', (p) => pullHandles(p, index, now));
         else if (moved) anim.editPath(id, 'Move point', (p) => moveAnchor(p, index, now));
+      },
+    );
+  }
+
+  /** GV3: the chosen nodes dragged together; the node under the pointer snaps. */
+  function startNodesDrag(e: PointerEvent, id: string, indices: number[], index: number): void {
+    const from = anchorsOnStage(editablePath!)[index]!;
+    const start = at(e);
+    drag = { kind: 'nodes', id, indices, dx: 0, dy: 0 };
+    track(
+      (m) => {
+        if (drag?.kind !== 'nodes') return;
+        const p = at(m);
+        const to = snapPoint({ x: from.x + p.x - start.x, y: from.y + p.y - start.y }, m.altKey);
+        drag = { ...drag, dx: round(to.x - from.x), dy: round(to.y - from.y) };
+      },
+      () => {
+        if (drag?.kind === 'nodes') anim.moveNodes(drag.dx, drag.dy);
       },
     );
   }
@@ -403,7 +644,9 @@
 
   function removeAnchor(e: MouseEvent, index: number): void {
     e.stopPropagation();
-    if (editablePath) anim.editPath(editablePath.id, 'Remove point', (p) => removePoint(p, index));
+    // GV3: the curves either side are fitted again, so the shape stays as close as it can.
+    if (editablePath)
+      anim.editPath(editablePath.id, 'Remove point', (p) => deleteNodes(p, [index]));
   }
 
   function startRotate(e: PointerEvent): void {
@@ -493,11 +736,12 @@
   function onpointermove(e: PointerEvent): void {
     const p = at(e);
     animUi.pointer = { x: Math.round(p.x), y: Math.round(p.y) };
-    if ($store.tool === 'pen' && pen.length) penNow = snapPoint(p, e.altKey);
+    if (($store.tool === 'pen' || $store.tool === 'polyline') && pen.length)
+      penNow = clickedPoint(p, e);
   }
 
   function ondblclick(e: MouseEvent): void {
-    if ($store.tool === 'pen') {
+    if ($store.tool === 'pen' || $store.tool === 'polyline') {
       finishPen(false);
       return;
     }
@@ -515,7 +759,7 @@
   }
 
   function onkeydown(e: KeyboardEvent): void {
-    if ($store.tool !== 'pen' || pen.length === 0) return;
+    if (($store.tool !== 'pen' && $store.tool !== 'polyline') || pen.length === 0) return;
     if (e.key === 'Enter') {
       e.preventDefault();
       finishPen(false);
@@ -534,12 +778,33 @@
   };
 
   const shownSingle = $derived(single ? (findObject(shown, single.id)?.object ?? single) : null);
+  /** GV4 (M19): a perspective or custom envelope shows its corners and handles instead. */
+  const bentSingle = $derived(
+    $store.tool === 'select' && shapedOnStage(shownSingle) ? shownSingle : null,
+  );
   const hs = $derived(HANDLE / zoom);
 </script>
 
-<svelte:window {onkeydown} />
+<svelte:window
+  onkeydown={(e) => {
+    holdSpace(e);
+    onkeydown(e);
+  }}
+  onkeyup={(e) => {
+    if (e.key === ' ') spaceHeld = false;
+  }}
+  onblur={() => (spaceHeld = false)}
+/>
 
-<div class="stage-area" bind:clientWidth={areaW} bind:clientHeight={areaH}>
+<div
+  class="stage-area"
+  bind:this={area}
+  bind:clientWidth={areaW}
+  bind:clientHeight={areaH}
+  onscroll={() => {
+    if (area) scroll = { left: area.scrollLeft, top: area.scrollTop };
+  }}
+>
   <div
     class="sheet"
     style:width="{rulerSize + stage.width * zoom + 2 * padX}px"
@@ -568,8 +833,12 @@
       <canvas
         bind:this={canvas}
         class:transparent={stage.background === TRANSPARENT}
-        style:width="100%"
-        style:height="100%"
+        class:part={port !== null}
+        style:left={port ? `${port.x * zoom}px` : undefined}
+        style:top={port ? `${port.y * zoom}px` : undefined}
+        style:width={port ? `${port.width * zoom}px` : '100%'}
+        style:height={port ? `${port.height * zoom}px` : '100%'}
+        style:background-position={port ? `${-port.x * zoom}px ${-port.y * zoom}px` : undefined}
       ></canvas>
       <svg
         class="overlay"
@@ -578,7 +847,11 @@
         viewBox="0 0 {stage.width} {stage.height}"
         width={stage.width * zoom}
         height={stage.height * zoom}
-        style:cursor={CURSORS[$store.tool] ?? 'crosshair'}
+        style:cursor={spaceHeld
+          ? 'grab'
+          : movesPixels
+            ? PIXEL_MOVE.cursor
+            : (pixelToolOf($store.tool)?.cursor ?? CURSORS[$store.tool] ?? 'crosshair')}
         {onpointerdown}
         {onpointermove}
         onpointerleave={() => (animUi.pointer = null)}
@@ -620,7 +893,7 @@
           {/each}
         {/if}
         <!-- A pen path shows its points instead of the box's handles (its size and turn are in Properties). -->
-        {#if shownSingle && $store.tool === 'select' && drag?.kind !== 'move' && !editablePath}
+        {#if shownSingle && $store.tool === 'select' && drag?.kind !== 'move' && !editablePath && !bentSingle}
           <SelectionHandles
             object={shownSingle}
             {zoom}
@@ -631,11 +904,20 @@
             oncentre={centrePivot}
           />
         {/if}
-        {#if editablePath && drag?.kind !== 'move'}
+        {#if bentSingle && drag?.kind !== 'move'}
+          <EnvelopeHandles
+            object={bentSingle}
+            size={hs}
+            {at}
+            onpreview={(b) => (bending = b)}
+            oncommit={(id, e) => anim.dragEnvelope(id, e)}
+          />
+        {:else if editablePath && drag?.kind !== 'move'}
           <PathPoints
             path={(findObject(shown, editablePath.id)?.object ?? editablePath) as PathObject}
             size={hs}
             onanchor={startAnchor}
+            chosen={chosenNodes}
             oncurve={startCurve}
             onremove={removeAnchor}
           />
@@ -666,6 +948,7 @@
             />
           {/each}
         {/if}
+        <PixelOverlay {anim} {zoom} part={seen} />
       </svg>
     </div>
   </div>
@@ -693,6 +976,10 @@
   }
   canvas {
     display: block;
+  }
+  /* GB1 (M21): the part of a large image on screen, where it lies on the paper. */
+  canvas.part {
+    position: absolute;
   }
   /* AN21: a stage with no background shows a checkerboard, as image editors do. */
   canvas.transparent {

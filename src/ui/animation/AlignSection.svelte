@@ -28,7 +28,7 @@
 
 <div class="sec">
   <h4>Align <span class="syl">19.1 alignment and distribution</span></h4>
-  <div class="cells six" role="group" aria-label="Align">
+  <div class="prop-buttons" style:--n="6" role="group" aria-label="Align">
     {#each EDGES as [edge, label, icon] (edge)}
       <button
         class="sm"
@@ -38,7 +38,7 @@
       >
     {/each}
   </div>
-  <div class="field">
+  <div class="prop-row">
     <label for="align-to">Relative to</label>
     <select id="align-to" bind:value={to} disabled={count === 1}>
       <option value="selection">The selected objects</option>
@@ -49,9 +49,9 @@
   {#if count === 1}
     <p class="hint">One object lines up with the {where}.</p>
   {/if}
-  <div class="line">
-    <span class="cap">Distribute</span>
-    <div class="cells two-up" role="group" aria-label="Distribute">
+  <div class="prop-row">
+    <span class="prop-label">Distribute</span>
+    <div class="prop-buttons" role="group" aria-label="Distribute">
       <button
         class="sm"
         aria-label="Distribute across"
@@ -70,7 +70,7 @@
       >
     </div>
   </div>
-  <div class="field">
+  <div class="prop-row">
     <label for="distribute-by">Space</label>
     <select id="distribute-by" bind:value={by} disabled={count < 3}>
       <option value="centres">Centres the same distance apart</option>
@@ -100,48 +100,15 @@
     font-weight: 500;
     color: var(--tx-3);
   }
-  .field,
-  .line {
-    display: grid;
-    grid-template-columns: 58px 1fr;
-    align-items: center;
-    gap: 3px 6px;
-    margin-bottom: 6px;
-    min-width: 0;
-  }
-  .field label,
-  .cap {
-    color: var(--tx-2);
-    font-size: 12px;
-  }
   select {
+    /* Full width (so it never jumps with the choice), its words on the right as in the boxes
+       (the teacher's layout check, 2026-11-15). A menu is a flex box (forms.css, base-select). */
     width: 100%;
+    justify-content: safe flex-end; /* a choice too long for the box starts at its left */
   }
   .hint {
     margin: 0 0 6px;
     color: var(--tx-3);
     font-size: 11.5px;
-  }
-  .cells {
-    display: grid;
-    gap: 4px;
-    min-width: 0;
-    margin-bottom: 6px;
-  }
-  .cells.six {
-    grid-template-columns: repeat(6, 1fr);
-  }
-  .cells.two-up {
-    grid-template-columns: repeat(2, 1fr);
-    margin-bottom: 0;
-  }
-  .cells button {
-    justify-content: center;
-    min-width: 0;
-    padding-left: 4px;
-    padding-right: 4px;
-    white-space: nowrap;
-    overflow: hidden;
-    text-overflow: ellipsis;
   }
 </style>

@@ -46,6 +46,15 @@ function editable(layer: Layer): Layer {
   return layer;
 }
 
+/** G2 (M21): shapes, text and pictures go on a vector layer, never into a pixel layer's pixels. */
+function vectorLayer(layer: Layer): Layer {
+  if (layer.pixels)
+    throw new EditError(
+      `${layer.name} is a pixel layer: shapes, text and pictures go on a vector layer. Choose one, or add one with + Layer.`,
+    );
+  return layer;
+}
+
 const allNames = (objects: readonly AnimObject[]): string[] =>
   objects.flatMap((o) => [o.name, ...(o.kind === 'group' ? allNames(o.children) : [])]);
 
@@ -112,12 +121,22 @@ export function moveLayer(doc: AnimationDoc, id: Id, index: number): AnimationDo
 
 // ---- folders ----
 
+/**
+ * A new folder, named "Folder" when free, else "Folder 2"… With `layerId`, that layer goes in it
+ * (the Layers panel's Folder button groups the selected layer, so the folder is never left empty).
+ */
 export function addFolder(
   doc: AnimationDoc,
-  name: string,
+  name = 'Folder',
+  layerId?: Id,
 ): { doc: AnimationDoc; folder: LayerFolder } {
-  const folder: LayerFolder = { id: newId(), name: name.trim() || 'Folder', open: true };
-  return { doc: { ...doc, folders: [...doc.folders, folder] }, folder };
+  const wanted = name.trim() || 'Folder';
+  const taken = new Set(doc.folders.map((f) => f.name));
+  let free = wanted;
+  for (let n = 2; taken.has(free); n++) free = `${wanted} ${n}`;
+  const folder: LayerFolder = { id: newId(), name: free, open: true };
+  const next = { ...doc, folders: [...doc.folders, folder] };
+  return { doc: layerId ? moveLayerToFolder(next, layerId, folder.id) : next, folder };
 }
 
 export function renameFolder(doc: AnimationDoc, id: Id, name: string): AnimationDoc {
@@ -144,6 +163,31 @@ export function moveLayerToFolder(
   const rest = { ...layer };
   delete rest.folderId;
   return replaceLayer(doc, folderId === null ? rest : { ...rest, folderId });
+}
+
+/** Where a layer dragged in the Layers panel is dropped: a folder, another layer, or empty space. */
+export type LayerDrop = { folder: Id } | { layer: Id } | 'out';
+
+/**
+ * AN7: a layer dragged in the Layers panel. On a folder it goes in it, just in front of the
+ * folder's front layer (an empty folder: it keeps its place); on another layer it goes just in
+ * front of it and into that layer's folder, or out of one; on empty space it leaves its folder.
+ */
+export function dropLayer(doc: AnimationDoc, id: Id, target: LayerDrop): AnimationDoc {
+  const layer = layerOf(doc, id);
+  if (target === 'out') return moveLayerToFolder(doc, id, null);
+  if ('folder' in target) {
+    const inFolder = moveLayerToFolder(doc, id, target.folder);
+    const others = inFolder.layers.filter((l) => l.id !== id);
+    const front = others.findLastIndex((l) => l.folderId === target.folder);
+    if (front < 0) return inFolder;
+    return withLayers(inFolder, others.toSpliced(front + 1, 0, layerOf(inFolder, id)));
+  }
+  if (target.layer === id) return doc;
+  const onto = layerOf(doc, target.layer);
+  const moved = moveLayerToFolder(doc, id, onto.folderId ?? null);
+  const others = moved.layers.filter((l) => l.id !== layer.id);
+  return withLayers(moved, others.toSpliced(others.indexOf(onto) + 1, 0, layerOf(moved, id)));
 }
 
 /** Deletes the folder; its layers stay, out of any folder. */
@@ -178,7 +222,7 @@ const requireObject = (doc: AnimationDoc, id: Id): Found => {
 
 /** Adds to the front of the layer, with a name no other object has. */
 export function addObject(doc: AnimationDoc, layerId: Id, object: AnimObject): AnimationDoc {
-  const layer = editable(layerOf(doc, layerId));
+  const layer = vectorLayer(editable(layerOf(doc, layerId)));
   const named = { ...object, name: uniqueName(doc, object.name) };
   return replaceLayer(doc, { ...layer, objects: [...layer.objects, named] });
 }
@@ -228,7 +272,7 @@ export function moveObjectsToLayer(
   ids: readonly Id[],
   layerId: Id,
 ): AnimationDoc {
-  const target = editable(layerOf(doc, layerId));
+  const target = vectorLayer(editable(layerOf(doc, layerId)));
   const wanted = new Set(ids);
   const moving = doc.layers.flatMap((l) => l.objects.filter((o) => wanted.has(o.id)));
   const removed = removeObjects(doc, ids);
@@ -347,10 +391,14 @@ function withNewIds(object: AnimObject): AnimObject {
   return copy.kind === 'group' ? { ...copy, children: copy.children.map(withNewIds) } : copy;
 }
 
-/** A picture object's pictures: its own and, in a stop motion (AN14), every one it changes to. */
+/**
+ * A picture object's pictures: its own and, in a stop motion (AN14), every one it changes to; and
+ * G12 (M19) the picture tiled in a pattern fill.
+ */
 export const pictureIdsOf = (objects: readonly AnimObject[]): Id[] =>
-  objects.flatMap((o) =>
-    o.kind === 'picture'
+  objects.flatMap((o) => [
+    ...(o.fill.kind === 'pattern' && o.fill.pictureId ? [o.fill.pictureId] : []),
+    ...(o.kind === 'picture'
       ? [
           o.pictureId,
           ...(o.tracks ?? [])
@@ -359,15 +407,20 @@ export const pictureIdsOf = (objects: readonly AnimObject[]): Id[] =>
         ]
       : o.kind === 'group'
         ? pictureIdsOf(o.children)
-        : [],
-  );
+        : []),
+  ]);
 
 /** The object with its pictures (and its stop motion's) changed as `map` says. */
-function withPictureIds(object: AnimObject, map: ReadonlyMap<Id, Id>): AnimObject {
+function withPictureIds(given: AnimObject, map: ReadonlyMap<Id, Id>): AnimObject {
+  const to = (id: Id) => map.get(id) ?? id;
+  // G12 (M19): a picture tiled in a pattern fill.
+  const object: AnimObject =
+    given.fill.kind === 'pattern' && given.fill.pictureId
+      ? { ...given, fill: { ...given.fill, pictureId: to(given.fill.pictureId) } }
+      : given;
   if (object.kind === 'group')
     return { ...object, children: object.children.map((c) => withPictureIds(c, map)) };
   if (object.kind !== 'picture') return object;
-  const to = (id: Id) => map.get(id) ?? id;
   return {
     ...object,
     pictureId: to(object.pictureId),
@@ -414,19 +467,51 @@ export function pasteObjects(
   return { doc: next, ids };
 }
 
-/** Copies 10 px to the right and down, each just above its original. */
+/**
+ * Copies 10 px to the right and down, each just above its original. GV2 (M19): or moved by
+ * `offset` (Duplicate repeating the last move: "duplicate twice and arrange").
+ */
 export function duplicateObjects(
   doc: AnimationDoc,
   ids: readonly Id[],
+  offset: { dx: number; dy: number } = { dx: 10, dy: 10 },
 ): { doc: AnimationDoc; ids: Id[] } {
   let next = doc;
   const made: Id[] = [];
   for (const id of ids) {
     const { layer, index, object } = requireObject(next, id);
     editable(layer);
-    const copy = { ...moved(withNewIds(object), 10, 10), name: uniqueName(next, object.name) };
+    const copy = {
+      ...moved(withNewIds(object), offset.dx, offset.dy),
+      name: uniqueName(next, object.name),
+    };
     made.push(copy.id);
     next = replaceLayer(next, { ...layer, objects: layer.objects.toSpliced(index + 1, 0, copy) });
+  }
+  return { doc: next, ids: made };
+}
+
+/**
+ * GV2 (M19): `count` copies of an object (new ids, each named once: "Spoke 2", "Spoke 3"…), just
+ * above it on its layer, the last in front; `place` moves or turns the n-th copy (1, 2, …).
+ */
+export function copiesAbove(
+  doc: AnimationDoc,
+  id: Id,
+  count: number,
+  place: (copy: AnimObject, n: number) => AnimObject,
+): { doc: AnimationDoc; ids: Id[] } {
+  let next = doc;
+  const made: Id[] = [];
+  for (let n = 1; n <= count; n++) {
+    const { layer, index, object } = requireObject(next, id);
+    editable(layer);
+    const copy = { ...place(withNewIds(object), n), name: uniqueName(next, object.name) };
+    made.push(copy.id);
+    next = replaceLayer(next, {
+      ...layer,
+      objects: layer.objects.toSpliced(index + n, 0, copy),
+    });
   }
   return { doc: next, ids: made };
 }

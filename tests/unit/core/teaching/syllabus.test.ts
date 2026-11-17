@@ -27,6 +27,23 @@ describe('the syllabus and OneEditor', () => {
       expect(toolsFor(SYLLABUS).has(e.syllabus), `${e.label}: ${e.syllabus}`).toBe(true);
   });
 
+  it('GL1 G9 GC1 (M23) 19.1 colour systems, resolution and formats and 19.4 compression point to Learn ▸ Graphics', () => {
+    const where = (point: RegExp) => SYLLABUS.find((p) => point.test(p.point))!.where;
+    expect(where(/^colour systems/)).toMatch(/Learn ▸ Graphics ▸ Colour systems/);
+    expect(where(/^the need for different image resolutions/)).toMatch(/Learn ▸ Graphics/);
+    expect(where(/suitability and selection for use in a given scenario/)).toMatch(
+      /Learn ▸ Graphics ▸ File formats/,
+    );
+    expect(where(/^converting bitmap images/)).toMatch(/Bitmap to vector/);
+    const compression = SYLLABUS.filter((p) => p.section === '19.4');
+    expect(compression.map((p) => p.point)).toEqual([
+      'what compression is',
+      'methods of compression: lossless compression, lossy compression',
+      'effects of different methods of compression on images',
+    ]);
+    for (const p of compression) expect(p.where).toMatch(/Learn ▸ Graphics ▸ Compression/);
+  });
+
   it('each point knows its tools (for the teacher notes)', () => {
     const fades = SYLLABUS.find(
       (p) => p.point === 'fading in and fading out' && p.section === '11.2',

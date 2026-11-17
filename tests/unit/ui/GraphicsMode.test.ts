@@ -1,12 +1,13 @@
 // M18: Graphics mode on screen — its tab, the canvas chip, New image… in the papers' sizes, the
 // Image section, positions in cm, Align, Export image, Send to Animation, and the colour picker's
 // RGB / HSL / CMYK numbers.
-import { describe, expect, it } from 'vitest';
+import { describe, expect, it, vi } from 'vitest';
 import { fireEvent, render, screen, within } from '@testing-library/svelte';
 import App from '../../../src/ui/App.svelte';
 import { animUi } from '../../../src/ui/animation/animation-ui.svelte.ts';
 import { ui } from '../../../src/ui/ui-state.svelte.ts';
 import { testApp } from '../../helpers/test-app.ts';
+import { toolControl } from '../../helpers/tools.ts';
 
 async function graphicsMode() {
   animUi.dialog = null;
@@ -30,8 +31,9 @@ describe('Graphics mode (M18)', () => {
     await graphicsMode();
     expect(ui.mode).toBe('Graphics');
     const tools = within(screen.getByRole('toolbar', { name: 'Drawing tools' }));
+    // On the strip or behind their family's corner (tool-families.ts).
     for (const name of ['Select', 'Rectangle', 'Ellipse', 'Star', 'Pen', 'Text', 'Picture'])
-      expect(tools.getByRole('button', { name })).toBeTruthy();
+      expect(await toolControl(name)).toBeTruthy();
     expect(tools.queryByRole('button', { name: 'Button' })).toBeNull();
     expect(screen.queryByRole('button', { name: 'Import frames' })).toBeNull();
     expect(screen.queryByRole('region', { name: /timeline/i })).toBeNull();
@@ -49,7 +51,12 @@ describe('Graphics mode (M18)', () => {
     expect(d.getByText(/2480 × 3508 pixels/)).toBeTruthy();
     await fireEvent.click(d.getByRole('button', { name: 'Create' }));
     expect(s.doc().stage).toMatchObject({ width: 2480, height: 3508 });
-    expect(s.doc().graphic).toEqual({ dpi: 300, units: 'cm' });
+    // G6 (benchmark): the size is kept as typed, so the SVG says 21 × 29.7 cm exactly.
+    expect(s.doc().graphic).toEqual({
+      dpi: 300,
+      units: 'cm',
+      size: { width: 21, height: 29.7, units: 'cm' },
+    });
     expect(
       screen.getByRole('button', { name: /2480 × 3508 px · 21 × 29.7 cm · 300 dpi/ }),
     ).toBeTruthy();
@@ -132,7 +139,8 @@ describe('Graphics mode (M18)', () => {
     s.g.addShape('star', { x: 40, y: 40, width: 100, height: 100 });
     s.g.select([]);
     await fireEvent.click(screen.getByRole('button', { name: 'Send to Animation' }));
-    expect(ui.mode).toBe('Animation');
+    // M21: sending is async (pixel layers go as pictures saved first).
+    await vi.waitFor(() => expect(ui.mode).toBe('Animation'));
     expect(s.app.animation.store.get().history.present.layers.at(-1)!.objects[0]!.kind).toBe(
       'star',
     );
@@ -348,7 +356,11 @@ describe('Image settings (G1, G10)', () => {
     await fireEvent.click(d.getByRole('checkbox', { name: /Transparent/ }));
     await fireEvent.click(d.getByRole('button', { name: 'Apply' }));
     expect(screen.queryByRole('dialog', { name: 'Image settings' })).toBeNull();
-    expect(s.doc().graphic).toEqual({ dpi: 200, units: 'in' });
+    expect(s.doc().graphic).toEqual({
+      dpi: 200,
+      units: 'in',
+      size: { width: 6.4, height: 3.6, units: 'in' },
+    });
     expect(s.doc().stage).toMatchObject({ width: 1280, height: 720, background: 'none' });
 
     // Opened again it shows the transparent canvas in inches; a size too big is refused.
@@ -415,7 +427,8 @@ describe('Export image sizes and parts (G11)', () => {
       s.g.addShape('rect', { x: 200, y: 0, width: 30, height: 30 });
     });
     await fireEvent.change(d.getByLabelText('Export'), { target: { value: 'selection' } });
-    expect(d.getByText('30 × 30 px')).toBeTruthy();
+    // B7: with its 2 px outline's outer half.
+    expect(d.getByText('32 × 32 px')).toBeTruthy();
     expect(d.getByText(/see-through where nothing is drawn/)).toBeTruthy();
     await fireEvent.change(d.getByLabelText('Export'), { target: { value: 'each' } });
     expect(d.getByText(/Each file/)).toBeTruthy();

@@ -17,6 +17,8 @@ const TYPES: Record<string, string> = {
   '.bmp': 'image/bmp',
   '.gif': 'image/gif',
   '.svg': 'image/svg+xml',
+  // GB1 (M21): a WebP photo opened as an image or a layer.
+  '.webp': 'image/webp',
   '.mp3': 'audio/mpeg',
   '.wav': 'audio/wav',
   '.m4a': 'audio/mp4',

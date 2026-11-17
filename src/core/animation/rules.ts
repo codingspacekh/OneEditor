@@ -2,7 +2,7 @@
 // coursebook's common aspect ratios (Table 19.1) as presets.
 import { EditError } from '../model/errors.ts';
 import { FONTS } from '../text/fonts.ts';
-import type { AnimObject, Paint, Stage } from './types.ts';
+import type { AnimObject, ObjectFilter, Paint, PatternName, Stage } from './types.ts';
 
 export const MIN_STAGE = 16;
 export const MAX_STAGE = 4096;
@@ -60,6 +60,9 @@ export function presetSize(
 
 const HEX = /^#[0-9a-f]{6}$/i;
 export const isColour = (c: unknown): c is string => typeof c === 'string' && HEX.test(c);
+/** G8 (M23): a gradient's colour may have its own opacity: #rrggbb or #rrggbbaa. */
+export const isGradientColour = (c: unknown): c is string =>
+  typeof c === 'string' && /^#[0-9a-f]{6}([0-9a-f]{2})?$/i.test(c);
 /** AN21: a stage with no background (transparent PNG, GIF and web page; white in an MP4). */
 export const TRANSPARENT = 'none';
 export const isStageBackground = (c: unknown): c is string => c === TRANSPARENT || isColour(c);
@@ -91,20 +94,45 @@ export function validateStage(stage: Stage, max = MAX_STAGE): void {
     throw new EditError('Choose whether the animation loops or plays once.');
 }
 
+/** G12 (M19): the built-in pattern tiles, and a picture tiled. */
+export const PATTERN_NAMES: readonly PatternName[] = [
+  'weave',
+  'checks',
+  'stripes',
+  'dots',
+  'hatching',
+  'crosshatch',
+  'bricks',
+  'picture',
+];
+
 function validatePaint(paint: Paint, what: string): void {
   if (paint.kind === 'none') return;
   if (paint.kind === 'solid') {
     if (!isColour(paint.colour)) throw new EditError(colourMessage(`The ${what} colour`));
     return;
   }
-  if (!isColour(paint.from) || !isColour(paint.to))
+  if (paint.kind === 'pattern') {
+    // G12 (M19): a tile in a colour on a background (or see-through), or a picture tiled.
+    if (!PATTERN_NAMES.includes(paint.pattern)) throw new EditError('Choose one of the patterns.');
+    if (!isColour(paint.colour) || !isStageBackground(paint.background))
+      throw new EditError(colourMessage(`The ${what} pattern's colour`));
+    if (!(Number.isFinite(paint.size) && paint.size >= 2 && paint.size <= 1000))
+      throw new EditError('A pattern tile is from 2 to 1000 px.');
+    if (paint.angle !== undefined && !Number.isFinite(paint.angle))
+      throw new EditError('The pattern angle must be a number of degrees.');
+    if (paint.pattern === 'picture' && !paint.pictureId)
+      throw new EditError('Choose the picture to tile.');
+    return;
+  }
+  if (!isGradientColour(paint.from) || !isGradientColour(paint.to))
     throw new EditError(colourMessage(`Each ${what} colour`));
   if (paint.kind === 'linear' && !Number.isFinite(paint.angle))
     throw new EditError('The gradient angle must be a number of degrees.');
   // AN6: the colours between, and a radial gradient's centre, are in % of the way or the box.
   const percent = (n: unknown) => typeof n === 'number' && n >= 0 && n <= 100;
   for (const stop of paint.stops ?? []) {
-    if (!isColour(stop.colour)) throw new EditError(colourMessage(`Each ${what} colour`));
+    if (!isGradientColour(stop.colour)) throw new EditError(colourMessage(`Each ${what} colour`));
     if (!percent(stop.at))
       throw new EditError('Each colour of a gradient is placed from 0 to 100 %.');
   }
@@ -114,6 +142,89 @@ function validatePaint(paint: Paint, what: string): void {
       (paint.cy !== undefined && !percent(paint.cy)))
   )
     throw new EditError('The centre of a radial gradient must be from 0 to 100 % of the box.');
+}
+
+/** G14 (M19): the most effects one object has, the furthest a shadow is moved, the most blur. */
+export const MAX_FILTERS = 10;
+export const MAX_FILTER_OFFSET = 1000;
+export const MAX_FILTER_BLUR = 250;
+export const MAX_BEVEL_DEPTH = 100;
+/** G10 (M23): the widest stroke effect, in px. */
+export const MAX_STROKE_EFFECT = 250;
+export const STROKE_POSITIONS = ['outside', 'centred', 'inside'] as const;
+
+const percentage = (n: unknown): boolean =>
+  typeof n === 'number' && Number.isFinite(n) && n >= 0 && n <= 100;
+
+/** G12, G14 (M19): the fill's and outline's own opacity, and the effects' numbers and colours. */
+function validateAppearance(object: AnimObject): void {
+  if (object.fillOpacity !== undefined && !percentage(object.fillOpacity))
+    throw new EditError('The fill opacity must be between 0 and 100 %.');
+  if (object.stroke?.opacity !== undefined && !percentage(object.stroke.opacity))
+    throw new EditError('The outline opacity must be between 0 and 100 %.');
+  validateFilters(object.filters ?? [], 'An object');
+}
+
+/**
+ * G14 (M19): effects' numbers and colours, on an object or (M22) a pixel layer (`owner`: "An
+ * object", "A layer").
+ */
+export function validateFilters(filters: readonly ObjectFilter[], owner: string): void {
+  if (filters.length > MAX_FILTERS)
+    throw new EditError(`${owner} can have up to ${MAX_FILTERS} filters.`);
+  const within = (v: number, low: number, high: number) =>
+    Number.isFinite(v) && v >= low && v <= high;
+  const blur = (v: number) => {
+    if (!within(v, 0, MAX_FILTER_BLUR))
+      throw new EditError(`A blur must be from 0 to ${MAX_FILTER_BLUR} px.`);
+  };
+  const opacity = (v: number) => {
+    if (!percentage(v)) throw new EditError("A filter's opacity must be between 0 and 100 %.");
+  };
+  const colour = (c: string) => {
+    if (!isColour(c)) throw new EditError(colourMessage("A filter's colour"));
+  };
+  for (const f of filters)
+    switch (f.kind) {
+      case 'dropShadow':
+      case 'innerShadow':
+        if (![f.dx, f.dy].every((d) => within(d, -MAX_FILTER_OFFSET, MAX_FILTER_OFFSET)))
+          throw new EditError(`A shadow can be moved up to ${MAX_FILTER_OFFSET} px each way.`);
+        colour(f.colour);
+        blur(f.blur);
+        opacity(f.opacity);
+        break;
+      case 'glow':
+        colour(f.colour);
+        blur(f.blur);
+        opacity(f.opacity);
+        break;
+      case 'bevel':
+        if (!within(f.depth, 0, MAX_BEVEL_DEPTH))
+          throw new EditError(`A bevel's depth must be from 0 to ${MAX_BEVEL_DEPTH} px.`);
+        if (!Number.isFinite(f.angle))
+          throw new EditError("The light's angle must be a number of degrees.");
+        colour(f.light);
+        colour(f.shadow);
+        blur(f.blur);
+        opacity(f.opacity);
+        break;
+      case 'stroke':
+        if (!(Number.isFinite(f.width) && f.width > 0 && f.width < MAX_STROKE_EFFECT))
+          throw new EditError(
+            `A stroke effect's width must be more than 0 and less than ${MAX_STROKE_EFFECT} px.`,
+          );
+        if (!STROKE_POSITIONS.includes(f.position))
+          throw new EditError('A stroke effect lies outside, centred or inside the edge.');
+        colour(f.colour);
+        opacity(f.opacity);
+        break;
+      case 'blur':
+        blur(f.radius);
+        break;
+      default:
+        throw new EditError('Choose one of the filters: shadow, glow, bevel, stroke or blur.');
+    }
 }
 
 /** AN25: the most an object can be skewed, either way (degrees). */
@@ -128,6 +239,34 @@ export const MAX_PIVOT = 10;
 const atLeastZero = (n: number, what: string) => {
   if (!Number.isFinite(n) || n < 0) throw new EditError(`${what} must be 0 or more.`);
 };
+
+/** GT1 (M20): letter spacing and kerning in thousandths of an em; line spacing in times the size. */
+export const LETTER_SPACING = { min: -500, max: 2000 } as const;
+export const KERNING = { min: -1000, max: 1000 } as const;
+export const LINE_SPACING = { min: 0.5, max: 5 } as const;
+
+const within = (n: number, range: { min: number; max: number }) =>
+  Number.isFinite(n) && n >= range.min && n <= range.max;
+
+/** GT1 (M20): a text's letter spacing, kerning and line spacing, each in its range. */
+function validateTextSpacing(t: Extract<AnimObject, { kind: 'text' }>): void {
+  const { letterSpacing: ls, kerning, lineSpacing } = t;
+  if (ls !== undefined && !within(ls, LETTER_SPACING))
+    throw new EditError(
+      `The letter spacing must be between −${-LETTER_SPACING.min} and ${LETTER_SPACING.max} (thousandths of the size).`,
+    );
+  if (
+    kerning !== undefined &&
+    !(Array.isArray(kerning) && kerning.every((k) => within(k, KERNING)))
+  )
+    throw new EditError(
+      `Kerning must be between −${-KERNING.min} and ${KERNING.max} (thousandths of the size).`,
+    );
+  if (lineSpacing !== undefined && !within(lineSpacing, LINE_SPACING))
+    throw new EditError(
+      `The line spacing must be between ${LINE_SPACING.min} and ${LINE_SPACING.max} times the size.`,
+    );
+}
 
 export function validateObject(object: AnimObject): void {
   for (const n of [object.x, object.y, object.rotation])
@@ -154,9 +293,17 @@ export function validateObject(object: AnimObject): void {
     atLeastZero(object.stroke.width, 'The outline width');
     if (!isColour(object.stroke.colour)) throw new EditError(colourMessage('The outline colour'));
   }
+  validateAppearance(object);
   switch (object.kind) {
     case 'rect':
       atLeastZero(object.radius, 'The corner radius');
+      break;
+    case 'ellipse':
+      // GV1 (M19): an arc's ends are angles; it is open, a pie slice or a chord.
+      if (object.arc && ![object.arc.start, object.arc.end].every(Number.isFinite))
+        throw new EditError('The start and end of an arc must be numbers of degrees.');
+      if (object.arc && !['open', 'pie', 'chord'].includes(object.arc.close))
+        throw new EditError('Choose how the arc is closed: open, a pie slice or a chord.');
       break;
     case 'star':
       if (!Number.isInteger(object.points) || object.points < 3)
@@ -179,6 +326,15 @@ export function validateObject(object: AnimObject): void {
         !(Number.isFinite(object.curve) && Math.abs(object.curve) <= MAX_CURVE)
       )
         throw new EditError(`The curve must be between −${MAX_CURVE} and ${MAX_CURVE}.`);
+      validateTextSpacing(object);
+      // GT2, GT3 (M20): where the words start on a path, and how far in from a shape.
+      if (object.path && !Number.isFinite(object.path.start))
+        throw new EditError('The start on the path must be a number (0 to 100 %).');
+      if (
+        object.inShape &&
+        !(Number.isFinite(object.inShape.padding) && object.inShape.padding >= 0)
+      )
+        throw new EditError('The padding must be 0 px or more.');
       break;
     case 'path':
       if (object.points.length < 2) throw new EditError('A path needs at least two points.');

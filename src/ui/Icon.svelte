@@ -37,6 +37,7 @@
     snap: '<path d="M6 15V8a6 6 0 0 1 12 0v7"/><path d="M6 15h4v-4M14 11v4h4"/><path d="M6 19h4M14 19h4"/>',
     zoomIn: '<circle cx="11" cy="11" r="7"/><path d="m21 21-4.3-4.3M11 8v6M8 11h6"/>',
     zoomOut: '<circle cx="11" cy="11" r="7"/><path d="m21 21-4.3-4.3M8 11h6"/>',
+    search: '<circle cx="11" cy="11" r="7"/><path d="m21 21-4.3-4.3"/>',
     eye: '<path d="M2 12s3.5-7 10-7 10 7 10 7-3.5 7-10 7S2 12 2 12z"/><circle cx="12" cy="12" r="3"/>',
     volume:
       '<path d="M11 5 6 9H2v6h4l5 4z"/><path d="M15.5 8.5a5 5 0 0 1 0 7M19 5a10 10 0 0 1 0 14"/>',
@@ -98,6 +99,11 @@
     star: '<path d="m12 3 2.6 5.3 5.9.9-4.3 4.1 1 5.8L12 16.4 6.8 19.1l1-5.8-4.3-4.1 5.9-.9z"/>',
     polygon: '<path d="M12 3l7.8 4.5v9L12 21l-7.8-4.5v-9z"/>',
     line: '<path d="M4 20 20 4"/>',
+    // GV1 (M19): the top half of a circle; a spiral from its middle; clicked straight lines.
+    arc: '<path d="M3 17a9 9 0 0 1 18 0"/><path d="M3 17h0M21 17h0"/>',
+    spiral:
+      '<path d="M12 12a1.5 1.5 0 0 1 3 0 3 3 0 0 1-6 0 4.5 4.5 0 0 1 9 0 6 6 0 0 1-12 0 7.5 7.5 0 0 1 15 0"/>',
+    polyline: '<path d="M3 19 8 8l6 7 7-11"/>',
     pen: '<path d="M4 20 15 9"/><path d="m13 7 4-4 4 4-4 4z"/>',
     brush:
       '<path d="M9.5 14.5 19 5a1.4 1.4 0 0 1 2 2l-9.5 9.5"/><path d="M9.5 14.5c-2.5 0-4 1.5-4 4 0 1-1 2-2.5 2.5 3 .5 7 0 7.5-3.5"/>',
@@ -115,6 +121,12 @@
     ruler:
       '<rect x="3" y="8" width="18" height="8" rx="1"/><path d="M7 8v3M11 8v3M15 8v3M19 8v3"/>',
     guides: '<path d="M12 3v18"/><path d="M3 12h18"/>',
+    // GV7 (M19): View ▸ Outline: two overlapping shapes drawn as lines only.
+    wireframe:
+      '<rect x="3" y="3" width="12" height="12" rx="1" stroke-dasharray="2 2"/><circle cx="15" cy="15" r="6"/>',
+    // GV8 (M19): a template layer: a picture under a pen line.
+    template:
+      '<rect x="3" y="3" width="18" height="18" rx="2" stroke-dasharray="3 2"/><path d="m6 17 4-5 3 3 2-2 3 4"/>',
     folder: '<path d="M3 7a2 2 0 0 1 2-2h4l2 2h8a2 2 0 0 1 2 2v9a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z"/>',
     group:
       '<rect x="3" y="3" width="8" height="8" rx="1"/><rect x="13" y="13" width="8" height="8" rx="1"/><path d="M11 7h2v6"/>',
@@ -122,6 +134,42 @@
     down: '<path d="m6 9 6 6 6-6"/>',
     front: '<rect x="3" y="3" width="12" height="12" rx="1"/><path d="M9 21h12V9"/>',
     back: '<rect x="9" y="9" width="12" height="12" rx="1"/><path d="M15 3H3v12"/>',
+    // GB1 (M21): the Hand tool (pan).
+    hand: '<path d="M18 11V6a2 2 0 0 0-4 0v5"/><path d="M14 10V4a2 2 0 0 0-4 0v6"/><path d="M10 10.5V6a2 2 0 0 0-4 0v8"/><path d="M18 8a2 2 0 1 1 4 0v6a8 8 0 0 1-8 8h-2c-2.8 0-4.5-.86-6-2.34l-3.6-3.6a2 2 0 0 1 2.83-2.82L7 15"/>',
+    // GB2 (M21): the selection tools — dashed marquees, lassos, the wand, a picked colour.
+    marqueeRect: '<rect x="4" y="5" width="16" height="14" stroke-dasharray="3 2.5"/>',
+    marqueeEllipse: '<ellipse cx="12" cy="12" rx="9" ry="7" stroke-dasharray="3 2.5"/>',
+    lasso:
+      '<path d="M7 17c-3-1.5-4-4-3-6.5C5.5 6 11 4 16 5s6 4.5 4 7.5S12 17 8.5 16"/><path d="M7 17c0 2 1 3 3 4"/>',
+    polygonLasso: '<path d="M4 15 7 5l10 1 3 8-9 3z" stroke-dasharray="3 2"/><path d="M11 17v4"/>',
+    magneticLasso:
+      '<path d="M5 14C3 9 8 4 14 5s7 6 3 9-8 2-10 1" stroke-dasharray="3 2"/><path d="M15 15v6M19 15v6M15 18h4"/>',
+    wand: '<path d="m4 20 11-11"/><path d="M15 3v3M19 5l-2 2M21 9h-3M12 5l1.5 1.5M18 12l-1.5-1.5"/>',
+    colourSelect:
+      '<path d="m3 21 5-1L19 9l-4-4L4 16z"/><path d="m14 6 4 4"/><circle cx="19" cy="19" r="2.5" fill="currentColor" stroke="none"/>',
+    // GB4, GB3 (M21): the painting tools — a paintbrush, pencil, eraser, airbrush, bucket, gradient.
+    paintbrush:
+      '<path d="M18 3 9 12"/><path d="m21 6-9 9"/><path d="M9 12l3 3"/><path d="M8.5 14c-2.5 0-4.5 2-4.5 4.5V21h2.5c2.5 0 4.5-2 4.5-4.5"/>',
+    pencil: '<path d="M4 20l1-5L16 4l4 4L9 19z"/><path d="m14 6 4 4"/><path d="M4 20h4"/>',
+    eraser:
+      '<path d="M8 20h12"/><path d="m3.5 14.5 9-9a2 2 0 0 1 2.8 0l3.2 3.2a2 2 0 0 1 0 2.8L11 19H8z"/><path d="m8 10 6 6"/>',
+    airbrush:
+      '<path d="M4 15h7l3-3V9h-3L8 12H4z"/><path d="M14 10.5h3"/><path d="M19 7v.01M21 10.5v.01M19 14v.01M17 4.5v.01M17 16.5v.01"/>',
+    bucket:
+      '<path d="m4 11 7-7 8 8-7 7a2 2 0 0 1-2.8 0L4 13.8a2 2 0 0 1 0-2.8z"/><path d="M4 12h15"/><path d="M20 15s2 2.5 2 4a2 2 0 0 1-4 0c0-1.5 2-4 2-4z"/>',
+    gradient:
+      '<rect x="3" y="3" width="18" height="18" rx="2"/><path d="M7 3v18" stroke-opacity=".9"/><path d="M11 3v18" stroke-opacity=".6"/><path d="M15 3v18" stroke-opacity=".35"/><path d="M19 3v18" stroke-opacity=".15"/>',
+    // GB5 (M22): the retouching tools — a rubber stamp, a plaster, a drop, a sharp point, a
+    // smudging finger and an eye.
+    cloneStamp:
+      '<path d="M9 3h6v4l-1.5 3h-3L9 7z"/><path d="M5 14a2 2 0 0 1 2-2h10a2 2 0 0 1 2 2v2H5z"/><path d="M4 20h16"/>',
+    heal: '<rect x="2.5" y="8.5" width="19" height="7" rx="3.5" transform="rotate(-45 12 12)"/><path d="M10 10v.01M14 10v.01M10 14v.01M14 14v.01"/>',
+    blurDrop: '<path d="M12 3s6 6.5 6 11a6 6 0 0 1-12 0c0-4.5 6-11 6-11z"/>',
+    sharpen: '<path d="M12 3 20 20H4z"/><path d="M12 9v6"/>',
+    smudge:
+      '<path d="M9 13V5a1.5 1.5 0 0 1 3 0v6"/><path d="M12 11V9.5a1.5 1.5 0 0 1 3 0V12"/><path d="M15 12a1.5 1.5 0 0 1 3 0v3a6 6 0 0 1-6 6h-1a5 5 0 0 1-4.2-2.3L5 16a1.5 1.5 0 0 1 2.5-1.6L9 16"/>',
+    redEye:
+      '<path d="M2 12s3.5-6 10-6 10 6 10 6-3.5 6-10 6S2 12 2 12z"/><circle cx="12" cy="12" r="3" fill="currentColor" stroke="none"/>',
   } as const;
   export type IconName = keyof typeof ICONS;
 </script>

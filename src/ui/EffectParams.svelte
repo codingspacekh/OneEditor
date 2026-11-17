@@ -66,16 +66,19 @@
         </div>
       {:else}
         <label for={id}>{spec.label}</label>
-        <input
-          {id}
-          type="number"
-          min={spec.min}
-          max={spec.max}
-          step={spec.step}
-          value={params[key] ?? spec.default}
-          onchange={(e) => (error = onchange({ ...params, [key]: Number(e.currentTarget.value) }))}
-        />
-        <span class="unit">{spec.unit ?? ''}</span>
+        <span class="box">
+          <input
+            {id}
+            type="number"
+            min={spec.min}
+            max={spec.max}
+            step={spec.step}
+            value={params[key] ?? spec.default}
+            onchange={(e) =>
+              (error = onchange({ ...params, [key]: Number(e.currentTarget.value) }))}
+          />
+          {#if spec.unit}<span class="unit">{spec.unit}</span>{/if}
+        </span>
       {/if}
     {/each}
     {#if bands.length}
@@ -110,12 +113,37 @@
 {#if error}<p class="error" role="alert">{error}</p>{/if}
 
 <style>
+  /* The property grid's four columns (props.css): numbers pair up, label | box | label | box, and
+     line up with the panel's other fields; a choice, a tick or the bands take a row. */
   .params {
     display: grid;
-    grid-template-columns: 1fr 72px 18px;
-    gap: 4px 6px;
+    grid-template-columns: var(--prop-cols);
+    gap: var(--prop-gap-y) var(--prop-gap-x);
     align-items: center;
     font-size: 12px;
+  }
+  .box {
+    display: flex;
+    align-items: center;
+    min-width: 0;
+    background: var(--bg-2);
+    border: 1px solid var(--line);
+    border-radius: 4px;
+    padding: 0 6px 0 0;
+  }
+  .box:focus-within {
+    border-color: var(--accent);
+  }
+  .box input {
+    flex: 1;
+    width: 0;
+    min-width: 0;
+    border: 0;
+    background: transparent;
+    box-shadow: none;
+    text-align: right;
+    font: 500 12.5px var(--mono);
+    color: var(--tx-1);
   }
   label,
   .label {
@@ -124,17 +152,22 @@
   /* Choices get a row of their own. */
   .row {
     grid-column: 1 / -1;
-    display: flex;
+    display: grid;
+    grid-template-columns: subgrid;
     align-items: center;
-    justify-content: space-between;
-    gap: 8px;
+  }
+  .row > :not(label, .label) {
+    grid-column: 2 / -1;
+    min-width: 0;
+  }
+  .row .seg {
+    justify-self: end;
   }
   .row button {
     white-space: nowrap;
   }
-  /* A fixed share of the row: a menu sized by its chosen option would jump when it changes. */
   .row select {
-    flex: 0 1 60%;
+    width: 100%;
   }
   .bands {
     grid-column: 1 / -1;
@@ -185,7 +218,6 @@
     gap: 6px;
     color: var(--tx-1);
   }
-  input,
   .unit,
   .hint {
     color: var(--tx-3);

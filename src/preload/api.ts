@@ -92,6 +92,8 @@ export interface Channels {
   'dialog:openSound': { args: []; result: string | null };
   'dialog:openFrames': { args: []; result: string[] };
   'dialog:openExport': { args: []; result: string[] };
+  /** T1, GL2 (M23): a file for Learn ▸ Inspect. */
+  'dialog:openInspect': { args: []; result: string | null };
   'dialog:saveAnimation': { args: [suggestedName: string]; result: string | null };
   'dialog:exportAnimation': {
     args: [suggestedName: string, format: AnimationExportFormat];
@@ -99,6 +101,8 @@ export interface Channels {
   };
   /** G1, G11 (M18): Graphics mode's files and exports. */
   'dialog:openGraphic': { args: []; result: string | null };
+  /** GV6 (M19): an SVG to import as shapes. */
+  'dialog:openSvg': { args: []; result: string | null };
   'dialog:saveGraphic': { args: [suggestedName: string]; result: string | null };
   'dialog:exportGraphic': {
     args: [suggestedName: string, format: GraphicExportFormat];
@@ -113,6 +117,8 @@ export interface Channels {
   'project:saveImage': { args: [name: string, png: Uint8Array]; result: string };
   'project:saveSound': { args: [name: string, wav: Uint8Array]; result: string };
   'project:writeBytes': { args: [path: string, bytes: Uint8Array]; result: null };
+  /** D9 (M21): a file's bytes (a .mveg image is a zip). */
+  'project:readBytes': { args: [path: string]; result: Uint8Array };
   /** AN15: the HTML web animation's player script. */
   'page:player': { args: []; result: string };
   /** AN15: a picture the app opened, as a data: URL. */
@@ -126,6 +132,8 @@ export interface Channels {
     args: [html: string, title: string, width: number, height: number];
     result: null;
   };
+  /** G11 (M19): an image's SVG printed as a PDF on a page this many inches wide and high. */
+  'page:pdf': { args: [svg: string, width: number, height: number]; result: Uint8Array };
   /** M17a U1–U5: updates; each answers with the state as it is then. */
   'updates:get': { args: []; result: UpdateState };
   'updates:check': { args: []; result: UpdateState };
@@ -180,9 +188,11 @@ export const CHANNELS: readonly Channel[] = [
   'dialog:openSound',
   'dialog:openFrames',
   'dialog:openExport',
+  'dialog:openInspect',
   'dialog:saveAnimation',
   'dialog:exportAnimation',
   'dialog:openGraphic',
+  'dialog:openSvg',
   'dialog:saveGraphic',
   'dialog:exportGraphic',
   'app:closeAnswer',
@@ -193,11 +203,13 @@ export const CHANNELS: readonly Channel[] = [
   'project:saveImage',
   'project:saveSound',
   'project:writeBytes',
+  'project:readBytes',
   'page:player',
   'page:picture',
   'page:sound',
   'page:font',
   'page:test',
+  'page:pdf',
   'updates:get',
   'updates:check',
   'updates:download',
@@ -235,9 +247,62 @@ export type MenuAction =
   | 'newImage'
   | 'openImage'
   | 'exportImage'
+  | 'placeTemplate'
+  | 'importSvg'
+  | 'outline'
+  /** GB6, G8, GB1 (M21): Graphics mode's Image menu and View ▸ Pixel Grid. */
+  | 'imageSize'
+  | 'canvasSize'
+  | 'cropToContent'
+  | 'trimPlain'
+  | 'reduceColours'
+  | 'pixelGrid'
+  /** GB3 (M22): Image ▸ Adjustments. */
+  | 'adjustBrightnessContrast'
+  | 'adjustLevels'
+  | 'adjustExposure'
+  | 'adjustShadowsHighlights'
+  | 'adjustHueSaturation'
+  | 'adjustColourBalance'
+  | 'adjustTemperatureTint'
+  | 'adjustReplaceColour'
+  | 'adjustThreshold'
+  | 'adjustGreyscale'
+  | 'adjustInvert'
+  /** G2, GB1, GB2, G13 (M21): Graphics mode's pixel layers and selection. */
+  | 'openPictureAsImage'
+  | 'cropToSelection'
+  | 'newPixelLayer'
+  | 'addPictureAsLayer'
+  | 'layerViaCopy'
+  | 'layerViaCut'
+  | 'maskFromSelection'
+  | 'mergeDown'
+  | 'mergeVisible'
+  | 'flatten'
+  | 'selectAllPixels'
+  | 'deselectPixels'
+  | 'invertSelection'
+  | 'selectLayerPixels'
+  | 'selectFromShape'
+  | 'featherSelection'
+  | 'growSelection'
+  | 'shrinkSelection'
+  | 'smoothSelection'
+  | 'fadeSelection'
+  /** GB5 (M22): Graphics mode's Filter menu. */
+  | 'filterGaussianBlur'
+  | 'filterMotionBlur'
+  | 'filterZoomBlur'
+  | 'filterTwirl'
+  | 'filterSharpen'
+  | 'filterBulge'
+  | 'filterPerspective'
+  | 'filterWarp'
   | 'learnInspect'
   | 'learnFormats'
   | 'learnAnimation'
+  | 'learnGraphics'
   | 'learnTask'
   | 'glossary'
   | 'toggleLeft'
@@ -246,6 +311,7 @@ export type MenuAction =
   | 'resetLayout'
   | 'updates'
   | 'candidate'
+  | 'settings'
   | 'about';
 
 /** Job events with the renderer's job key as jobId; errors carry the full WireError. */

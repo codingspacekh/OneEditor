@@ -8,7 +8,9 @@
   import { graphicOf } from '../../core/graphics/document.ts';
   import { formatLength } from '../../core/graphics/units.ts';
   import Icon from '../Icon.svelte';
-  import { animUi, ZOOM_STEPS } from '../animation/animation-ui.svelte.ts';
+  import { animUi } from '../animation/animation-ui.svelte.ts';
+  // GB1 (M21): Graphics mode zooms to 3200 %.
+  import { GRAPHICS_ZOOM_STEPS as ZOOM_STEPS } from '../animation/stage-viewport.ts';
   import { ui } from '../ui-state.svelte.ts';
 
   let { app }: { app: App } = $props();
@@ -32,8 +34,8 @@
     g.setZoom(next);
   }
 
-  function send(): void {
-    if (app.sendGraphicToAnimation()) ui.mode = 'Animation';
+  async function send(): Promise<void> {
+    if (await app.sendGraphicToAnimation()) ui.mode = 'Animation';
   }
 </script>
 

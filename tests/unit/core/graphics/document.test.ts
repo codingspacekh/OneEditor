@@ -65,7 +65,12 @@ describe('a new image (G1)', () => {
       background: '#ffffff',
       length: 1,
     });
-    expect(doc.graphic).toEqual({ dpi: 300, units: 'cm' });
+    // G6 (benchmark): with the printed size as typed.
+    expect(doc.graphic).toEqual({
+      dpi: 300,
+      units: 'cm',
+      size: { width: 21, height: 29.7, units: 'cm' },
+    });
     expect(isGraphic(doc)).toBe(true);
     expect(doc.view.rulers).toBe(true);
     expect(doc.layers).toHaveLength(1);
@@ -101,7 +106,11 @@ describe('a new image (G1)', () => {
       background: '#ffffff',
     });
     const back = deserializeAnimation(serializeAnimation(doc));
-    expect(back.graphic).toEqual({ dpi: 300, units: 'cm' });
+    expect(back.graphic).toEqual({
+      dpi: 300,
+      units: 'cm',
+      size: { width: 10, height: 10, units: 'cm' },
+    });
     expect(back.stage.width).toBe(1181);
   });
 
@@ -148,14 +157,15 @@ describe('the canvas (G1, G8)', () => {
   it('crops to the drawing: everything moves up and left, guides outside are dropped', () => {
     const doc = withShapes();
     const box = drawingBounds(doc)!;
-    expect(box).toMatchObject({ x: 100.4, y: 50 });
+    // B7: the shapes' 2 px outlines reach 1 px beyond their boxes.
+    expect(box).toMatchObject({ x: 99.4, y: 49 });
     const cropped = cropCanvas(doc, box);
-    // From x 100 (whole pixels) to 450, from y 50 to 350.
-    expect(cropped.stage).toMatchObject({ width: 350, height: 300 });
-    expect(cropped.layers[0]!.objects[0]!.x).toBeCloseTo(0.4, 9);
-    expect(cropped.layers[0]!.objects[0]!.y).toBe(0);
-    expect(cropped.layers[0]!.objects[1]).toMatchObject({ x: 300, y: 250 });
-    expect(cropped.guides).toEqual({ x: [50], y: [10] });
+    // From x 99 (whole pixels) to 451, from y 49 to 351.
+    expect(cropped.stage).toMatchObject({ width: 352, height: 302 });
+    expect(cropped.layers[0]!.objects[0]!.x).toBeCloseTo(1.4, 9);
+    expect(cropped.layers[0]!.objects[0]!.y).toBe(1);
+    expect(cropped.layers[0]!.objects[1]).toMatchObject({ x: 301, y: 251 });
+    expect(cropped.guides).toEqual({ x: [51], y: [11] });
   });
 
   it('has no drawing to crop to when every layer is hidden', () => {

@@ -7,6 +7,7 @@
   import Icon from './Icon.svelte';
   import { ui } from './ui-state.svelte.ts';
   import ProjectSettings from './ProjectSettings.svelte';
+  import SettingsDialog from './SettingsDialog.svelte';
   import ExportDialog from './ExportDialog.svelte';
   import SnapshotDialog from './SnapshotDialog.svelte';
   import StatusBar from './StatusBar.svelte';
@@ -40,6 +41,11 @@
   const animStore = $derived(app.animation.store);
   const graphicStore = $derived(app.graphics.store);
   const updatesView = $derived(app.updates.store);
+  const appSettings = $derived(app.settings.store);
+  // Settings: every "Why use this?" follows the saved choice.
+  $effect(() => {
+    ui.showWhy = $appSettings.showWhy;
+  });
   const candidateView = $derived(app.candidate.store);
   const MODE_ICONS = {
     Video: 'video',
@@ -51,6 +57,7 @@
     ['inspect', 'Inspector & sampling'],
     ['formats', 'Formats & compression'],
     ['animation', 'Animation'],
+    ['graphics', 'Graphics'],
     ['task', 'Task checker'],
   ];
   let settingsOpen = $state(false);
@@ -239,6 +246,7 @@
   {#if snapshotOpen}<SnapshotDialog {app} onclose={() => (snapshotOpen = false)} />{/if}
   {#if exportOpen}<ExportDialog {app} onclose={() => (exportOpen = false)} />{/if}
   {#if ui.glossary}<Glossary onclose={() => (ui.glossary = false)} />{/if}
+  {#if ui.settings}<SettingsDialog {app} onclose={() => (ui.settings = false)} />{/if}
   {#if $updatesView.dialog}<UpdatesDialog {app} />{/if}
   {#if $candidateView.dialog}<CandidateDialog {app} />{/if}
   {#if ui.soundEffects && (ui.mode === 'Video' || ui.mode === 'Audio' || ui.mode === 'Animation')}

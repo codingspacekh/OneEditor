@@ -5,6 +5,7 @@ import { EditError, JobCancelledError } from '../core/model/errors.ts';
 import type { AppPaths, Dialogs, JobHandle, MediaEngine, ProjectFiles } from '../core/ports.ts';
 import { toWire } from '../core/wire.ts';
 import { isPlaybackSample, type PlaybackSample } from '../core/animation/paint-meter.ts';
+import { MAX_PDF_INCHES, pdfPageHtml, type PdfPage } from '../core/graphics/pdf.ts';
 import { combineFilter } from '../core/image/combine.ts';
 import type { Updates } from './updates.ts';
 import { resizeCropFilter } from '../core/image/crop.ts';
@@ -46,6 +47,8 @@ export interface PageFiles {
   read(path: string): Promise<Uint8Array>;
   /** AN18: Test — shows the page in a window of its own, the stage's size. */
   show(html: string, title: string, width: number, height: number): Promise<void>;
+  /** G11 (M19): prints a page (pdfPageHtml) as a PDF of `page` inches (main/pdf.ts). */
+  pdf?(html: string, page: PdfPage): Promise<Uint8Array>;
 }
 
 /** AN5: the picture types Animation mode opens, by extension. */
@@ -55,6 +58,7 @@ const PICTURE_TYPES: Record<string, string> = {
   jpeg: 'image/jpeg',
   gif: 'image/gif',
   bmp: 'image/bmp',
+  webp: 'image/webp',
   svg: 'image/svg+xml',
 };
 
@@ -217,9 +221,11 @@ export function registerIpc(s: MainServices): void {
     'dialog:openSound': () => s.dialogs.openSound(),
     'dialog:openFrames': () => s.dialogs.openFrames(),
     'dialog:openExport': () => s.dialogs.openExport(),
+    'dialog:openInspect': () => s.dialogs.openInspect(),
     'dialog:saveAnimation': (name) => s.dialogs.saveAnimation(name),
     'dialog:exportAnimation': (name, format) => s.dialogs.exportAnimation(name, format),
     'dialog:openGraphic': () => s.dialogs.openGraphic(),
+    'dialog:openSvg': () => s.dialogs.openSvg(),
     'dialog:saveGraphic': (name) => s.dialogs.saveGraphic(name),
     'dialog:exportGraphic': (name, format) => s.dialogs.exportGraphic(name, format),
     'app:closeAnswer': async (close) => {
@@ -246,6 +252,8 @@ export function registerIpc(s: MainServices): void {
       await s.files.writeBytes(path, bytes);
       return null;
     },
+    // D9 (M21): a .mveg image (a zip), or a picture's own bytes; as project:read, any file.
+    'project:readBytes': (path) => s.files.readBytes(path),
     'page:player': async () => new TextDecoder().decode(await s.pageFiles.read(s.pageFiles.player)),
     'page:picture': async (path) => {
       if (!s.allow.has(path)) throw new EditError('Only pictures opened in OneEditor can be used.');
@@ -295,6 +303,16 @@ export function registerIpc(s: MainServices): void {
         throw new EditError('There is nothing to test.');
       await s.pageFiles.show(html, String(title), width, height);
       return null;
+    },
+    'page:pdf': async (svg, width, height) => {
+      // G11 (M19): only an image's SVG, on a page a PDF can hold.
+      const page = { width, height };
+      if (typeof svg !== 'string' || !/^\s*(<\?xml[^>]*\?>\s*)?<svg[\s>/]/.test(svg))
+        throw new EditError('Only an image can be saved as a PDF.');
+      if (![width, height].every((n) => typeof n === 'number' && n > 0 && n <= MAX_PDF_INCHES))
+        throw new EditError(`A PDF page is up to ${MAX_PDF_INCHES} inches on a side.`);
+      if (!s.pageFiles.pdf) throw new EditError('Saving a PDF needs the OneEditor app.');
+      return s.pageFiles.pdf(pdfPageHtml(svg, page), page);
     },
     'project:saveImage': async (name, png) => {
       if (!/^[\w-]{1,100}$/.test(name)) throw new Error('A text picture needs a plain name.');

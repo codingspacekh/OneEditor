@@ -3,9 +3,20 @@
 // simplified (Ramer–Douglas–Peucker: the detail setting) and given curve handles (the smoothing
 // setting). The regions come largest first, so a region inside another is drawn over it; holes are
 // not cut, as the regions in them cover them. Detail is lost, as the coursebook warns.
+// GV5 (M19): or in black and white — the pixels darker than a threshold become black shapes
+// (silhouettes), their light insides cut out as holes, the rest left out — and of only a part of
+// the picture; the picture can be kept underneath, on a hidden layer, to compare.
+import { EditError } from '../model/errors.ts';
 import { fileNameOf } from '../project/relocate.ts';
-import { createGroup, createPath } from './factory.ts';
-import type { GroupObject, PathObject, PathPoint, PictureObject } from './types.ts';
+import { createGroup, createLayer, createPath } from './factory.ts';
+import type {
+  AnimationDoc,
+  GroupObject,
+  Id,
+  PathObject,
+  PathPoint,
+  PictureObject,
+} from './types.ts';
 
 /** RGBA pixels, row by row (an ImageData in the app). */
 export interface Pixels {
@@ -21,7 +32,25 @@ export interface TraceOptions {
   detail: number;
   /** 0–100: 0 keeps the corners; more gives the points longer curve handles. */
   smoothing: number;
+  /** GV5 (M19): colours (absent), or black and white: silhouettes of the dark parts. */
+  mode?: TraceMode;
+  /** GV5: in black and white, pixels darker than this (0–255) are black. Absent: 128. */
+  threshold?: number;
+  /** GV5: only this part of the picture, in fractions of it (0–1). Absent: all of it. */
+  area?: TraceArea;
 }
+
+export type TraceMode = 'colour' | 'blackWhite';
+
+export interface TraceArea {
+  x: number;
+  y: number;
+  width: number;
+  height: number;
+}
+
+/** GV5: the threshold a black-and-white trace starts with: the middle grey. */
+export const DEFAULT_THRESHOLD = 128;
 
 export interface TracedRegion {
   /** Hex, e.g. "#e6141e". */
@@ -30,6 +59,8 @@ export interface TracedRegion {
   points: PathPoint[];
   /** In pixels. */
   area: number;
+  /** GV5: light parts cut out of a black-and-white shape (the inside of an O). */
+  holes?: PathPoint[][];
 }
 
 /** In `index`, a see-through pixel. */
@@ -152,13 +183,20 @@ const LEFT = [
 ];
 
 export function traceBitmap(pixels: Pixels, options: TraceOptions): TracedRegion[] {
+  // GV5: only a part: traced on its own, then put back where it is in the picture.
+  if (options.area) {
+    const { part, x, y } = cropPixels(pixels, options.area);
+    const whole = { ...options };
+    delete whole.area;
+    return traceBitmap(part, whole).map((r) => shiftRegion(r, x, y));
+  }
   const { width, height } = pixels;
   const detail = clamp(options.detail, 0, 100) / 100;
   const smoothing = clamp(options.smoothing, 0, 100) / 100;
-  const { palette, index } = quantise(
-    pixels,
-    clamp(options.colours, TRACE_LIMITS.colours.min, TRACE_LIMITS.colours.max),
-  );
+  const blackWhite = options.mode === 'blackWhite';
+  const { palette, index } = blackWhite
+    ? darkParts(pixels, options.threshold ?? DEFAULT_THRESHOLD)
+    : quantise(pixels, clamp(options.colours, TRACE_LIMITS.colours.min, TRACE_LIMITS.colours.max));
   const minArea =
     detail >= 1 ? 1 : Math.max(1, Math.round(width * height * 0.002 * (1 - detail) ** 2));
   const tolerance = 0.5 + (1 - detail) * 0.02 * Math.max(width, height);
@@ -166,6 +204,7 @@ export function traceBitmap(pixels: Pixels, options: TraceOptions): TracedRegion
   const label = new Int32Array(width * height).fill(-1);
   const stack = new Int32Array(width * height);
   const regions: TracedRegion[] = [];
+  const byId = new Map<number, TracedRegion>();
   for (let start = 0; start < width * height; start++) {
     const colour = index[start]!;
     if (colour === CLEAR || label[start] !== -1) continue;
@@ -194,14 +233,119 @@ export function traceBitmap(pixels: Pixels, options: TraceOptions): TracedRegion
     }
     if (area < minArea) continue;
     const outline = follow(label, width, height, id, start % width, Math.floor(start / width));
-    regions.push({
+    const region = {
       colour: palette[colour]!,
       points: smooth(simplify(outline, tolerance), smoothing),
       area,
+    };
+    regions.push(region);
+    byId.set(id, region);
+  }
+  if (blackWhite) {
+    const shape = (outline: { x: number; y: number }[]) =>
+      smooth(simplify(outline, tolerance), smoothing);
+    cutHoles(index, label, width, height, minArea, (id, outline) => {
+      const region = byId.get(id);
+      if (region) region.holes = [...(region.holes ?? []), shape(outline)];
     });
   }
   // Stable: equal areas keep their order on the picture.
   return regions.sort((a, b) => b.area - a.area);
+}
+
+/**
+ * GV5: black and white: the pixels darker than `threshold` (by their brightness as the eye sees
+ * it) are black; lighter or see-through ones are left out.
+ */
+function darkParts(pixels: Pixels, threshold: number): { palette: string[]; index: Uint8Array } {
+  const { width, height, data } = pixels;
+  const limit = clamp(threshold, 0, 255);
+  const index = new Uint8Array(width * height);
+  for (let i = 0; i < width * height; i++) {
+    const grey = 0.299 * data[i * 4]! + 0.587 * data[i * 4 + 1]! + 0.114 * data[i * 4 + 2]!;
+    index[i] = data[i * 4 + 3]! >= 128 && grey < limit ? 0 : CLEAR;
+  }
+  return { palette: ['#000000'], index };
+}
+
+/**
+ * GV5: the light parts enclosed by a black shape (not reaching the picture's edge) are its holes:
+ * each found as a region of its own (4-connected, as the black is 8-connected) and given to the
+ * shape just above its first pixel, which surrounds it.
+ */
+function cutHoles(
+  index: Uint8Array,
+  label: Int32Array,
+  width: number,
+  height: number,
+  minArea: number,
+  hole: (shapeId: number, outline: { x: number; y: number }[]) => void,
+): void {
+  const light = new Int32Array(width * height).fill(-1);
+  const stack = new Int32Array(width * height);
+  for (let start = 0; start < width * height; start++) {
+    if (index[start] !== CLEAR || light[start] !== -1) continue;
+    let area = 0;
+    let edge = false;
+    let top = 0;
+    stack[top++] = start;
+    light[start] = start;
+    while (top > 0) {
+      const p = stack[--top]!;
+      area++;
+      const px = p % width;
+      const py = (p - px) / width;
+      if (px === 0 || py === 0 || px === width - 1 || py === height - 1) edge = true;
+      for (const [dx, dy] of [
+        [1, 0],
+        [-1, 0],
+        [0, 1],
+        [0, -1],
+      ] as const) {
+        const [x, y] = [px + dx, py + dy];
+        if (x < 0 || y < 0 || x >= width || y >= height) continue;
+        const q = y * width + x;
+        if (light[q] === -1 && index[q] === CLEAR) {
+          light[q] = start;
+          stack[top++] = q;
+        }
+      }
+    }
+    if (edge || area < minArea) continue;
+    const sx = start % width;
+    const sy = (start - sx) / width;
+    hole(label[start - width]!, follow(light, width, height, start, sx, sy));
+  }
+}
+
+/** GV5: the part of the picture in `area` (fractions of it), at least a pixel. */
+function cropPixels(pixels: Pixels, area: TraceArea): { part: Pixels; x: number; y: number } {
+  const { width, height, data } = pixels;
+  const ok = [area.x, area.y, area.width, area.height].every(Number.isFinite);
+  const x = ok ? clamp(Math.floor(area.x * width), 0, width - 1) : 0;
+  const y = ok ? clamp(Math.floor(area.y * height), 0, height - 1) : 0;
+  const w = ok ? Math.min(width - x, Math.round(area.width * width)) : 0;
+  const h = ok ? Math.min(height - y, Math.round(area.height * height)) : 0;
+  if (w < 1 || h < 1) throw new EditError('Choose a part of the picture to trace.');
+  const out = new Uint8ClampedArray(w * h * 4);
+  for (let row = 0; row < h; row++)
+    for (let i = 0; i < w * 4; i++) out[row * w * 4 + i] = data[((y + row) * width + x) * 4 + i]!;
+  return { part: { width: w, height: h, data: out }, x, y };
+}
+
+/** A traced region moved by (dx, dy) pixels, handles and holes too. */
+function shiftRegion(r: TracedRegion, dx: number, dy: number): TracedRegion {
+  const at = (p: PathPoint): PathPoint => ({
+    x: p.x + dx,
+    y: p.y + dy,
+    ...(p.in ? { in: { x: p.in.x + dx, y: p.in.y + dy } } : {}),
+    ...(p.out ? { out: { x: p.out.x + dx, y: p.out.y + dy } } : {}),
+  });
+  return {
+    ...r,
+    points: r.points.map(at),
+    ...(r.holes ? { holes: r.holes.map((h) => h.map(at)) } : {}),
+  };
 }
 
 /** The region's outer outline along the pixel edges, keeping the region on the right; corners only. */
@@ -328,6 +472,18 @@ export function tracedGroup(
         ...(p.in ? { in: at(p.in) } : {}),
         ...(p.out ? { out: at(p.out) } : {}),
       })),
+      // GV5: a black-and-white shape's light insides, cut out.
+      ...(region.holes?.length
+        ? {
+            holes: region.holes.map((hole) =>
+              hole.map((p) => ({
+                ...at(p),
+                ...(p.in ? { in: at(p.in) } : {}),
+                ...(p.out ? { out: at(p.out) } : {}),
+              })),
+            ),
+          }
+        : {}),
       fill: { kind: 'solid', colour: region.colour },
       stroke: undefined,
     };
@@ -348,4 +504,28 @@ export function tracedGroup(
     ...(picture.tracks ? { tracks: picture.tracks } : {}),
     ...(picture.paths ? { paths: picture.paths } : {}),
   };
+}
+
+/**
+ * GV5: the traced picture kept underneath to compare: on a hidden layer of its own just below the
+ * layer `layerId` (show it with the layer's eye; hidden layers are never exported).
+ */
+export function keepPictureUnder(
+  doc: AnimationDoc,
+  layerId: Id,
+  picture: PictureObject,
+): { doc: AnimationDoc; layerId: Id } {
+  const at = doc.layers.findIndex((l) => l.id === layerId);
+  if (at < 0) throw new EditError('The picture’s layer has gone.');
+  const above = doc.layers[at]!;
+  const kept = { ...picture };
+  delete kept.drawing;
+  const layer = createLayer(`${fileNameOf(picture.name)} (traced)`, {
+    visible: false,
+    ...(above.folderId ? { folderId: above.folderId } : {}),
+    // Not part of a frame-by-frame drawing there: always shown when the layer is.
+    objects: [kept],
+  });
+  const layers = [...doc.layers.slice(0, at), layer, ...doc.layers.slice(at)];
+  return { doc: { ...doc, layers }, layerId: layer.id };
 }

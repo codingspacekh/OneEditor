@@ -17,7 +17,11 @@ describe('X3 native menus', () => {
     expect(entries[0]!.label).toBe('About OneEditor');
     (entries[0]!.click as () => void)();
     expect(send).toHaveBeenCalledWith('about');
-    expect(entries.slice(1).map((i) => i.role)).toEqual([
+    // Settings… (⌘,) where Mac apps have it, after About.
+    expect(entries[1]).toMatchObject({ label: 'Settings…', accelerator: 'CmdOrCtrl+,' });
+    (entries[1]!.click as () => void)();
+    expect(send).toHaveBeenCalledWith('settings');
+    expect(entries.slice(2).map((i) => i.role)).toEqual([
       'services',
       'hide',
       'hideOthers',
@@ -48,6 +52,15 @@ describe('X3 native menus', () => {
     expect(item.accelerator).toBe(accelerator);
     (item.click as () => void)();
     expect(send).toHaveBeenCalledWith(action);
+  });
+
+  it('Windows has Settings… (Ctrl+,) at the end of Edit; macOS has it in the app menu only', () => {
+    const settingsIn = (platform: string) =>
+      items(menuTemplate(platform, () => {}, false).find((m) => m.label === 'Edit')!).find(
+        (i) => i.label === 'Settings…',
+      );
+    expect(settingsIn('win32')).toMatchObject({ accelerator: 'CmdOrCtrl+,' });
+    expect(settingsIn('darwin')).toBeUndefined();
   });
 
   it('Redo is ⇧⌘Z on macOS and Ctrl+Y on Windows', () => {
@@ -143,6 +156,10 @@ describe('X3 native menus', () => {
     expect(menus.map((m) => m.label ?? m.role)).toEqual([
       'File',
       'Edit',
+      'Image',
+      'Layer',
+      'Select',
+      'Filter',
       'View',
       'Learn',
       'windowMenu',
@@ -153,6 +170,7 @@ describe('X3 native menus', () => {
       'Inspector & Sampling',
       'Formats & Compression',
       'Animation Theory',
+      'Graphics Theory',
       'Task Checker',
       'Glossary',
     ]);
@@ -161,6 +179,7 @@ describe('X3 native menus', () => {
       'learnInspect',
       'learnFormats',
       'learnAnimation',
+      'learnGraphics',
       'learnTask',
       'glossary',
     ]);
@@ -175,6 +194,8 @@ describe('X3 native menus', () => {
       ['Show / Hide Right Panel', 'CmdOrCtrl+Alt+2'],
       ['Show / Hide Timeline', 'CmdOrCtrl+Alt+3'],
       ['Reset Layout', undefined],
+      ['Outline', 'Ctrl+Shift+Y'],
+      ['Pixel Grid', undefined],
     ]);
     for (const i of ours) (i.click as () => void)();
     expect(send.mock.calls.map((c) => c[0])).toEqual([
@@ -182,6 +203,185 @@ describe('X3 native menus', () => {
       'toggleRight',
       'toggleBottom',
       'resetLayout',
+      'outline',
+      'pixelGrid',
+    ]);
+  });
+
+  it('GV7: View ▸ Outline is ⌘Y on a Mac, as in Illustrator (Ctrl+Y is Redo on Windows)', () => {
+    const outline = items(
+      find(
+        menuTemplate('darwin', () => {}, false),
+        'View',
+      ),
+    ).find((i) => i.label === 'Outline')!;
+    expect(outline.accelerator).toBe('Cmd+Y');
+  });
+
+  it('GV8: File ▸ Place Template… sends "placeTemplate" to the page', () => {
+    const send = vi.fn<(a: MenuAction) => void>();
+    const item = items(find(menuTemplate('win32', send, false), 'File')).find(
+      (i) => i.label === 'Place Template…',
+    )!;
+    (item.click as () => void)();
+    expect(send).toHaveBeenCalledWith('placeTemplate');
+  });
+
+  it('GV6: File ▸ Import SVG… sends "importSvg" to the page', () => {
+    const send = vi.fn<(a: MenuAction) => void>();
+    const item = items(find(menuTemplate('darwin', send, false), 'File')).find(
+      (i) => i.label === 'Import SVG…',
+    )!;
+    (item.click as () => void)();
+    expect(send).toHaveBeenCalledWith('importSvg');
+  });
+});
+
+describe('M21: the Image menu', () => {
+  it('M21 GB6, G8: Image ▸ Image Size…, Canvas Size…, Crop to Content, Trim Plain Edges, Reduce Colours…', () => {
+    const send = vi.fn<(a: MenuAction) => void>();
+    const image = items(find(menuTemplate('win32', send, false), 'Image')).filter((i) => i.click);
+    expect(image.map((i) => i.label)).toEqual([
+      'Image Size…',
+      'Canvas Size…',
+      'Crop to Content',
+      'Trim Plain Edges',
+      'Reduce Colours…',
+      'Crop to Selection',
+    ]);
+    for (const i of image) (i.click as () => void)();
+    expect(send.mock.calls.map((c) => c[0])).toEqual([
+      'imageSize',
+      'canvasSize',
+      'cropToContent',
+      'trimPlain',
+      'reduceColours',
+      'cropToSelection',
+    ]);
+  });
+
+  it('M21 G2, GB1: the Layer menu: new pixel layer, a picture as a layer, layers via copy and cut, a mask from the selection, merging', () => {
+    const send = vi.fn<(a: MenuAction) => void>();
+    const layer = items(find(menuTemplate('win32', send, false), 'Layer')).filter((i) => i.click);
+    expect(layer.map((i) => [i.label, i.accelerator])).toEqual([
+      ['New Pixel Layer', 'CmdOrCtrl+Shift+N'],
+      ['Add Picture as Layer…', undefined],
+      ['Layer via Copy', undefined],
+      ['Layer via Cut', undefined],
+      ['Layer Mask from Selection', undefined],
+      // Not Ctrl+E: that exports the video.
+      ['Merge Down', undefined],
+      ['Merge Visible', undefined],
+      ['Flatten Image', undefined],
+    ]);
+    for (const i of layer) (i.click as () => void)();
+    expect(send.mock.calls.map((c) => c[0])).toEqual([
+      'newPixelLayer',
+      'addPictureAsLayer',
+      'layerViaCopy',
+      'layerViaCut',
+      'maskFromSelection',
+      'mergeDown',
+      'mergeVisible',
+      'flatten',
+    ]);
+  });
+
+  it('M21 GB2, G13: the Select menu sends each selection command to the page', () => {
+    const send = vi.fn<(a: MenuAction) => void>();
+    const select = items(find(menuTemplate('darwin', send, false), 'Select')).filter(
+      (i) => i.click,
+    );
+    for (const i of select) (i.click as () => void)();
+    expect(send.mock.calls.map((c) => c[0])).toEqual([
+      'selectAllPixels',
+      'deselectPixels',
+      'invertSelection',
+      'selectLayerPixels',
+      'selectFromShape',
+      'featherSelection',
+      'growSelection',
+      'shrinkSelection',
+      'smoothSelection',
+      'fadeSelection',
+    ]);
+  });
+
+  it('M21 GB1: File ▸ Open Picture as Image… sends "openPictureAsImage"', () => {
+    const send = vi.fn<(a: MenuAction) => void>();
+    const item = items(find(menuTemplate('win32', send, false), 'File')).find(
+      (i) => i.label === 'Open Picture as Image…',
+    )!;
+    (item.click as () => void)();
+    expect(send).toHaveBeenCalledWith('openPictureAsImage');
+  });
+});
+
+describe('M22: Image ▸ Adjustments', () => {
+  it('M22 GB3: a submenu of the adjustments, each sending its own action', () => {
+    const send = vi.fn<(a: MenuAction) => void>();
+    const image = (find(menuTemplate('win32', send, false), 'Image')!.submenu as Item[]).find(
+      (i) => i.label === 'Adjustments',
+    )!;
+    const adjustments = items(image);
+    expect(adjustments.map((i) => i.label)).toEqual([
+      'Brightness / Contrast…',
+      'Levels…',
+      'Exposure…',
+      'Shadows / Highlights…',
+      'Hue / Saturation…',
+      'Colour Balance…',
+      'Temperature / Tint…',
+      'Replace Colour…',
+      'Black and White…',
+      'Greyscale',
+      'Invert',
+    ]);
+    for (const i of adjustments) (i.click as () => void)();
+    expect(send.mock.calls.map((c) => c[0])).toEqual([
+      'adjustBrightnessContrast',
+      'adjustLevels',
+      'adjustExposure',
+      'adjustShadowsHighlights',
+      'adjustHueSaturation',
+      'adjustColourBalance',
+      'adjustTemperatureTint',
+      'adjustReplaceColour',
+      'adjustThreshold',
+      'adjustGreyscale',
+      'adjustInvert',
+    ]);
+  });
+});
+
+describe('M22: the Filter menu', () => {
+  it('M22 GB5: Filter ▸ Blur ▸ Gaussian / Motion / Zoom, Twirl…, Sharpen…, Distort ▸ Bulge / Perspective / Warp', () => {
+    const send = vi.fn<(a: MenuAction) => void>();
+    const filter = find(menuTemplate('darwin', send, false), 'Filter')!.submenu as Item[];
+    const sub = (label: string) => items(filter.find((i) => i.label === label));
+    expect(items(find(menuTemplate('darwin', send, false), 'Filter')).map((i) => i.label)).toEqual([
+      'Blur',
+      'Twirl…',
+      'Sharpen…',
+      'Distort',
+    ]);
+    expect(sub('Blur').map((i) => i.label)).toEqual([
+      'Gaussian Blur…',
+      'Motion Blur…',
+      'Zoom Blur…',
+    ]);
+    expect(sub('Distort').map((i) => i.label)).toEqual(['Bulge / Pinch…', 'Perspective…', 'Warp…']);
+    const all = [...sub('Blur'), ...filter.filter((i) => i.click), ...sub('Distort')];
+    for (const i of all) (i.click as () => void)();
+    expect(send.mock.calls.map((c) => c[0])).toEqual([
+      'filterGaussianBlur',
+      'filterMotionBlur',
+      'filterZoomBlur',
+      'filterTwirl',
+      'filterSharpen',
+      'filterBulge',
+      'filterPerspective',
+      'filterWarp',
     ]);
   });
 });

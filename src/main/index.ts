@@ -12,7 +12,7 @@ import {
   systemPreferences,
 } from 'electron';
 import { execFile } from 'node:child_process';
-import { access, mkdir, readdir, readFile, writeFile } from 'node:fs/promises';
+import { access, mkdir, readdir, readFile, rm, writeFile } from 'node:fs/promises';
 import { promisify } from 'node:util';
 import { cpus, release, totalmem, type } from 'node:os';
 import { join } from 'node:path';
@@ -28,6 +28,7 @@ import { menuTemplate } from './menu.ts';
 import { microphoneAccess } from './microphone.ts';
 import { createNodeMediaEngine } from './media/engine.ts';
 import { moveOldSettings } from './old-settings.ts';
+import { createPdfPrinter, PDF_WINDOW_OPTIONS } from './pdf.ts';
 import { createPerformanceReport } from './perf.ts';
 import { createProblemLog, saveProblemReport, type ProblemLog } from './problem-log.ts';
 import { createAllowList } from './protocol/allowlist.ts';
@@ -274,6 +275,14 @@ void app.whenReady().then(async () => {
       assets: join(APP_ROOT, 'dist', 'assets'),
       read: async (path) => new Uint8Array(await readFile(path)),
       show: showTestPage,
+      // G11 (M19): an image's PDF, printed in a window never shown.
+      pdf: createPdfPrinter({
+        window: () => new BrowserWindow(PDF_WINDOW_OPTIONS),
+        dir: join(app.getPath('userData'), 'pdf'),
+        mkdir: (dir) => mkdir(dir, { recursive: true }),
+        writeFile: (path, text) => writeFile(path, text, 'utf8'),
+        remove: (path) => rm(path, { force: true }),
+      }),
     },
     updates,
     website: { open: () => shell.openExternal(ABOUT.website) },

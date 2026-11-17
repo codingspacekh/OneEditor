@@ -1,6 +1,8 @@
 <script lang="ts">
   // Inspector (screens 01–04): change the selected clip or text by typing exact values
   // (V2, V4–V7, V12, V13, V14).
+  import PropertySearch from './PropertySearch.svelte';
+  import { propertyFilter } from './property-search.ts';
   import type { App } from '../app/app.ts';
   import {
     moveTimedItem,
@@ -123,13 +125,18 @@
             }),
           );
   }
+  /** Property search: the words typed, and how many settings match (−1: no search). */
+  let search = $state('');
+  let found = $state(-1);
+  /** A tab's sections show when it is open, or while searching (a search looks in every tab). */
+  const shows = (t: InspectorTab) => tab === t || search.trim() !== '';
 </script>
 
 {#snippet turnAndFlip(clip: VideoClip | ImageClip)}
   {@const flips = { flipH: clip.flipH === true, flipV: clip.flipV === true }}
   <section>
     <h3>Turn & flip <span class="syl">11.1</span></h3>
-    <div class="turns">
+    <div class="prop-buttons turns" style:--n="4">
       {#each TURNS as [turn, text, name] (turn)}
         <button
           aria-label={name}
@@ -140,7 +147,7 @@
         >
       {/each}
     </div>
-    <div class="row">
+    <div class="prop-buttons flips">
       <button
         aria-label="Flip horizontally"
         aria-pressed={flips.flipH}
@@ -163,8 +170,13 @@
   </section>
 {/snippet}
 
-<aside class="inspector">
+<aside
+  class="inspector prop-panel"
+  aria-label="Inspector"
+  {@attach propertyFilter(search, (n) => (found = n))}
+>
   <div class="panel-h">Inspector</div>
+  <PropertySearch bind:value={search} {found} />
   {#if sound}
     {#key sound.item.id}<AudioInspector {app} item={sound.item} track={sound.track} />{/key}
   {:else if overItem}
@@ -183,16 +195,18 @@
     </div>
     <section>
       <h3>Timing <span class="syl">11.4</span></h3>
-      <TimeField
-        label="Starts at"
-        value={textItem.start}
-        commit={(t) => app.edit(moveTimedItem(textItem.id, t))}
-      />
-      <TimeField
-        label="Duration"
-        value={textItem.duration}
-        commit={(t) => app.edit(setDuration(textItem.id, t))}
-      />
+      <div class="prop-row">
+        <TimeField
+          label="Starts at"
+          value={textItem.start}
+          commit={(t) => app.edit(moveTimedItem(textItem.id, t))}
+        />
+        <TimeField
+          label="Duration"
+          value={textItem.duration}
+          commit={(t) => app.edit(setDuration(textItem.id, t))}
+        />
+      </div>
     </section>
     {#key textItem.id}<TextInspector {app} item={textItem} />{/key}
   {:else if !item}
@@ -228,11 +242,13 @@
     {#if item.type !== 'video'}
       <section>
         <h3>Duration <span class="syl">11.1</span></h3>
-        <TimeField
-          label="Duration"
-          value={item.duration}
-          commit={(t) => app.edit(setDuration(item.id, t))}
-        />
+        <div class="prop-row">
+          <TimeField
+            label="Duration"
+            value={item.duration}
+            commit={(t) => app.edit(setDuration(item.id, t))}
+          />
+        </div>
         <Why tool="duration" />
       </section>
     {/if}
@@ -247,20 +263,23 @@
       </div>
     </div>
 
-    {#if item.type === 'video' && tab === 'clip'}
+    <!-- A search looks in every tab: their sections show one after another, filtered. -->
+    {#if item.type === 'video' && shows('clip')}
       <section>
         <h3>Trim <span class="syl">11.1</span></h3>
-        <TimeField
-          label="Start point"
-          value={item.in}
-          commit={(t) => app.edit(trimClip(item.id, { in: t, out: item.out }))}
-        />
-        <TimeField
-          label="End point"
-          value={item.out}
-          commit={(t) => app.edit(trimClip(item.id, { in: item.in, out: t }))}
-        />
-        <div class="row">
+        <div class="prop-row">
+          <TimeField
+            label="Start point"
+            value={item.in}
+            commit={(t) => app.edit(trimClip(item.id, { in: t, out: item.out }))}
+          />
+          <TimeField
+            label="End point"
+            value={item.out}
+            commit={(t) => app.edit(trimClip(item.id, { in: item.in, out: t }))}
+          />
+        </div>
+        <div class="prop-buttons">
           <button onclick={() => setFromPlayhead('in')}>Set start to playhead</button>
           <button onclick={() => setFromPlayhead('out')}>Set end to playhead</button>
         </div>
@@ -270,7 +289,7 @@
 
       <section>
         <h3>Speed <span class="syl">11.1</span></h3>
-        <div class="speeds">
+        <div class="prop-buttons speeds" style:--n="6">
           {#each SPEEDS as speed (speed)}
             <button
               aria-pressed={item.speed === speed}
@@ -279,13 +298,15 @@
             >
           {/each}
         </div>
-        <NumberField
-          label="Speed"
-          value={item.speed}
-          unit="×"
-          example="1.25"
-          commit={(n) => app.edit(setClipSpeed(item.id, n))}
-        />
+        <div class="prop-row">
+          <NumberField
+            label="Speed"
+            value={item.speed}
+            unit="×"
+            example="1.25"
+            commit={(n) => app.edit(setClipSpeed(item.id, n))}
+          />
+        </div>
         <p class="hint">
           Source {(item.out - item.in).toFixed(2)} s ÷ {item.speed} = {itemDuration(item).toFixed(
             2,
@@ -294,30 +315,37 @@
         <Why tool="speed" />
       </section>
       {@render turnAndFlip(item)}
-    {:else if item.type === 'video' && tab === 'audio'}
+    {/if}
+    {#if item.type === 'video' && shows('audio')}
       <section>
         <h3>Clip sound <span class="syl">11.1</span></h3>
-        <label class="check">
-          <input
-            type="checkbox"
-            checked={item.muted}
-            onchange={(e) =>
-              (actionError = app.edit(setClipMuted(item.id, e.currentTarget.checked)))}
-          />
-          Remove sound
-        </label>
+        <div class="prop-row">
+          <label class="prop-check">
+            <input
+              type="checkbox"
+              checked={item.muted}
+              onchange={(e) =>
+                (actionError = app.edit(setClipMuted(item.id, e.currentTarget.checked)))}
+            />
+            Remove sound
+          </label>
+        </div>
         {#if !item.muted}
-          <PercentField
-            label="Volume"
-            value={item.volume}
-            commit={(v) => app.edit(setClipVolume(item.id, v))}
-          />
+          <div class="prop-row">
+            <PercentField
+              label="Volume"
+              value={item.volume}
+              commit={(v) => app.edit(setClipVolume(item.id, v))}
+            />
+          </div>
         {/if}
         <Why tool="clipSound" />
       </section>
       <section>
         <h3>Separate sound <span class="syl">11.1</span></h3>
-        <button onclick={() => separateSound(item.id)}>Separate sound onto an audio track</button>
+        <div class="prop-buttons">
+          <button onclick={() => separateSound(item.id)}>Separate sound onto an audio track</button>
+        </div>
         {#if actionError}<p class="error" role="alert">{actionError}</p>{/if}
         <p class="hint">
           The sound becomes its own clip on the voiceover (or music) track, so it can be moved,
@@ -325,15 +353,18 @@
         </p>
         <Why tool="separateSound" />
       </section>
-    {:else if item.type === 'image' && tab === 'clip'}
+    {/if}
+    {#if item.type === 'image' && shows('clip')}
       <p class="hint pad">
         This picture shows for the duration above. Use the Effects tab for pan & zoom, fades and
         filters.
       </p>
       {@render turnAndFlip(item)}
-    {:else if item.type === 'title' && tab === 'text'}
+    {/if}
+    {#if item.type === 'title' && shows('text')}
       {#key item.id}<TextInspector {app} {item} />{/key}
-    {:else if tab === 'effects'}
+    {/if}
+    {#if shows('effects')}
       {#key item.id}
         <ClipLookInspector
           {app}
@@ -421,36 +452,12 @@
     border-radius: 3px;
     padding: 0 4px;
   }
-  /* issues/video-3.png: the two trim buttons share the row; the speeds are even, with room below. */
-  .row {
-    display: grid;
-    grid-template-columns: 1fr 1fr;
-    gap: 4px;
-  }
-  .speeds {
-    display: grid;
-    grid-template-columns: repeat(6, 1fr);
-    gap: 4px;
-    margin-bottom: 8px;
-  }
-  .turns {
-    display: grid;
-    grid-template-columns: repeat(4, 1fr);
-    gap: 4px;
-    margin-bottom: 4px;
-  }
-  .row button,
-  .speeds button,
-  .turns button {
-    padding: 4px 6px;
+  /* Turn, flip and speed buttons: even, in the property grid's button rows (props.css); the one
+     chosen shown. */
+  .prop-buttons button {
     font-size: 12px;
-    justify-content: center;
-    min-width: 0;
-    white-space: nowrap;
   }
-  .speeds button[aria-pressed='true'],
-  .turns button[aria-pressed='true'],
-  .row button[aria-pressed='true'] {
+  .prop-buttons button[aria-pressed='true'] {
     background: var(--accent-soft);
     border-color: var(--accent);
   }
@@ -458,11 +465,6 @@
     color: var(--tx-3);
     font-size: 11.5px;
     margin: 8px 0 0;
-  }
-  .check {
-    display: flex;
-    gap: 8px;
-    align-items: center;
   }
   .error {
     margin: 6px 0 0;

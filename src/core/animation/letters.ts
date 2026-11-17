@@ -4,7 +4,8 @@
 import { EditError } from '../model/errors.ts';
 import { newId } from '../model/factory.ts';
 import { curvedText, curveOf } from './curve.ts';
-import { LINE_HEIGHT, roughTextWidth } from './factory.ts';
+import { roughTextWidth } from './factory.ts';
+import { layoutText, lineHeightOf } from './text-layout.ts';
 import type { TextObject } from './types.ts';
 
 /** The size of some words in the text's font (the screen measures; tests use a rough guess). */
@@ -12,42 +13,49 @@ export type MeasureText = (t: TextObject) => { width: number; height: number };
 
 const roughMeasure: MeasureText = (t) => ({
   width: roughTextWidth(t.text, t.size),
-  height: t.text.split('\n').length * t.size * LINE_HEIGHT,
+  height: t.text.split('\n').length * lineHeightOf(t),
 });
+
+/**
+ * GT1 (M20): the text without its letter spacing and kerning, to measure words as the font sets
+ * them (the layout adds the spacing) and for a letter alone, which has no gap to space.
+ */
+function unspaced(t: TextObject): TextObject {
+  const plain = { ...t };
+  delete plain.letterSpacing;
+  delete plain.kerning;
+  return plain;
+}
 
 export function splitIntoLetters(t: TextObject, measure: MeasureText = roughMeasure): TextObject[] {
   if (t.rotation !== 0) throw new EditError('Turn the text back to 0° before splitting it.');
   if ((t.tracks ?? []).some((k) => k.keyframes.length > 0))
     throw new EditError('Split the words into letters before animating them.');
   if (curveOf(t) !== 0) return curvedLetters(t, measure);
-  const widthOf = (text: string) => (text === '' ? 0 : measure({ ...t, text }).width);
-  const letters: TextObject[] = [];
-  t.text.split('\n').forEach((line, row) => {
-    const lineWidth = widthOf(line);
-    const start =
-      t.align === 'left'
-        ? 0
-        : t.align === 'centre'
-          ? (t.width - lineWidth) / 2
-          : t.width - lineWidth;
-    [...line].forEach((ch, i) => {
-      if (ch.trim() === '') return;
-      const box = measure({ ...t, text: ch });
-      const rest = { ...t };
-      delete rest.tracks;
-      letters.push({
-        ...rest,
+  const plain = unspaced(t);
+  delete plain.tracks;
+  const widthOf = (text: string) => (text === '' ? 0 : measure({ ...plain, text }).width);
+  // GT1 (M20): each letter where the letter layout puts it (spacing, kerning, line spacing), the
+  // lines aligned in the box as the stage draws them.
+  const layout = layoutText(t, widthOf);
+  const free = t.width - layout.width;
+  const start = t.align === 'left' ? 0 : t.align === 'centre' ? free / 2 : free;
+  const letters: TextObject[] = layout.cells
+    .filter((c) => c.char.trim() !== '')
+    .map((c) => {
+      const box = measure({ ...plain, text: c.char });
+      return {
+        ...plain,
         id: newId(),
-        name: ch,
-        text: ch,
+        name: c.char,
+        text: c.char,
         align: 'left',
-        x: t.x + start + widthOf([...line].slice(0, i).join('')),
-        y: t.y + row * t.size * LINE_HEIGHT,
+        x: t.x + start + c.x,
+        y: t.y + c.y,
         width: box.width,
         height: box.height,
-      });
+      };
     });
-  });
   if (letters.length === 0) throw new EditError('This text has no letters to split.');
   return letters;
 }
@@ -57,7 +65,7 @@ export function splitIntoLetters(t: TextObject, measure: MeasureText = roughMeas
  * to follow it (what was done by hand before the curve: 9626/04 M/J/17 the HUNGRY logo).
  */
 function curvedLetters(t: TextObject, measure: MeasureText): TextObject[] {
-  const plain = { ...t };
+  const plain = unspaced(t);
   delete plain.curve;
   delete plain.tracks;
   const widthOf = (text: string) => (text === '' ? 0 : measure({ ...plain, text }).width);

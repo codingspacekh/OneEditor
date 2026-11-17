@@ -65,3 +65,49 @@ export function whatIf(spec: SoundSpec): { label: string; mb: number }[] {
     },
   ];
 }
+
+export interface ImageSpec {
+  width: number;
+  height: number;
+  /** Colour depth: bits a pixel. */
+  bits: number;
+}
+
+export interface ImageFileSize {
+  pixels: number;
+  bits: number;
+  bytes: number;
+  kb: number;
+  mb: number;
+  steps: WorkingStep[];
+}
+
+/**
+ * GC1 (M23): the size of an uncompressed picture, as the coursebook works it out: width × height
+ * × colour depth (bits a pixel) ÷ 8 bytes; in MB (or KB when under 1 MB), 1 MB = 1 000 000 bytes.
+ */
+export function imageFileSize({ width, height, bits }: ImageSpec): ImageFileSize {
+  const pixels = width * height;
+  const total = pixels * bits;
+  const bytes = total / 8;
+  const kb = bytes / 1000;
+  const mb = bytes / 1_000_000;
+  return {
+    pixels,
+    bits: total,
+    bytes,
+    kb,
+    mb,
+    steps: [
+      { label: 'Pixels', working: `${group(width)} × ${group(height)} = ${group(pixels)} pixels` },
+      { label: '× colour depth', working: `${group(pixels)} × ${bits} = ${group(total)} bits` },
+      { label: '÷ 8 → bytes', working: `${group(total)} ÷ 8 = ${group(bytes)} bytes` },
+      mb >= 1
+        ? {
+            label: '÷ 1 000 000 → MB',
+            working: `${group(bytes)} ÷ 1 000 000 = ${mb.toFixed(2)} MB`,
+          }
+        : { label: '÷ 1 000 → KB', working: `${group(bytes)} ÷ 1 000 = ${kb.toFixed(2)} KB` },
+    ],
+  };
+}

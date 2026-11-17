@@ -1,0 +1,128 @@
+/*
+ * The property grid (issues/graphics-4.png, 2026-11-17): every row of a properties panel — in
+ * Graphics, Animation and Video — on the same four columns, label | field | label | field, as
+ * fractions of the panel's width. So the first fields of every row start on one line and the
+ * second fields of every pair on another, whatever the labels say or the window's width; a field
+ * is as wide as its column (not as its number), and a long label wraps instead of pushing its
+ * field along.
+ *
+ *   .prop-row            a row: a label and its field, or two of each
+ *     > label / .prop-label     column 1 (or 3, the second of a pair)
+ *     > .prop-wide         a field across columns 2–4 (a name, a menu, a colour, a slider)
+ *     > .prop-half         a field in column 2 only (a number alone)
+ *     > .prop-check        a tick box and its words across the row (the words where labels are,
+ *                          the tick on the right, as every panel has them: theme.css)
+ *     > .prop-buttons      buttons in the field columns, after a caption (Arrange's Order …)
+ *   .prop-buttons        buttons of equal width across the row (2 by default; --n for more);
+ *                        a lone button fills the row
+ *   .prop-facts          read-only facts (Canvas 1280 × 720 px): .prop-rows whose value is
+ *                        across the field columns, on the right as the numbers in boxes are
+ *
+ * The app's field components (NumField, ColourField …) lay their label and box straight into a
+ * .prop-row's columns (display: contents there), so two in a row make a pair; alone in a panel
+ * (.prop-panel) they are a row of their own on the same columns.
+ */
+:root {
+  /* A field's column never narrower than "1280.00 px" (a narrow window: the number would be cut
+     off), the four together 268 px with the gaps, so the Properties panel at its narrowest (a
+     1100 × 700 window) never scrolls sideways; the labels' columns take what is left, the second label of a pair (Y, H, Opacity …)
+     less, and a long word ("Background") reaches a little into the gap rather than breaking. */
+  --prop-cols: minmax(54px, 0.8fr) minmax(70px, 1fr) minmax(50px, 0.6fr) minmax(70px, 1fr);
+  --prop-gap-x: 8px;
+  --prop-gap-y: 6px;
+}
+
+.prop-row {
+  display: grid;
+  grid-template-columns: var(--prop-cols);
+  column-gap: var(--prop-gap-x);
+  row-gap: var(--prop-gap-y);
+  align-items: center;
+  margin: 0 0 var(--prop-gap-y);
+  min-width: 0;
+}
+.prop-row > :where(label, .prop-label) {
+  min-width: 0;
+  font-size: 12px;
+  line-height: 1.25;
+  color: var(--tx-2);
+  /* Between words only: one long word ("Background") reaches a little into the gap instead. */
+  overflow-wrap: normal;
+}
+.prop-row > :where(input, select, textarea, .prop-wide) {
+  grid-column: 2 / -1;
+  width: 100%;
+  min-width: 0;
+}
+.prop-row > .prop-half {
+  grid-column: 2 / 3;
+  width: 100%;
+  min-width: 0;
+}
+.prop-row > .prop-check {
+  grid-column: 1 / -1;
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  min-width: 0;
+  font-size: 12px;
+  color: var(--tx-2);
+}
+/* A menu in a panel never wider than its column: a long choice ("Bicubic (smooth, sharper:
+   photos)") is cut off inside the box, before the arrow (clipped at the content box: the arrow
+   is the padding's background), instead of running past it. The whole choice is in the list. */
+.prop-panel select {
+  min-width: 0;
+  max-width: 100%;
+  overflow: clip;
+  overflow-clip-margin: content-box;
+  white-space: nowrap;
+}
+.prop-panel select::picker(select) {
+  max-width: min(420px, 90vw);
+}
+
+/* Buttons after a row's caption: in the field columns. */
+.prop-row > .prop-buttons {
+  grid-column: 2 / -1;
+  margin: 0;
+}
+/* A fact's value. */
+.prop-row > .prop-fact {
+  grid-column: 2 / -1;
+  min-width: 0;
+  text-align: right;
+  font-family: var(--mono);
+  font-size: 12px;
+  color: var(--tx-1);
+  overflow-wrap: anywhere;
+}
+.prop-facts > .prop-row {
+  margin-bottom: 4px;
+}
+/* A row's message (a refused value) goes under the whole row. */
+.prop-row > :where(.error, .hint, [role='alert']) {
+  grid-column: 1 / -1;
+  margin: 0;
+}
+
+.prop-buttons {
+  display: grid;
+  grid-template-columns: repeat(var(--n, 2), minmax(0, 1fr));
+  gap: var(--prop-gap-y);
+  margin: 0 0 var(--prop-gap-y);
+  min-width: 0;
+}
+.prop-buttons > :only-child {
+  grid-column: 1 / -1;
+}
+.prop-buttons > button {
+  /* Centred; words too long for the button start at its left (not cut off at both ends). */
+  justify-content: safe center;
+  min-width: 0;
+  padding-left: 6px;
+  padding-right: 6px;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}

@@ -14,9 +14,13 @@ import { addOverlayItem } from './overlay-commands.ts';
 import { createOverlayItem } from '../core/model/overlay.ts';
 import { createAudioApp, SILENT_OUTPUT, type AudioOutput } from './audio.ts';
 import { createLearnApp } from './learn.ts';
+import { createGraphicsLearnApp } from './learn-graphics.ts';
+import type { PictureCodec } from '../core/teaching/graphics.ts';
 import { createHistory, execute, redo, undo, type Command, type History } from './history.ts';
 import { proxyPathFor } from './proxy-path.ts';
 import { createLayoutApp } from './layout.ts';
+import { createSettingsApp } from './settings.ts';
+import { createBrushPresetsApp } from './brush-presets.ts';
 import { createPreferences } from './preferences.ts';
 import { createCandidateApp } from './candidate.ts';
 import { UNEXPECTED, unexpected } from './problems.ts';
@@ -63,6 +67,7 @@ import type {
   ProbeInfo,
   ProjectFiles,
   PageAssets,
+  PixelWorker,
   StageRenderer,
   TextRenderer,
   Recorder,
@@ -152,6 +157,10 @@ export interface AppDeps {
   /** Help ▸ About OneEditor: opens the website in the browser (none in tests or the browser). */
   website?: () => Promise<void>;
   autosaveMs?: number;
+  /** D3, GN2 (M21): where Graphics mode's heavy pixel jobs run (a Web Worker in the app). */
+  pixelWorker?: PixelWorker;
+  /** GC1 (M23): Learn ▸ Graphics's JPEG and picture decoding (the page's canvas in the app). */
+  pictureCodec?: PictureCodec;
 }
 
 export const isDirty = (s: AppState): boolean => s.history.present !== s.saved || s.audioDirty;
@@ -182,6 +191,8 @@ export function createApp({
   updates,
   website = async () => {},
   autosaveMs = 60_000,
+  pixelWorker,
+  pictureCodec,
 }: AppDeps) {
   const preferences = createPreferences(files, paths);
   /** File ▸ Candidate Details…: every dialog below suggests the papers' file names. */
@@ -492,8 +503,17 @@ export function createApp({
     ...(audioRecorder ? { recorder: audioRecorder } : {}),
   });
   /** Learn mode (T1, T3, T6): never changes the project. */
-  const learn = createLearnApp({ engine, dialogs, files, paths });
+  const learn = createLearnApp({
+    engine,
+    dialogs,
+    files,
+    paths,
+    candidate: () => candidate.store.get().candidate,
+  });
   const layout = createLayoutApp(preferences);
+  const settings = createSettingsApp(preferences);
+  /** GB4 (M21): the brush presets the student saves. */
+  const brushPresets = createBrushPresetsApp(preferences);
   /** Animation mode (AN1–AN18): its own document and file (M13). */
   const animation = createAnimationApp({
     dialogs,
@@ -517,9 +537,19 @@ export function createApp({
     engine,
     autosaveMs,
     kind: GRAPHIC_KIND,
+    ...(pixelWorker ? { pixelWorker } : {}),
     fileName: candidate.nameFor,
     ...(stageRenderer ? { renderer: stageRenderer } : {}),
     ...(pageAssets ? { pageAssets } : {}),
+  });
+
+  /** GL1, GC1 (M23): Learn ▸ Graphics, on a chosen picture or the image in Graphics mode. */
+  const learnGraphics = createGraphicsLearnApp({
+    dialogs,
+    files,
+    graphic: () => graphics.store.get().history.present,
+    ...(stageRenderer ? { renderer: stageRenderer } : {}),
+    ...(pictureCodec ? { codec: pictureCodec } : {}),
   });
 
   // Every Audio mode edit (or undo back to the saved state) updates "unsaved changes".
@@ -532,10 +562,15 @@ export function createApp({
 
     audio,
     learn,
+    learnGraphics,
     animation,
     graphics,
     /** N16: the panels' sizes and which are shown. */
     layout,
+    /** Settings…: choices kept for the whole app ("Why use this?" shown or hidden). */
+    settings,
+    /** GB4 (M21): the saved brush presets of Graphics mode's painting tools. */
+    brushPresets,
     candidate,
     /** M17a U1–U5: updates (the note at the bottom, Help ▸ Check for Updates…). */
     updates: createAppUpdates(updates),
@@ -545,6 +580,8 @@ export function createApp({
       await animation.start();
       await graphics.start();
       await layout.load();
+      await settings.load();
+      await brushPresets.load();
       await candidate.load();
       // X7: the Welcome, on the first launch only.
       if (paths.preferences && (await preferences.read()).welcomeSeen !== true)
@@ -620,9 +657,19 @@ export function createApp({
     /**
      * GL3 (M18): the selected objects of the image (or all of it) into the animation, as editable
      * objects where they were drawn, on a new layer named after the image. True when they went.
+     * G2 (M21): its pixel layers go as pictures.
      */
-    sendGraphicToAnimation(): boolean {
-      const sent = graphics.toSend();
+    async sendGraphicToAnimation(): Promise<boolean> {
+      let sent: Awaited<ReturnType<typeof graphics.toSend>>;
+      try {
+        sent = await graphics.toSend();
+      } catch (error) {
+        graphics.store.update((s) => ({
+          ...s,
+          message: { kind: 'error', text: error instanceof Error ? error.message : String(error) },
+        }));
+        return false;
+      }
       if (!sent) {
         graphics.store.update((s) => ({
           ...s,

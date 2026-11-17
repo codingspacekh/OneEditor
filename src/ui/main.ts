@@ -2,8 +2,16 @@ import { mount } from 'svelte';
 import { createApp } from '../app/app.ts';
 import { createCanvasTextRenderer } from '../adapters/canvas/text-renderer.ts';
 import { createCanvasStageRenderer } from '../adapters/canvas/stage-renderer.ts';
+import { createCanvasPictureCodec } from '../adapters/canvas/picture-codec.ts';
 import { createElectronMediaEngine } from '../adapters/electron/media-engine.ts';
 import { createElectronPageAssets } from '../adapters/electron/page-assets.ts';
+import {
+  createOpentypeGlyphs,
+  dataUrlBytes,
+  measureWith,
+  type Measurer,
+} from '../adapters/fonts/opentype-glyphs.ts';
+import { setGlyphSource } from '../core/graphics/glyphs.ts';
 import {
   createElectronDialogs,
   createElectronProjectFiles,
@@ -15,6 +23,7 @@ import { createMediaStreamRecorder, type AudioFrame } from '../adapters/webaudio
 import { unwrap } from '../adapters/electron/media-engine.ts';
 import { createIndexedDbUndoStore } from '../adapters/indexeddb/undo-store.ts';
 import { createElectronUpdates } from '../adapters/electron/updates.ts';
+import { createWebPixelWorker, type WorkerLike } from '../adapters/worker/pixel-worker.ts';
 import { menuActions } from './menu-actions.ts';
 import { watchPlayback } from '../app/animation/paint-watch.ts';
 import { onUnexpected } from '../app/problems.ts';
@@ -22,6 +31,7 @@ import App from './App.svelte';
 import './fonts.css';
 import './theme.css';
 import './forms.css';
+import './props.css';
 
 const target = document.getElementById('app')!;
 
@@ -62,19 +72,36 @@ if (!window.mve) {
         : String(e.reason),
     ),
   );
+  const pageAssets = createElectronPageAssets(api, FONT_URLS);
+  // GT4, GT5 (M20, D10): the letters' outlines from the bundled font files, placed where the
+  // stage draws them (words measured on a canvas, as the stage measures them).
+  setGlyphSource(
+    createOpentypeGlyphs(async (file) => dataUrlBytes(await pageAssets.fontDataUrl(file))),
+    measureWith(document.createElement('canvas').getContext('2d') as Measurer),
+  );
   const app = createApp({
     engine: createElectronMediaEngine(api),
     dialogs: createElectronDialogs(api),
     files: createElectronProjectFiles(api),
     text: createCanvasTextRenderer(),
     stageRenderer: createCanvasStageRenderer(),
-    pageAssets: createElectronPageAssets(api, FONT_URLS),
+    // GC1 (M23): Learn ▸ Graphics's JPEGs and decoding, on an OffscreenCanvas.
+    pictureCodec: createCanvasPictureCodec(),
+    pageAssets,
     updates: createElectronUpdates(api),
     website: openWebsite(api),
     paths: await getAppPaths(api),
     audioOutput: createWebAudioOutput(),
     animationAudioOutput: createWebAudioOutput(),
     audioUndoStore: createIndexedDbUndoStore(),
+    // D3, GN2 (M21): the paint bucket and the gradient in a Web Worker (bundled by Vite); if it
+    // cannot start, they run in the page.
+    pixelWorker: createWebPixelWorker(
+      () =>
+        new Worker(new URL('../workers/pixels.ts', import.meta.url), {
+          type: 'module',
+        }) as unknown as WorkerLike,
+    ),
     audioRecorder: createMediaStreamRecorder({
       mediaDevices: navigator.mediaDevices,
       frames: (track) => new MediaStreamTrackProcessor({ track }).readable,

@@ -63,7 +63,7 @@ test('AN19, AN20 a library car flies in from the left, and the export shows it',
     .getByRole('button', { name: 'Add Car' })
     .click();
   const panel = page.getByRole('complementary', { name: 'Properties' });
-  await panel.getByLabel('Effect').selectOption('flyInLeft');
+  await panel.getByLabel('Effect', { exact: true }).selectOption('flyInLeft');
   await panel.getByLabel('Lasts (s)').fill('1');
   await panel.getByRole('button', { name: 'Add effect' }).click();
   // The car's body is red, in the middle of the 1280 × 720 stage once it has landed.

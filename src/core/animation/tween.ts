@@ -1,11 +1,13 @@
 // AN9, AN13: keyframes per property and the values in between (tweening). Pure functions on
 // tracks and objects; the app's commands wrap them so each change is one undo step.
 import { EditError } from '../model/errors.ts';
-import { LINE_HEIGHT, roughTextWidth } from './factory.ts';
+import { roughTextWidth } from './factory.ts';
+import { lineHeightOf } from './text-layout.ts';
 import { pivotInBox, setSize, shiftedMotion } from './geometry.ts';
 import { isShapeValue, morphShapes, shapeOf } from './morph.ts';
 import { flattenCurves, pointAtFraction, polylineOf, type Polyline } from './path.ts';
-import { isColour } from './rules.ts';
+import { isGradientColour } from './rules.ts';
+import { opaqueOf } from '../colour.ts';
 import type {
   AnimObject,
   Easing,
@@ -79,16 +81,20 @@ const hex2 = (n: number) =>
 
 /** Mixes two colours in RGB, as the coursebook's colour tween; hex in, lower-case hex out. */
 function mixColours(a: string, b: string, t: number): string {
-  const ca = [1, 3, 5].map((i) => parseInt(a.slice(i, i + 2), 16));
-  const cb = [1, 3, 5].map((i) => parseInt(b.slice(i, i + 2), 16));
-  return `#${ca.map((v, i) => hex2(v + (cb[i]! - v) * t)).join('')}`;
+  // G8 (M23): a gradient's colours may have their own opacity (#rrggbbaa); it is mixed too.
+  const channels = (c: string) =>
+    [1, 3, 5, 7].map((i) => (i === 7 && c.length < 9 ? 255 : parseInt(c.slice(i, i + 2), 16)));
+  const ca = channels(a);
+  const cb = channels(b);
+  const mixed = ca.map((v, i) => hex2(v + (cb[i]! - v) * t));
+  return `#${mixed.slice(0, 3).join('')}${a.length > 7 || b.length > 7 ? mixed[3] : ''}`;
 }
 
 /** The value `t` (0–1) of the way from `a` to `b`: numbers, colours and shapes blend; words switch at the end. */
 export function interpolate(a: KeyValue, b: KeyValue, t: number): KeyValue {
   if (isShapeValue(a) && isShapeValue(b)) return morphShapes(a, b, t);
   if (typeof a === 'number' && typeof b === 'number') return a + (b - a) * t;
-  if (typeof a === 'string' && typeof b === 'string' && isColour(a) && isColour(b))
+  if (typeof a === 'string' && typeof b === 'string' && isGradientColour(a) && isGradientColour(b))
     return mixColours(a, b, t);
   return t >= 1 ? b : a;
 }
@@ -193,11 +199,11 @@ const DEFAULT_STROKE_COLOUR = '#1e222a';
 export function propertyOf(object: AnimObject, property: TweenProperty): KeyValue {
   switch (property) {
     case 'fillColour':
-      return object.fill.kind === 'solid'
+      return object.fill.kind === 'solid' || object.fill.kind === 'pattern'
         ? object.fill.colour
         : object.fill.kind === 'none'
           ? '#000000'
-          : object.fill.from;
+          : opaqueOf(object.fill.from);
     case 'strokeColour':
       return object.stroke?.colour ?? DEFAULT_STROKE_COLOUR;
     case 'strokeWidth':
@@ -303,7 +309,7 @@ function setOne(object: AnimObject, property: TweenProperty, value: KeyValue): A
       const height =
         object.curve && object.size > 0
           ? (object.height / object.size) * size
-          : lines * size * LINE_HEIGHT;
+          : lines * lineHeightOf({ size, lineSpacing: object.lineSpacing });
       return { ...object, size, width: perPx * size, height };
     }
     case 'text':
@@ -521,6 +527,12 @@ export function editAt<T extends AnimObject>(object: T, frame: number, change: (
       if (next.stroke.width !== now.stroke.width) key('strokeWidth', next.stroke.width);
       if (next.stroke.dash !== now.stroke.dash && result.stroke)
         result = { ...result, stroke: { ...result.stroke, dash: next.stroke.dash } };
+      // G12 (M19): the outline's own opacity is a plain change too (100 %: none is saved).
+      if (next.stroke.opacity !== now.stroke.opacity && result.stroke) {
+        const stroke = { ...result.stroke, opacity: next.stroke.opacity };
+        if (stroke.opacity === undefined) delete stroke.opacity;
+        result = { ...result, stroke };
+      }
     } else if (next.stroke) result = { ...result, stroke: next.stroke };
     else {
       result = dropTracks(result, ['strokeColour', 'strokeWidth']);

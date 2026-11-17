@@ -14,6 +14,17 @@ export function samePaint(a: Paint, b: Paint): boolean {
   if (a.kind === 'none' || b.kind === 'none') return a.kind === b.kind;
   if (a.kind === 'solid' || b.kind === 'solid')
     return a.kind === 'solid' && b.kind === 'solid' && sameHex(a.colour, b.colour);
+  // G12 (M19): the same tile in the same colours and size.
+  if (a.kind === 'pattern' || b.kind === 'pattern')
+    return (
+      a.kind === 'pattern' &&
+      b.kind === 'pattern' &&
+      a.pattern === b.pattern &&
+      sameHex(a.colour, b.colour) &&
+      sameHex(a.background, b.background) &&
+      a.size === b.size &&
+      a.pictureId === b.pictureId
+    );
   if (a.kind !== b.kind || !sameHex(a.from, b.from) || !sameHex(a.to, b.to)) return false;
   // AN6: the colours between too, and a radial gradient's centre.
   const [p, q] = [colourStops(a), colourStops(b)];

@@ -13,6 +13,7 @@ import type { CombinePlan } from './image/combine.ts';
 import type { UpdateState } from './updates.ts';
 import type { ResizeCrop } from './image/crop.ts';
 import type { ColourKey } from './image/colour-key.ts';
+import type { PixelJob, PixelJobInput, PixelJobOutput } from './graphics/pixels/jobs.ts';
 
 /** What a media file contains (T1 shows this to students). */
 export interface ProbeInfo {
@@ -227,6 +228,8 @@ export interface Dialogs {
    * sequence (AN17); [] when cancelled.
    */
   openExport(): Promise<string[]>;
+  /** T1, GL2 (M23): any file to inspect — a video, a sound, or a picture of the seven formats. */
+  openInspect(): Promise<string | null>;
   /** T6: where to save a task check for the students. */
   saveTaskCheck(suggestedName: string): Promise<string | null>;
   /** AN16: an animation (.mvea) to open. */
@@ -241,16 +244,18 @@ export interface Dialogs {
   saveAnimation(suggestedName: string): Promise<string | null>;
   /** AN15: where to save an exported animation; the file type follows the format. */
   exportAnimation(suggestedName: string, format: AnimationExportFormat): Promise<string | null>;
-  /** G1 (M18): a Graphics mode image (.mveg) to open. */
+  /** G1 (M18): a Graphics mode image (.mveg) to open; GV6 (M19): or an SVG file. */
   openGraphic(): Promise<string | null>;
+  /** GV6 (M19): *Import SVG…* — an SVG file whose shapes join the drawing. */
+  openSvg(): Promise<string | null>;
   /** G1 (M18): where to save an image. */
   saveGraphic(suggestedName: string): Promise<string | null>;
   /** G11 (M18): where to save an exported image; the file type follows the format. */
   exportGraphic(suggestedName: string, format: GraphicExportFormat): Promise<string | null>;
 }
 
-/** G11 (M18): the formats an image is exported in (BMP, GIF, TIFF and PDF come in M23). */
-export type GraphicExportFormat = 'png' | 'jpg' | 'svg';
+/** G11 (M18): the formats an image is exported in (M19: PDF; BMP, GIF and TIFF come in M23). */
+export type GraphicExportFormat = 'png' | 'jpg' | 'gif' | 'bmp' | 'tiff' | 'svg' | 'pdf';
 
 /** AN15: the animation export formats (M13: a picture of the stage; M14: mp4, gif, a PNG sequence; M16 html). */
 export type AnimationExportFormat =
@@ -269,6 +274,8 @@ export interface ProjectFiles {
   saveSound(name: string, wav: Uint8Array): Promise<string>;
   /** Writes a file the student named (an exported picture, AN15). */
   writeBytes(path: string, bytes: Uint8Array): Promise<void>;
+  /** D9 (M21): a file's bytes (a .mveg image is a zip; a picture's resolution, G10). */
+  readBytes(path: string): Promise<Uint8Array>;
 }
 
 /**
@@ -289,6 +296,11 @@ export interface PageAssets {
    * its buttons work, as the exported file will in a browser.
    */
   openTest(html: string, title: string, width: number, height: number): Promise<void>;
+  /**
+   * G11 (M19): an image's SVG printed as a PDF (vector kept) on a page of `page` inches with no
+   * margins, its background printed (the main process prints it in a hidden window).
+   */
+  svgToPdf(svg: string, page: { width: number; height: number }): Promise<Uint8Array>;
 }
 
 /** AN15: draws an animation's stage at a frame as a picture (an OffscreenCanvas in the app). */
@@ -319,8 +331,26 @@ export interface StageRenderer {
     doc: AnimationDoc,
     options: { quality: number; background: string; size?: { width: number; height: number } },
   ): Promise<Uint8Array>;
-  /** AN5: a picture's pixels, scaled down to at most `maxSide` px on its longer side. */
+  /**
+   * AN5: a picture's pixels, scaled down to at most `maxSide` px on its longer side. GB1 (M21):
+   * with Infinity, a picture opened as an image or a pixel layer, at its own size.
+   */
   pixels(path: string, maxSide: number): Promise<Pixels>;
+  /**
+   * G2 (M21): the stage drawn at its own size at frame 0, as RGBA pixels (not premultiplied): a
+   * vector layer drawn into pixels when it is merged (core/graphics/pixels/merge.ts layerAlone).
+   * G11 (M23): or scaled to `size`, for a GIF, BMP, TIFF or palette PNG export (core/image/encode).
+   */
+  renderPixels(doc: AnimationDoc, size?: { width: number; height: number }): Promise<Pixels>;
+}
+
+/**
+ * D3, GN2 (M21): heavy pixel work (the paint bucket, the gradient) off the page's thread: a Web
+ * Worker in the app, in the page in tests. Answers with only the tiles the job changed (M23: or
+ * the whole raster of another size, or a transform's pixels).
+ */
+export interface PixelWorker {
+  run<J extends PixelJob>(job: J, input: PixelJobInput<J>): Promise<PixelJobOutput<J>>;
 }
 
 /** Draws text as a transparent PNG with the bundled fonts (ARCHITECTURE §7.3). */

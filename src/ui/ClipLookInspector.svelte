@@ -17,6 +17,7 @@
   import { itemDuration } from '../core/model/timeline.ts';
   import type { MainItem, PanZoom, PanZoomFrame } from '../core/model/types.ts';
   import EffectParams from './EffectParams.svelte';
+  import PercentField from './PercentField.svelte';
   import TimeField from './TimeField.svelte';
   import TransitionPicker from './TransitionPicker.svelte';
 
@@ -81,29 +82,33 @@
 
 <section>
   <h3>Fade <span class="syl">11.1 fading</span></h3>
-  <TimeField
-    label="Fade in"
-    value={fade.in}
-    commit={(t) => app.edit(setFade(item.id, { ...fade, in: t }))}
-  />
-  <TimeField
-    label="Fade out"
-    value={fade.out}
-    commit={(t) => app.edit(setFade(item.id, { ...fade, out: t }))}
-  />
-  <div class="row" role="radiogroup" aria-label="Fade colour">
-    <span class="hint">Fade to</span>
-    {#each ['black', 'white'] as const as colour (colour)}
-      <label class="check">
-        <input
-          type="radio"
-          name="fade-colour-{item.id}"
-          checked={fade.colour === colour}
-          onchange={() => edit(setFade(item.id, { ...fade, colour }))}
-        />
-        {colour === 'black' ? 'Black' : 'White'}
-      </label>
-    {/each}
+  <div class="prop-row">
+    <TimeField
+      label="Fade in"
+      value={fade.in}
+      commit={(t) => app.edit(setFade(item.id, { ...fade, in: t }))}
+    />
+    <TimeField
+      label="Fade out"
+      value={fade.out}
+      commit={(t) => app.edit(setFade(item.id, { ...fade, out: t }))}
+    />
+  </div>
+  <div class="prop-row">
+    <span class="prop-label">Fade to</span>
+    <div class="prop-wide radios" role="radiogroup" aria-label="Fade colour">
+      {#each ['black', 'white'] as const as colour (colour)}
+        <label class="check">
+          <input
+            type="radio"
+            name="fade-colour-{item.id}"
+            checked={fade.colour === colour}
+            onchange={() => edit(setFade(item.id, { ...fade, colour }))}
+          />
+          {colour === 'black' ? 'Black' : 'White'}
+        </label>
+      {/each}
+    </div>
   </div>
   {@render why(WHY.fade)}
 </section>
@@ -151,49 +156,49 @@
 
 <section>
   <h3>Pan &amp; zoom <span class="syl">11.1 pan and zoom</span></h3>
-  <select
-    aria-label="Pan and zoom"
-    value={item.panZoom ? (item.panZoom.preset ?? 'custom') : 'none'}
-    onchange={(e) => choosePanZoom(e.currentTarget.value)}
-  >
-    <option value="none">None</option>
-    {#each PAN_ZOOM_PRESETS as preset (preset.id)}
-      <option value={preset.id}>{preset.label}</option>
-    {/each}
-    {#if item.panZoom && !item.panZoom.preset}<option value="custom">Custom</option>{/if}
-  </select>
+  <div class="prop-row">
+    <span class="prop-label">Preset</span>
+    <select
+      aria-label="Pan and zoom"
+      value={item.panZoom ? (item.panZoom.preset ?? 'custom') : 'none'}
+      onchange={(e) => choosePanZoom(e.currentTarget.value)}
+    >
+      <option value="none">None</option>
+      {#each PAN_ZOOM_PRESETS as preset (preset.id)}
+        <option value={preset.id}>{preset.label}</option>
+      {/each}
+      {#if item.panZoom && !item.panZoom.preset}<option value="custom">Custom</option>{/if}
+    </select>
+  </div>
   {#if item.panZoom}
     {@const pz = item.panZoom}
-    <div class="frames">
-      {#each [['from', 'Start'], ['to', 'End']] as const as [which, name] (which)}
-        {#each FRAME_FIELDS as [key, word] (key)}
-          <label class="num">
-            {name}
-            {word}
-            <input
-              aria-label="{name} {word}"
-              type="number"
-              min={key === 'zoom' ? 100 : 0}
-              max={key === 'zoom' ? 400 : 100}
-              step="1"
-              value={Math.round(pz[which][key] * 100)}
-              onchange={(e) => changeFrame(which, key, Number(e.currentTarget.value))}
-            />
-            <span class="hint">%</span>
-          </label>
+    <!-- The start and end frames side by side: zoom, across and down, in % of the picture. -->
+    {#each FRAME_FIELDS as [key, word] (key)}
+      <div class="prop-row">
+        {#each [['from', 'Start'], ['to', 'End']] as const as [which, name] (which)}
+          <PercentField
+            label="{name} {word}"
+            value={pz[which][key]}
+            commit={(factor) => {
+              changeFrame(which, key, factor * 100);
+              return null;
+            }}
+          />
         {/each}
-      {/each}
+      </div>
+    {/each}
+    <div class="prop-row">
+      <TimeField
+        label="Starts at (in the clip)"
+        value={pz.start ?? 0}
+        commit={(t) => changePanZoom({ start: t })}
+      />
+      <TimeField
+        label="Ends at (in the clip)"
+        value={pz.end ?? length}
+        commit={(t) => changePanZoom({ end: t })}
+      />
     </div>
-    <TimeField
-      label="Starts at (in the clip)"
-      value={pz.start ?? 0}
-      commit={(t) => changePanZoom({ start: t })}
-    />
-    <TimeField
-      label="Ends at (in the clip)"
-      value={pz.end ?? length}
-      commit={(t) => changePanZoom({ end: t })}
-    />
   {/if}
   {@render why(WHY.panZoom)}
 </section>
@@ -213,12 +218,14 @@
         )}
     />
     {#if current}
-      <TimeField
-        label="Transition length"
-        value={current.duration}
-        commit={(t) => app.edit(setTransition(item.id, { ...current, duration: t }))}
-      />
-      <div class="chips">
+      <div class="prop-row">
+        <TimeField
+          label="Transition length"
+          value={current.duration}
+          commit={(t) => app.edit(setTransition(item.id, { ...current, duration: t }))}
+        />
+      </div>
+      <div class="prop-buttons chips" style:--n="4">
         {#each QUICK as seconds (seconds)}
           <button
             aria-pressed={current.duration === seconds}
@@ -258,15 +265,17 @@
     border-radius: 3px;
     padding: 0 4px;
   }
-  .row,
-  .chips {
+  /* The property grid (props.css): rows keep their own spacing (the section's gap is for blocks). */
+  section > :global(.prop-row),
+  section > :global(.prop-buttons) {
+    margin-bottom: 0;
+  }
+  .radios {
     display: flex;
-    gap: 6px;
-    flex-wrap: wrap;
-    align-items: center;
+    justify-content: flex-end;
+    gap: 14px;
   }
   .chips button {
-    padding: 3px 8px;
     font-size: 11.5px;
   }
   .chips button[aria-pressed='true'] {
@@ -276,7 +285,8 @@
   /* Filters: equal tiles, two to a row, so the names line up whatever their length. */
   .filters {
     display: grid;
-    grid-template-columns: repeat(auto-fill, minmax(132px, 1fr));
+    /* Two to a row, as the panel's two columns of fields. */
+    grid-template-columns: repeat(2, minmax(0, 1fr));
     gap: 6px;
   }
   .filter {
@@ -340,21 +350,6 @@
   .effect-head button {
     padding: 2px 8px;
     font-size: 11px;
-  }
-  .frames {
-    display: grid;
-    grid-template-columns: repeat(3, 1fr);
-    gap: 4px 6px;
-  }
-  .num {
-    display: flex;
-    flex-direction: column;
-    font-size: 11px;
-    color: var(--tx-2);
-  }
-  .num input {
-    width: 100%;
-    box-sizing: border-box;
   }
   .hint {
     color: var(--tx-3);

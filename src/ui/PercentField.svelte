@@ -15,6 +15,11 @@
     const percent = text === '' ? NaN : Number(text);
     error = Number.isFinite(percent) ? commit(percent / 100) : 'Type a number such as 80.';
   }
+  /**
+   * On its own, as wide as its number needs (the teacher's layout check, 2026-11-15); in a
+   * properties row (props.css), as wide as its column.
+   */
+  const chars = $derived(Math.max(3, String(Math.round(value * 100)).length));
 </script>
 
 <div class="field">
@@ -25,6 +30,7 @@
       type="text"
       inputmode="decimal"
       value={Math.round(value * 100)}
+      style:min-width="{chars + 0.5}ch"
       {onchange}
       aria-invalid={error !== null}
     />
@@ -36,7 +42,8 @@
 <style>
   .field {
     display: grid;
-    grid-template-columns: 96px 1fr;
+    /* The label takes the room the box does not need. */
+    grid-template-columns: minmax(0, 1fr) auto;
     align-items: center;
     gap: 4px 8px;
     margin-bottom: 8px;
@@ -57,8 +64,9 @@
     border-color: var(--accent);
   }
   input {
-    flex: 1;
-    min-width: 0;
+    flex: none;
+    field-sizing: content;
+    text-align: right;
     border: 0;
     background: transparent;
     color: var(--tx-1);
@@ -75,6 +83,21 @@
   .unit {
     color: var(--tx-3);
     font-size: 11px;
+  }
+  /* In a properties row (props.css): the label and box go into the row's columns, the box as wide
+     as its column, so the boxes of every row line up. */
+  :global(.prop-row) > .field {
+    display: contents;
+  }
+  :global(.prop-row) > .field > .box {
+    width: 100%;
+    min-width: 0;
+  }
+  :global(.prop-row) > .field input {
+    flex: 1;
+    min-width: 0 !important;
+    width: 0;
+    field-sizing: fixed;
   }
   .error {
     grid-column: 1 / -1;

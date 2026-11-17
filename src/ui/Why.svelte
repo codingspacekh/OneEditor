@@ -7,6 +7,7 @@
   import { onDestroy, tick } from 'svelte';
   import { WHY, explain, toolById, type ToolId } from '../core/effects/help.ts';
   import Icon from './Icon.svelte';
+  import { ui } from './ui-state.svelte.ts';
 
   let {
     tool,
@@ -130,20 +131,20 @@
   onscrollcapture={() => open && void position()}
 />
 
-<span class="why">
-  <button
-    bind:this={trigger}
-    type="button"
-    class="trigger"
-    aria-expanded={open}
-    aria-controls={id}
-    onclick={toggle}
-    onpointerenter={show}
-    onpointerleave={hideSoon}
-    onfocus={() => !refocusing && show()}
-    onblur={hideSoon}><Icon name="help" size={13} /><span>{title}</span></button
-  >
-</span>
+{#if ui.showWhy}<span class="why">
+    <button
+      bind:this={trigger}
+      type="button"
+      class="trigger"
+      aria-expanded={open}
+      aria-controls={id}
+      onclick={toggle}
+      onpointerenter={show}
+      onpointerleave={hideSoon}
+      onfocus={() => !refocusing && show()}
+      onblur={hideSoon}><Icon name="help" size={13} /><span>{title}</span></button
+    >
+  </span>{/if}
 
 <div
   bind:this={panel}

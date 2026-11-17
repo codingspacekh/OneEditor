@@ -1,6 +1,8 @@
 <script lang="ts">
   // Side panel (screen 13): facts about the selected track — with why the uncompressed size is
   // what it is (T2 in brief) — the selected clip's start, typed (A20), and the History (A18).
+  import PropertySearch from '../PropertySearch.svelte';
+  import { propertyFilter } from '../property-search.ts';
   import type { App } from '../../app/app.ts';
   import { findClip } from '../../core/audio/edit.ts';
   import { clipEnd, trackDuration } from '../../core/audio/pcm.ts';
@@ -29,9 +31,17 @@
       bytes: wavBytes(doc.rate, bits, channels, seconds) - 44,
     };
   });
+  /** Property search: the words typed, and how many settings match (−1: no search). */
+  let search = $state('');
+  let found = $state(-1);
 </script>
 
-<aside class="side" aria-label="Selected track">
+<aside
+  class="side prop-panel"
+  aria-label="Selected track"
+  {@attach propertyFilter(search, (n) => (found = n))}
+>
+  <PropertySearch bind:value={search} {found} />
   <div class="panel-h">Selected track</div>
   <div class="sec">
     {#if track && facts}
@@ -64,11 +74,13 @@
   {#if clip}
     <div class="panel-h">Selected clip</div>
     <div class="sec">
-      <TimeField
-        label="Starts at"
-        value={clip.offset}
-        commit={(seconds) => app.audio.setClipStart(clip.id, seconds)}
-      />
+      <div class="prop-row">
+        <TimeField
+          label="Starts at"
+          value={clip.offset}
+          commit={(seconds) => app.audio.setClipStart(clip.id, seconds)}
+        />
+      </div>
       <p class="hint">
         Plays {clip.offset.toFixed(2)} – {clipEnd(clip, doc.rate).toFixed(2)} s. Silence before it, when
         nothing else plays there.

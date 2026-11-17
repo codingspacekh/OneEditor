@@ -74,27 +74,31 @@
   <h3>
     <Icon name="music" size={14} /> Position &amp; trim <span class="syl">11.1 adding audio</span>
   </h3>
-  <TimeField
-    label="Starts at"
-    value={item.start}
-    commit={(t) => app.edit(moveTimedItem(item.id, t))}
-  />
-  <div class="row">
+  <div class="prop-row">
+    <TimeField
+      label="Starts at"
+      value={item.start}
+      commit={(t) => app.edit(moveTimedItem(item.id, t))}
+    />
+  </div>
+  <div class="prop-buttons">
     <button onclick={() => (actionError = app.edit(moveTimedItem(item.id, $store.playhead)))}
       >Start at the playhead</button
     >
   </div>
   {#if actionError}<p class="error" role="alert">{actionError}</p>{/if}
-  <TimeField
-    label="Trim start"
-    value={item.in}
-    commit={(t) => app.edit(trimAudio(item.id, { in: t, out: item.out }))}
-  />
-  <TimeField
-    label="Trim end"
-    value={item.out}
-    commit={(t) => app.edit(trimAudio(item.id, { in: item.in, out: t }))}
-  />
+  <div class="prop-row">
+    <TimeField
+      label="Trim start"
+      value={item.in}
+      commit={(t) => app.edit(trimAudio(item.id, { in: t, out: item.out }))}
+    />
+    <TimeField
+      label="Trim end"
+      value={item.out}
+      commit={(t) => app.edit(trimAudio(item.id, { in: item.in, out: t }))}
+    />
+  </div>
   <p class="hint">
     {#if item.start >= videoEnd}
       Starts after the video ends ({videoEnd.toFixed(2)} s), so it will not be heard.
@@ -108,7 +112,7 @@
 
 <section>
   <h3><Icon name="speed" size={14} /> Speed <span class="syl">11.1</span></h3>
-  <div class="speeds">
+  <div class="prop-buttons speeds" style:--n="6">
     {#each SPEEDS as s (s)}
       <button
         aria-pressed={speed === s}
@@ -116,13 +120,15 @@
       >
     {/each}
   </div>
-  <NumberField
-    label="Speed"
-    value={speed}
-    unit="×"
-    example="1.25"
-    commit={(n) => app.edit(setSoundSpeed(item.id, n))}
-  />
+  <div class="prop-row">
+    <NumberField
+      label="Speed"
+      value={speed}
+      unit="×"
+      example="1.25"
+      commit={(n) => app.edit(setSoundSpeed(item.id, n))}
+    />
+  </div>
   <p class="hint">
     {(item.out - item.in).toFixed(2)} s ÷ {speed} = {length.toFixed(2)} s on the timeline. The pitch stays
     the same.
@@ -133,30 +139,36 @@
   <h3>
     <Icon name="volume" size={14} /> Volume &amp; fades <span class="syl">11.1 editing audio</span>
   </h3>
-  <PercentField
-    label="Volume"
-    value={item.volume}
-    commit={(v) => app.edit(setAudioVolume(item.id, v))}
-  />
-  <TimeField
-    label="Fade in"
-    value={item.fadeIn}
-    commit={(t) => app.edit(setAudioFades(item.id, { in: t, out: item.fadeOut }))}
-  />
-  <TimeField
-    label="Fade out"
-    value={item.fadeOut}
-    commit={(t) => app.edit(setAudioFades(item.id, { in: item.fadeIn, out: t }))}
-  />
+  <div class="prop-row">
+    <PercentField
+      label="Volume"
+      value={item.volume}
+      commit={(v) => app.edit(setAudioVolume(item.id, v))}
+    />
+  </div>
+  <div class="prop-row">
+    <TimeField
+      label="Fade in"
+      value={item.fadeIn}
+      commit={(t) => app.edit(setAudioFades(item.id, { in: t, out: item.fadeOut }))}
+    />
+    <TimeField
+      label="Fade out"
+      value={item.fadeOut}
+      commit={(t) => app.edit(setAudioFades(item.id, { in: item.fadeIn, out: t }))}
+    />
+  </div>
   {#if track === 0}
-    <label class="check">
-      <input
-        type="checkbox"
-        checked={item.duck === true}
-        onchange={(e) => (actionError = app.edit(setDucking(item.id, e.currentTarget.checked)))}
-      />
-      Lower under voiceover (−6 dB)
-    </label>
+    <div class="prop-row">
+      <label class="prop-check">
+        <input
+          type="checkbox"
+          checked={item.duck === true}
+          onchange={(e) => (actionError = app.edit(setDucking(item.id, e.currentTarget.checked)))}
+        />
+        Lower under voiceover (−6 dB)
+      </label>
+    </div>
     <p class="hint">Makes the voiceover easier to hear over the music.</p>
   {/if}
 </section>
@@ -176,21 +188,23 @@
           ><Icon name="delete" size={12} /></button
         >
       </div>
-      <TimeField label="From" value={change.from} commit={(t) => editChange(i, { from: t })} />
-      <TimeField label="To" value={change.to} commit={(t) => editChange(i, { to: t })} />
-      <PercentField
-        label="New volume"
-        value={change.volume}
-        commit={(v) => editChange(i, { volume: v })}
-      />
-      <TimeField
-        label="Glide"
-        value={change.ramp ?? VOLUME_RAMP}
-        commit={(t) => editChange(i, { ramp: t })}
-      />
+      <div class="prop-row">
+        <TimeField label="From" value={change.from} commit={(t) => editChange(i, { from: t })} />
+        <TimeField label="To" value={change.to} commit={(t) => editChange(i, { to: t })} />
+        <PercentField
+          label="New volume"
+          value={change.volume}
+          commit={(v) => editChange(i, { volume: v })}
+        />
+        <TimeField
+          label="Glide"
+          value={change.ramp ?? VOLUME_RAMP}
+          commit={(t) => editChange(i, { ramp: t })}
+        />
+      </div>
     </div>
   {/each}
-  <div class="row add">
+  <div class="prop-buttons">
     <button onclick={addChange}>Add a volume change</button>
   </div>
   {#if changeError}<p class="error" role="alert">{changeError}</p>{/if}
@@ -202,7 +216,7 @@
 </section>
 
 <section>
-  <div class="track">
+  <div class="prop-row">
     <label for="audio-track">Track</label>
     <select
       id="audio-track"
@@ -282,22 +296,7 @@
     border-radius: 3px;
     padding: 0 4px;
   }
-  .row {
-    display: flex;
-    gap: 4px;
-    margin: -2px 0 10px 104px;
-  }
-  .row button {
-    padding: 4px 8px;
-    font-size: 12px;
-  }
-  .speeds {
-    display: flex;
-    gap: 4px;
-    flex-wrap: wrap;
-  }
-  .speeds button {
-    padding: 4px 8px;
+  .prop-buttons button {
     font-size: 12px;
   }
   .speeds button[aria-pressed='true'] {
@@ -308,22 +307,6 @@
     color: var(--tx-3);
     font-size: 11.5px;
     margin: 6px 0 0;
-  }
-  .check {
-    display: flex;
-    gap: 8px;
-    align-items: center;
-    margin-top: 4px;
-  }
-  .track {
-    display: grid;
-    grid-template-columns: 96px 1fr;
-    align-items: center;
-    gap: 8px;
-  }
-  .track label {
-    color: var(--tx-2);
-    font-size: 12px;
   }
   .change {
     border: 1px solid var(--line);
@@ -341,9 +324,6 @@
   }
   .change-head button {
     padding: 2px 6px;
-  }
-  .row.add {
-    margin: 0 0 6px;
   }
   .error {
     margin: 0 0 8px;

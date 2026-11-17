@@ -3,10 +3,14 @@
 import { setSize } from '../geometry.ts';
 import type { AnimObject, Stage } from '../types.ts';
 import { BACKGROUNDS } from './backgrounds.ts';
+import { MORE_BACKGROUNDS } from './backgrounds-more.ts';
 import { BIOLOGY } from './biology.ts';
 import { buildItem, type Category, type LibraryItem } from './build.ts';
 import { CARTOONS } from './cartoons.ts';
+import { MORE_CARTOONS } from './cartoons-more.ts';
+import { CHARACTERS } from './characters.ts';
 import { COMPUTERS } from './computers.ts';
+import { MORE_COMPUTERS } from './computers-more.ts';
 import { ICONS } from './icons.ts';
 import { MATHS } from './maths.ts';
 import { SCHOOL_AND_MORE } from './school.ts';
@@ -16,6 +20,7 @@ export { buildItem, type Category, type LibraryItem } from './build.ts';
 
 export const LIBRARY_CATEGORIES: readonly { id: Category; label: string }[] = [
   { id: 'cartoons', label: 'Cartoons' },
+  { id: 'characters', label: 'People & characters' },
   { id: 'school', label: 'School' },
   { id: 'maths', label: 'Maths' },
   { id: 'science', label: 'Physics & chemistry' },
@@ -29,6 +34,8 @@ export const LIBRARY_CATEGORIES: readonly { id: Category; label: string }[] = [
 // tab's own file.
 export const LIBRARY: readonly LibraryItem[] = [
   ...CARTOONS,
+  ...MORE_CARTOONS,
+  ...CHARACTERS,
   ...SCHOOL_AND_MORE.filter((i) => i.category === 'school'),
   ...SCHOOL_AND_MORE.filter((i) => i.category === 'maths'),
   ...MATHS,
@@ -37,8 +44,10 @@ export const LIBRARY: readonly LibraryItem[] = [
   ...SCHOOL_AND_MORE.filter((i) => i.category === 'biology'),
   ...BIOLOGY,
   ...COMPUTERS,
+  ...MORE_COMPUTERS,
   ...ICONS,
   ...BACKGROUNDS,
+  ...MORE_BACKGROUNDS,
 ];
 
 export const itemById = (id: string): LibraryItem | undefined => LIBRARY.find((i) => i.id === id);

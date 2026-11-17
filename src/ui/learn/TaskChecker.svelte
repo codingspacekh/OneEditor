@@ -1,9 +1,16 @@
 <script lang="ts">
   // T6 task checker: the teacher sets what the exported file must be and saves it as a task
-  // file for the students; a student opens it and checks an export, row by row.
+  // file for the students; a student opens it and checks an export, row by row. GL2 (M23): a
+  // picture's numbers (dpi, printed size, colour depth, see-through pixels, no bitmaps, at most so
+  // many KB) and the file's name in the papers' form (P8).
   import type { LearnApp } from '../../app/learn.ts';
   import { SAMPLE_RATES, hz } from '../../core/render/audio-formats.ts';
-  import { TASK_FORMATS, type TaskSpec } from '../../core/teaching/task-check.ts';
+  import {
+    TASK_DEPTHS,
+    TASK_FORMATS,
+    depthWords,
+    type TaskSpec,
+  } from '../../core/teaching/task-check.ts';
   import Icon from '../Icon.svelte';
   import LearnCard from './LearnCard.svelte';
 
@@ -145,6 +152,118 @@
             >{/each}
         </select>
       </label>
+      <h4 class="wide">For a picture</h4>
+      <label
+        >Resolution (dpi)
+        <input
+          aria-label="Resolution (dpi)"
+          type="number"
+          min="1"
+          value={spec.dpi ?? ''}
+          onchange={(e) => change('dpi', number(e.currentTarget.value))}
+        />
+      </label>
+      <label
+        >Colour depth
+        <select
+          aria-label="Colour depth"
+          value={String(spec.depth ?? '')}
+          onchange={(e) => change('depth', number(e.currentTarget.value))}
+        >
+          <option value="">Any</option>
+          {#each TASK_DEPTHS as d (d)}<option value={String(d)}>{depthWords(d)}</option>{/each}
+        </select>
+      </label>
+      <div class="pair">
+        <label
+          >Printed width (cm)
+          <input
+            aria-label="Printed width (cm)"
+            type="number"
+            min="0"
+            step="0.1"
+            value={spec.printWidth ?? ''}
+            onchange={(e) => change('printWidth', number(e.currentTarget.value))}
+          />
+        </label>
+        <label
+          >Printed height (cm)
+          <input
+            aria-label="Printed height (cm)"
+            type="number"
+            min="0"
+            step="0.1"
+            value={spec.printHeight ?? ''}
+            onchange={(e) => change('printHeight', number(e.currentTarget.value))}
+          />
+        </label>
+      </div>
+      <div class="pair">
+        <label
+          >± cm
+          <input
+            aria-label="Printed size tolerance (cm)"
+            type="number"
+            min="0"
+            step="0.1"
+            value={spec.printTolerance ?? ''}
+            onchange={(e) => change('printTolerance', number(e.currentTarget.value))}
+          />
+        </label>
+        <label
+          >At most (KB)
+          <input
+            aria-label="At most (KB)"
+            type="number"
+            min="1"
+            value={spec.maxKB ?? ''}
+            onchange={(e) => change('maxKB', number(e.currentTarget.value))}
+          />
+        </label>
+      </div>
+      <label
+        >See-through pixels
+        <select
+          aria-label="See-through pixels"
+          value={spec.transparent === undefined ? '' : String(spec.transparent)}
+          onchange={(e) =>
+            change(
+              'transparent',
+              e.currentTarget.value === '' ? undefined : e.currentTarget.value === 'true',
+            )}
+        >
+          <option value="">Any</option>
+          <option value="true">Some (a transparent background)</option>
+          <option value="false">None</option>
+        </select>
+      </label>
+      <label class="check"
+        ><input
+          type="checkbox"
+          checked={!!spec.noBitmaps}
+          onchange={(e) => change('noBitmaps', e.currentTarget.checked || undefined)}
+        />
+        No bitmaps inside (an SVG or PDF)
+      </label>
+      <h4 class="wide">The file's name (as the papers ask)</h4>
+      <label
+        >Name before _centre_candidate
+        <input
+          aria-label="File name"
+          placeholder="for example Gas"
+          value={spec.fileName ?? ''}
+          onchange={(e) => change('fileName', e.currentTarget.value.trim() || undefined)}
+        />
+      </label>
+      <label class="check"
+        ><input
+          type="checkbox"
+          checked={!!spec.examName || !!spec.fileName}
+          disabled={!!spec.fileName}
+          onchange={(e) => change('examName', e.currentTarget.checked || undefined)}
+        />
+        Ends with the centre and candidate number
+      </label>
     </div>
     <div class="actions">
       <button onclick={() => learn.openTask()}>Open task…</button>
@@ -154,8 +273,9 @@
 
   <LearnCard title="Check an export" icon="check" tag="meeting the requirements">
     <p class="hint first">
-      <b>Students:</b> open the task your teacher gave you, then choose the file you exported (for a PNG
-      sequence, select all its pictures).
+      <b>Students:</b> open the task your teacher gave you, then choose the file you exported: a video,
+      sound, picture (PNG, JPG, GIF, BMP, TIFF, SVG or PDF) or web page; for a PNG sequence, select all
+      its pictures.
     </p>
     <button class="primary" onclick={() => learn.checkExport()}>Check a file…</button>
     {#if checked}
@@ -205,6 +325,23 @@
   }
   .wide {
     grid-column: 1 / -1;
+  }
+  h4 {
+    margin: 6px 0 0;
+    font-size: 11px;
+    font-weight: 600;
+    letter-spacing: 0.05em;
+    text-transform: uppercase;
+    color: var(--tx-3);
+  }
+  .check {
+    flex-direction: row;
+    align-items: center;
+    gap: 6px;
+    align-self: end;
+  }
+  .check input {
+    width: auto;
   }
   .pair {
     display: grid;

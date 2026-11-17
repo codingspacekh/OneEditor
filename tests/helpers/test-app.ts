@@ -66,6 +66,20 @@ export function testApp(
       height: 1,
       data: new Uint8ClampedArray([255, 255, 255, 255]),
     })),
+    /**
+     * G2 (M21): the stage as pixels: red where anything is drawn would need a canvas; all red.
+     * G11 (M23): at `size` when given.
+     */
+    renderPixels: vi.fn<StageRenderer['renderPixels']>(async (doc, size) => {
+      const { width, height } = size ?? doc.stage;
+      return {
+        width,
+        height,
+        data: new Uint8ClampedArray(width * height * 4).map((_, i) =>
+          i % 4 === 0 || i % 4 === 3 ? 255 : 0,
+        ),
+      };
+    }),
   };
   /** AN15: the web page's player and files, as data: URLs named after the file. */
   const pageAssets = {
@@ -80,6 +94,8 @@ export function testApp(
       async (path) => `data:audio/mpeg;base64,${btoa(path)}`,
     ),
     openTest: vi.fn<PageAssets['openTest']>(async () => {}),
+    /** G11 (M19): a PDF's first bytes. */
+    svgToPdf: vi.fn<PageAssets['svgToPdf']>(async () => new TextEncoder().encode('%PDF-1.7')),
   };
   /** AN28: the speakers Animation mode plays its sounds on: what was played, and stops. */
   const animationAudio = {
@@ -103,6 +119,8 @@ export function testApp(
       saveImage: async (name) => `/cache/text/${name}.png`,
       saveSound,
       writeBytes: async (p, b) => void bytes.set(p, b),
+      // D9 (M21): a .mveg is bytes; a picture's file is read for its resolution.
+      readBytes: async (p) => bytes.get(p) ?? Promise.reject(new Error('ENOENT')),
     },
     stageRenderer,
     pageAssets,

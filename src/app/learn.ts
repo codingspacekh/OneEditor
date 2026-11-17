@@ -1,6 +1,10 @@
 // Learn mode's use cases (M11, screens 21–22): inspect any file (T1), compare compression
 // settings on real files (T3) and check an export against a teacher's task (T6). Learn mode
-// never changes the project; its comparison files go into the app's own folder.
+// never changes the project; its comparison files go into the app's own folder. GL2 (M23): a
+// picture (PNG, JPG, GIF, BMP, TIFF, SVG or PDF) is read from its own bytes (core/image/info.ts),
+// inspected and checked for a task's numbers and its name (P8).
+import type { Candidate } from '../core/exam-name.ts';
+import { imageFacts, isImageName, type ImageFacts } from '../core/image/info.ts';
 import { createProject, assetFromProbe, createVideoClip } from '../core/model/factory.ts';
 import { EditError, MediaError } from '../core/model/errors.ts';
 import type { Seconds } from '../core/model/time.ts';
@@ -11,6 +15,7 @@ import { AUDIO_FORMATS, type AudioExportSettings } from '../core/render/audio-fo
 import { CONTAINERS, type ExportSettings } from '../core/render/formats.ts';
 import {
   checkFile,
+  imageInfo,
   parseTaskSpec,
   sequenceInfo,
   serializeTaskSpec,
@@ -42,7 +47,13 @@ export interface Comparison {
 }
 
 export interface LearnState {
-  inspected: { path: string; name: string; info: ProbeInfo } | null;
+  inspected: {
+    path: string;
+    name: string;
+    info: ProbeInfo;
+    /** GL2 (M23): a picture's facts, and the candidate details its name is checked against (P8). */
+    image?: { facts: ImageFacts; candidate: Candidate | null };
+  } | null;
   comparison: Comparison | null;
   /** What Learn mode is doing, e.g. "Making file 2 of 5…". */
   busy: string | null;
@@ -58,6 +69,8 @@ export interface LearnDeps {
   dialogs: Dialogs;
   files: ProjectFiles;
   paths: AppPaths;
+  /** P8: the student's details (File ▸ Candidate Details…), if set. */
+  candidate?: () => Candidate | null;
 }
 
 /** T3: how much of a file the comparison exports (README: 5–10 s). */
@@ -96,7 +109,7 @@ function comparisonSettings(info: ProbeInfo): ProjectSettings {
   };
 }
 
-export function createLearnApp({ engine, dialogs, files, paths }: LearnDeps) {
+export function createLearnApp({ engine, dialogs, files, paths, candidate }: LearnDeps) {
   const store: Store<LearnState> = createStore<LearnState>({
     inspected: null,
     comparison: null,
@@ -160,6 +173,22 @@ export function createLearnApp({ engine, dialogs, files, paths }: LearnDeps) {
     }
   }
 
+  const candidateNow = () => candidate?.() ?? null;
+
+  /**
+   * GL2 (M23): a picture's facts from its bytes, or null for a file whose name is not one of the
+   * seven formats'. A PNG, JPG, GIF, BMP or TIFF this cannot read is left to the media probe.
+   */
+  async function readPicture(path: string): Promise<ImageFacts | null> {
+    if (!isImageName(path)) return null;
+    try {
+      return await imageFacts(await files.readBytes(path), fileNameOf(path));
+    } catch (error) {
+      if (/\.(svg|pdf)$/i.test(path)) throw error;
+      return null;
+    }
+  }
+
   /** The inspected file, or a message saying what is missing. */
   function source(): { path: string; info: ProbeInfo } | null {
     const inspected = store.get().inspected;
@@ -172,12 +201,22 @@ export function createLearnApp({ engine, dialogs, files, paths }: LearnDeps) {
 
     /** T1: what is inside a file — the one dropped, or one chosen in the dialog. */
     async inspect(path?: string): Promise<void> {
-      const chosen = path ?? (await dialogs.openMedia())[0];
+      const chosen = path ?? (await dialogs.openInspect());
       if (!chosen) return;
       patch({ busy: 'Reading the file…', message: null });
       try {
-        const info = await engine.probe(chosen);
-        patch({ inspected: { path: chosen, name: fileNameOf(chosen), info }, comparison: null });
+        const name = fileNameOf(chosen);
+        const facts = await readPicture(chosen);
+        const info = facts ? imageInfo(facts, name) : await engine.probe(chosen);
+        patch({
+          inspected: {
+            path: chosen,
+            name,
+            info,
+            ...(facts ? { image: { facts, candidate: candidateNow() } } : {}),
+          },
+          comparison: null,
+        });
       } catch (error) {
         showError(error);
       } finally {
@@ -334,9 +373,9 @@ export function createLearnApp({ engine, dialogs, files, paths }: LearnDeps) {
     },
 
     /**
-     * T6: checks an exported file against the task, row by row: a video, sound or GIF (probed),
-     * a OneEditor web page (AN17: read from the animation it carries), or every picture of a PNG
-     * sequence chosen together (checked as one sequence).
+     * T6: checks an exported file against the task, row by row: a video or sound (probed), a
+     * OneEditor web page (AN17: read from the animation it carries), a picture (GL2: read from its
+     * bytes), or every picture of a PNG sequence chosen together (checked as one sequence).
      */
     async checkExport(path?: string): Promise<void> {
       const chosen = path ? [path] : await dialogs.openExport();
@@ -345,22 +384,28 @@ export function createLearnApp({ engine, dialogs, files, paths }: LearnDeps) {
       try {
         let name = fileNameOf(first);
         let info: CheckedFile;
+        const facts = /\.html?$/i.test(first) ? null : await readPicture(first);
         if (/\.html?$/i.test(first)) {
           const page = webPageInfo(await files.read(first));
           if (!page) throw new EditError('This page is not a web animation exported by OneEditor.');
           info = page;
         } else {
-          const probed = await engine.probe(first);
-          if (probed.kind === 'image') {
-            // A picture is one frame of a PNG sequence: the frames are counted.
+          const probed = facts ? imageInfo(facts, name) : await engine.probe(first);
+          if (probed.kind === 'image' && (!facts || facts.format === 'png')) {
+            // A PNG is one frame of a PNG sequence: the frames are counted.
             info = sequenceInfo(probed, chosen.length);
             if (chosen.length > 1) name = `${name} … (${chosen.length} pictures)`;
           } else if (chosen.length > 1)
             throw new EditError('Choose one exported file, or every picture of a PNG sequence.');
           else info = probed;
         }
+        // P8: the name is checked as the papers ask (the first picture's, for a sequence).
+        info = { ...info, fileName: fileNameOf(first) };
         const { spec } = store.get().task;
-        patch({ task: { spec, checked: { name, ...checkFile(spec, info) } }, message: null });
+        patch({
+          task: { spec, checked: { name, ...checkFile(spec, info, candidateNow()) } },
+          message: null,
+        });
       } catch (error) {
         showError(error);
       }

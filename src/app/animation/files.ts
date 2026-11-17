@@ -1,6 +1,8 @@
 // Animation files (AN16, P2, P3): new, open (each picture and sound checked, so it can be shown
 // or heard: AN28), save, save as, autosave and crash recovery, and Package Project for an
-// animation.
+// animation. D9 (M21): a Graphics mode image is a .mveg zip of its JSON and one PNG per pixel
+// layer and mask (core/graphics/mveg.ts), its recovery file too; one made before M21 (the JSON
+// alone) still opens.
 import { createHistory } from '../history.ts';
 import {
   animationFromDisk,
@@ -9,17 +11,35 @@ import {
   serializeAnimation,
 } from '../../core/animation/serialize.ts';
 import type { AnimSound, AnimationDoc, Picture } from '../../core/animation/types.ts';
+import { readGraphicFile, writeGraphicFile } from '../../core/graphics/mveg.ts';
+import { webCompression } from '../../core/image/deflate.ts';
 import { soundEffect } from '../../core/audio/sound-effects.ts';
 import { dirOf, fileNameOf, uniqueFileName } from '../../core/project/relocate.ts';
 import type { AnimationContext } from './context.ts';
 import { saveSoundEffect } from './sounds.ts';
+import { isSvgPath, svgAsImage } from './svg-files.ts';
 import { isAnimationDirty } from './state.ts';
+import { ProjectFileError } from '../../core/model/errors.ts';
 
 export function fileActions(ctx: AnimationContext) {
   const { store, patch, present, showError, pause, services, kind } = ctx;
   const { dialogs, files, paths, engine } = services;
   const recovery = kind.recovery(paths);
   const DISCARD = `You have unsaved ${kind.noun} work. Discard it and`;
+
+  /** D9 (M21): writes the document in its kind's file: an image's zip, an animation's JSON. */
+  async function writeDoc(path: string, doc: AnimationDoc): Promise<void> {
+    if (kind.kind === 'graphic')
+      await files.writeBytes(path, await writeGraphicFile(doc, webCompression));
+    else await files.write(path, serializeAnimation(doc));
+  }
+
+  /** D9 (M21): the document in a file of its kind (its paths still relative to it). */
+  async function readDoc(path: string): Promise<AnimationDoc> {
+    return kind.kind === 'graphic'
+      ? readGraphicFile(await files.readBytes(path), webCompression)
+      : deserializeAnimation(await files.read(path));
+  }
 
   function load(doc: AnimationDoc, path: string | null, saved: AnimationDoc = doc): void {
     pause();
@@ -28,8 +48,14 @@ export function fileActions(ctx: AnimationContext) {
       loop: { on: false },
       history: createHistory(doc),
       path,
+      // GC2 (M23): the photo an image was opened from belongs to that image.
+      original: undefined,
       saved,
       selection: [],
+      // GB2 (M21): a selection belongs to the image it was made on.
+      pixelSelection: undefined,
+      editingMask: false,
+      pixelPreview: undefined,
       layerId: doc.layers[0]!.id,
       tool: 'select',
       busy: null,
@@ -96,9 +122,11 @@ export function fileActions(ctx: AnimationContext) {
   }
 
   async function writeTo(path: string): Promise<void> {
+    // M23 (GN2): a step the pixel worker is still making goes into the file too.
+    await ctx.pixelWork();
     const doc = present();
     try {
-      await files.write(path, serializeAnimation(animationToDisk(doc, dirOf(path))));
+      await writeDoc(path, animationToDisk(doc, dirOf(path)));
       patch({ path, saved: doc });
       await files.remove(recovery).catch(() => {});
     } catch (error) {
@@ -128,7 +156,7 @@ export function fileActions(ctx: AnimationContext) {
     }
     if (lastRecovery === s.history.present) return;
     lastRecovery = s.history.present;
-    void files.write(recovery, serializeAnimation(s.history.present)).catch(() => {});
+    void writeDoc(recovery, s.history.present).catch(() => {});
   }, services.autosaveMs);
   (timer as { unref?: () => void }).unref?.();
 
@@ -140,14 +168,17 @@ export function fileActions(ctx: AnimationContext) {
 
     /** On start-up: offers to restore animation work that was never saved (P3). */
     async start(): Promise<void> {
-      let text: string;
+      let found: AnimationDoc;
       try {
-        text = await files.read(recovery);
-      } catch {
+        found = await readDoc(recovery);
+      } catch (error) {
+        // No recovery file: nothing was lost. A damaged one is discarded below.
+        if (!(error instanceof ProjectFileError)) return;
+        await files.remove(recovery).catch(() => {});
         return;
       }
       try {
-        const lost = animationFromDisk(deserializeAnimation(text), dirOf(recovery));
+        const lost = animationFromDisk(found, dirOf(recovery));
         if (
           await dialogs.confirm(`OneEditor closed before your ${kind.noun} was saved. Restore it?`)
         ) {
@@ -189,7 +220,15 @@ export function fileActions(ctx: AnimationContext) {
       const path = await kind.open(dialogs);
       if (!path) return;
       try {
-        const doc = animationFromDisk(deserializeAnimation(await files.read(path)), dirOf(path));
+        // GV6 (M19): an SVG opens as a new image of its shapes (not saved yet: no file of its own).
+        if (kind.kind === 'graphic' && isSvgPath(path)) {
+          const { doc, message } = await svgAsImage(ctx, path);
+          load(doc, null);
+          // GC2 (M23): an export never saves over the SVG it was opened from.
+          patch({ original: path, message: { kind: 'info', text: message } });
+          return;
+        }
+        const doc = animationFromDisk(await readDoc(path), dirOf(path));
         await loadChecked(doc, path);
       } catch (error) {
         showError(error);
@@ -224,10 +263,7 @@ export function fileActions(ctx: AnimationContext) {
           sounds.push({ ...sound, path: file });
         }
         const packed = { ...doc, pictures, ...(doc.sounds ? { sounds } : {}) };
-        await files.write(
-          `${dir}/${name}.${kind.extension}`,
-          serializeAnimation(animationToDisk(packed, dir)),
-        );
+        await writeDoc(`${dir}/${name}.${kind.extension}`, animationToDisk(packed, dir));
         patch({
           message: {
             kind: 'info',

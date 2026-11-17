@@ -3,7 +3,7 @@
 // labels). The teacher notes are made from this (scripts/guides.ts).
 
 export interface SyllabusPoint {
-  section: '11.1' | '11.2' | '19.1' | '19.2' | '20.1';
+  section: '11.1' | '11.2' | '19.1' | '19.2' | '19.3' | '19.4' | '19.5' | '20.1';
   group: string;
   point: string;
   /** Where in OneEditor (mode ▸ place). */
@@ -44,6 +44,8 @@ const an = (point: string, where: string, tools?: string[]) =>
 // Syllabus 19 grows with phase 3: the points the Graphics tab teaches so far (M18).
 const GRAPHIC_TOOLS = 'Using software tools for the creation and editing of digital graphics';
 const VECTOR_TOOLS = 'Using software tools for the creation and editing of vector graphics';
+const BITMAP_TOOLS = 'Using software tools for the creation and editing of bitmap graphics';
+const COMPRESSION_19 = 'Compression';
 const g = (point: string, where: string, tools?: string[]) =>
   p('19.1', GRAPHIC_TOOLS, point, where, tools);
 
@@ -298,13 +300,19 @@ export const SYLLABUS: readonly SyllabusPoint[] = [
     ['19.1 alignment and distribution tools'],
   ),
   g(
-    'colour systems: RGB, HSL, CMYK',
-    'Graphics ▸ any colour box: the colour picker shows and takes RGB, HSL and CMYK numbers',
+    'colour systems: RGB, HSL, CMYK, CMS; how each produces colour; their properties, purpose and uses',
+    // G9 (M23): taught in Learn ▸ Graphics.
+    'Learn ▸ Graphics ▸ Colour systems (RGB light and CMYK ink mixers, the HSL wheel, the same colour in each system, a colour matching system and the eyedropper); Graphics ▸ any colour box: the colour picker shows and takes RGB, HSL and CMYK numbers',
   ),
   g(
     'the need for different image resolutions, including the impact of having too low/high resolution for an image on screen or in print',
-    'Graphics ▸ File ▸ New Image… and the canvas chip at the top (size in px, cm, mm or in at a resolution; screen and print presets)',
+    'Graphics ▸ File ▸ New Image… and the canvas chip at the top (size in px, cm, mm or in at a resolution; screen and print presets); Learn ▸ Graphics ▸ Resolution and print size, and Bitmap and vector (a zoom that pixelates the bitmap beside the vector)',
     ['19.1 the need for different image resolutions'],
+  ),
+  // GL1 (M23)
+  g(
+    'different bitmap and vector file formats, including their suitability and selection for use in a given scenario',
+    'Learn ▸ Graphics ▸ File formats (the seven formats side by side; choose a scenario — the web, print, a logo, transparency, animation — for the formats to use and to avoid, and why)',
   ),
   g(
     'exporting an image in different file formats',
@@ -317,6 +325,144 @@ export const SYLLABUS: readonly SyllabusPoint[] = [
     'creating a vector graphic that meets the requirements of its intended application and audience',
     'Graphics ▸ the drawing tools on the stage, and To Animation on the toolbar to use the graphic in an animation',
     ['19.2 creating a vector graphic for its application'],
+  ),
+  g(
+    'changing solid and gradient fills; changing the opacity of all or part of an image',
+    'Graphics (and Animation) ▸ Properties ▸ Fill (solid, linear, radial or Pattern), Fill opacity and Outline opacity; Properties ▸ Filters for shadow, glow, bevel, stroke and blur',
+    ['19.1 changing solid and gradient fills'],
+  ),
+  p(
+    '19.2',
+    VECTOR_TOOLS,
+    'freehand, Bézier curves, straight lines, rectangles, ellipses, circles, arcs, stars, polygons, spirals',
+    'Graphics (and Animation) ▸ the tool strip: Rectangle, Ellipse, Star, Polygon, Line, Pen, Brush, and Arc (C), Spiral (O) and Polyline (Y); Properties ▸ Arc and Spiral',
+    ['19.2 vector shapes: arcs, spirals and polylines'],
+  ),
+  p(
+    '19.2',
+    VECTOR_TOOLS,
+    'selection tools: convert to curves, replication, transformation tools',
+    'Graphics (and Animation) ▸ Properties ▸ Copies: Convert to curves, Step and repeat…, Paste in place, Mirror copy; Duplicate (Ctrl+D) repeats the last move',
+    ['19.2 convert to curves and replication'],
+  ),
+  p(
+    '19.2',
+    VECTOR_TOOLS,
+    'add, move, delete nodes; Bézier handles; symmetrical, asymmetrical, cusp, smooth nodes; align and distribute nodes',
+    'Graphics (and Animation) ▸ select a pen path, then Properties ▸ Nodes: click or drag a box round nodes, Cusp / Smooth / Symmetrical, To line / To curve, Align and distribute, Simplify…, Break, Join, Close, Reverse, Delete',
+    ['19.2 nodes: cusp, smooth and symmetrical'],
+  ),
+  p(
+    '19.2',
+    VECTOR_TOOLS,
+    'application of envelopes and perspectives',
+    'Graphics (and Animation) ▸ Properties ▸ Envelope: arch, arc, bulge, flag, wave, rise or squeeze with a bend %, Perspective (drag the four corners) or Custom (drag the sides’ corners and handles); Apply makes plain paths',
+    ['19.2 envelopes and perspective'],
+  ),
+  // GV5 (M19), GL1 (M23)
+  p(
+    '19.2',
+    VECTOR_TOOLS,
+    'converting bitmap images into editable vector shapes, including trace bitmaps; advantages and disadvantages of converting a bitmap image into an editable vector shape',
+    'Graphics ▸ a picture, then Properties ▸ Trace bitmap… (colours, detail, smoothing, black and white); Learn ▸ Graphics ▸ Bitmap to vector (advantages and disadvantages)',
+  ),
+  // ---- 19.3 Bitmap images (M21) ----
+  p(
+    '19.3',
+    BITMAP_TOOLS,
+    'creating and editing bitmap images that meet the requirements of their intended application and audience',
+    'Graphics ▸ Layers ▸ New pixel layer or Add picture as layer; File ▸ Open a photo as an image; Image ▸ Image size…, Canvas size…, Crop to content, Trim plain edges',
+    ['19.3 creating and editing bitmap images'],
+  ),
+  p(
+    '19.3',
+    BITMAP_TOOLS,
+    'selection tools to select, remove or hide parts of a bitmap image: lasso, magic wand, colour select, cut-out, crop, masking tools',
+    'Graphics ▸ the tool strip on a pixel layer: Rectangle and Ellipse select (M), Lasso, Polygonal and Magnetic lasso, Magic wand (W), Colour select; the option bar for add / subtract / intersect, tolerance and feather; Delete, Layer via copy (Ctrl+J), Crop to selection; Layers ▸ Add mask, clipping',
+    ['19.3 selection tools'],
+  ),
+  p(
+    '19.3',
+    BITMAP_TOOLS,
+    'brush, pencil and pen tools: pre-set and customised options',
+    'Graphics ▸ the tool strip on a pixel layer: Paintbrush, Pencil, Eraser, Airbrush; Properties ▸ Paint: size, hardness, opacity, flow, spacing, shape, the presets and Save preset',
+    ['19.3 brush, pencil and pen tools'],
+  ),
+  p(
+    '19.3',
+    BITMAP_TOOLS,
+    'resizing the image / canvas: changing colour depth, changing resolution',
+    'Graphics ▸ Image ▸ Image size… (px, %, cm, in at a resolution; bicubic, bilinear or nearest; or the resolution alone), Canvas size… (anchor), Reduce colours… (2, 16, 256, greyscale; dithering)',
+    ['19.3 resizing the image and canvas'],
+  ),
+  p(
+    '19.3',
+    BITMAP_TOOLS,
+    'working with colour: solid and gradient fills; convert to black and white, greyscale; adjust brightness, contrast, colour balance, shadows and highlights',
+    'Graphics ▸ the Paint bucket and Gradient tools on a pixel layer; Image ▸ Adjustments ▸ Brightness / Contrast…, Levels…, Exposure…, Shadows / Highlights…, Hue / Saturation… (Colourise), Colour Balance…, Temperature / Tint…, Replace Colour… (click the colour in the image), Black and White…, Greyscale, Invert — on the layer, its mask or inside the selection, with a live preview',
+    ['19.3 working with colour'],
+  ),
+  p(
+    '19.3',
+    BITMAP_TOOLS,
+    'tools/filters to alter parts of an image: distort, clone, erase, blur, smudge, sharpen, red eye removal',
+    'Graphics ▸ Filter ▸ Blur (Gaussian, Motion, Zoom), Twirl…, Sharpen… and Distort ▸ Bulge / Pinch…, Perspective…, Warp… on a pixel layer, its mask or inside the selection, with a live preview (click the image for the centre; drag the corners or the mesh); the Eraser on the tool strip; the tool strip on a pixel layer: Clone stamp and Heal (Alt-click, Option-click on a Mac, the source; Properties ▸ Aligned, Copy from), Blur, Sharpen and Smudge brushes (Properties ▸ Strength), Red eye (click the eye or drag a box over it; Pupil size, Darken)',
+    ['19.3 tools/filters to alter parts of an image'],
+  ),
+  // ---- 19.4 Compression (GC1, M23) ----
+  p(
+    '19.4',
+    COMPRESSION_19,
+    'what compression is',
+    'Learn ▸ Graphics ▸ Compression (what compression is, on your own picture or the image in Graphics mode)',
+  ),
+  p(
+    '19.4',
+    COMPRESSION_19,
+    'methods of compression: lossless compression, lossy compression',
+    'Learn ▸ Graphics ▸ Compression: the same picture as PNG, GIF, BMP, TIFF and JPG side by side with their sizes; the colour depth and the resolution reduced; the image file-size calculator (width × height × bits ÷ 8); Graphics ▸ Export (each format lossless or lossy)',
+  ),
+  p(
+    '19.4',
+    COMPRESSION_19,
+    'effects of different methods of compression on images',
+    'Learn ▸ Graphics ▸ Compression: a JPEG quality slider with the file size and a zoomed difference view (where data was lost), and a JPEG saved again and again',
+  ),
+  // ---- 19.5 Text (M20) ----
+  p(
+    '19.5',
+    'Using software tools for the creation and editing of text in graphics',
+    'font face, size, kerning, letter spacing, line spacing',
+    'Graphics (and Animation) ▸ Properties ▸ Text: Font and Size (px, or pt in Graphics mode); Properties ▸ Spacing: Letter spacing, Line spacing, and Kerning between the letters at the cursor in the words box (or Alt+← / Alt+→ there)',
+    ['19.5 font, size, kerning and spacing'],
+  ),
+  p(
+    '19.5',
+    'Using software tools for the creation and editing of text in graphics',
+    'fitting text to path or shape: along a line or around a shape',
+    'Graphics (and Animation) ▸ select a text and a shape or path, then Properties ▸ Text on a path: Put on path; Properties ▸ On a path: Start, Side (outside, inside, centred), Flip, Show path, Take off path',
+    ['19.5 fitting text to a path or shape'],
+  ),
+  p(
+    '19.5',
+    'Using software tools for the creation and editing of text in graphics',
+    'setting text in a shape',
+    'Graphics (and Animation) ▸ select a text and a closed shape, then Properties ▸ Text on a path: Put in shape; Properties ▸ In a shape: Padding, Take out of shape',
+    ['19.5 setting text in a shape'],
+  ),
+  p(
+    '19.5',
+    'Using software tools for the creation and editing of text in graphics',
+    'converting text to curves: fonts into editable vector shapes',
+    'Graphics (and Animation) ▸ select a text, then Properties ▸ Curves and copies: Convert to curves (each letter a pen path, grouped); Ungroup, then Properties ▸ Nodes to pull a letter’s nodes',
+    ['19.5 converting text to curves'],
+  ),
+  p(
+    '19.5',
+    'Using software tools for the creation and editing of text in graphics',
+    'use and manipulation of text in graphics software',
+    'Graphics (and Animation) ▸ select a text, then Properties ▸ Envelope: arch, bulge, wave… (the words stay text until Apply); Properties ▸ Filters: drop shadow, glow, bevel',
+    ['19.5 warping text'],
   ),
   // ---- 20.1 Animation (phase 2) ----
   an(

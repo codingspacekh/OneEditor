@@ -3,7 +3,8 @@ import { readdir } from 'node:fs/promises';
 import { join } from 'node:path';
 
 /** AN5: pictures for Animation mode; SVG only here, as FFmpeg cannot draw it for a video. */
-export const PICTURE_EXTENSIONS = ['png', 'jpg', 'jpeg', 'gif', 'bmp', 'svg'];
+// GB1 (M21): and WebP.
+export const PICTURE_EXTENSIONS = ['png', 'jpg', 'jpeg', 'gif', 'bmp', 'webp', 'svg'];
 
 /** AN14: the pictures in a folder (not in folders inside it, not hidden files), by full path. */
 export async function picturesIn(folder: string): Promise<string[]> {

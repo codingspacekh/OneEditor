@@ -2,6 +2,7 @@
 // view settings. Plain, immutable, JSON-serialisable data, like the video project (ARCHITECTURE
 // §5). Coordinates are stage pixels with (0, 0) at the top left, as the coursebook's rulers;
 // an object's x and y are its top-left corner and it turns about its centre.
+import type { Bitmap, Mask } from '../graphics/pixels/raster.ts';
 import type { Id } from '../model/types.ts';
 
 export type { Id };
@@ -37,7 +38,25 @@ export type Paint =
   /** `angle` in degrees: 0 runs left to right, 90 top to bottom. */
   | { kind: 'linear'; from: string; to: string; angle: number; stops?: GradientStop[] }
   /** From its centre outwards: `cx`, `cy` in % of the box (absent: 50, the middle). */
-  | { kind: 'radial'; from: string; to: string; stops?: GradientStop[]; cx?: number; cy?: number };
+  | { kind: 'radial'; from: string; to: string; stops?: GradientStop[]; cx?: number; cy?: number }
+  /**
+   * G12 (M19): a repeating pattern: one of the built-in tiles drawn in `colour` on `background`
+   * (`'none'`: see-through between), `size` px a tile, turned by `angle`°; or `'picture'`: the
+   * picture `pictureId` tiled at `size` px wide.
+   */
+  | {
+      kind: 'pattern';
+      pattern: PatternName;
+      colour: string;
+      background: string;
+      size: number;
+      angle?: number;
+      pictureId?: Id;
+    };
+
+/** G12 (M19): the built-in pattern tiles, and a picture tiled. */
+export type PatternName =
+  'weave' | 'checks' | 'stripes' | 'dots' | 'hatching' | 'crosshatch' | 'bricks' | 'picture';
 
 export type Dash = 'solid' | 'dashed' | 'dotted';
 
@@ -46,6 +65,84 @@ export interface Stroke {
   colour: string;
   width: number;
   dash: Dash;
+  /** G12 (M19): the outline's own opacity, 0–100 %, under the object's. Absent: 100. */
+  opacity?: number;
+}
+
+/**
+ * G14 (M19): an effect drawn with an object (Animate's filters, Photoshop's layer styles):
+ * depth, 3-D, blooms and halos. Offsets and blurs in px, opacity 0–100 %, angles in degrees
+ * (as Photoshop's: 0: light from the right, 90: from above, the papers' "light from the top left"
+ * is 135).
+ */
+export type ObjectFilter =
+  | { kind: 'dropShadow'; colour: string; dx: number; dy: number; blur: number; opacity: number }
+  | { kind: 'innerShadow'; colour: string; dx: number; dy: number; blur: number; opacity: number }
+  /** The halo round the Moon, a light bloom: a soft colour all round the outline. */
+  | { kind: 'glow'; colour: string; blur: number; opacity: number }
+  /** Raised lettering, "3-D" buttons, the metallic plaque: lit on one side, shaded on the other. */
+  | {
+      kind: 'bevel';
+      depth: number;
+      blur: number;
+      angle: number;
+      light: string;
+      shadow: string;
+      opacity: number;
+    }
+  /**
+   * G10 (M23): an outline round what is drawn (Photoshop's Layer Style ▸ Stroke): `width` px of
+   * `colour` outside its edge, inside it, or centred on it — round a shape, a group, a pixel layer
+   * or a clipping group as a whole (M/21: the globe's outline over the map clipped to it).
+   */
+  | {
+      kind: 'stroke';
+      colour: string;
+      width: number;
+      opacity: number;
+      position: StrokePosition;
+    }
+  /** A soft-edged shape. */
+  | { kind: 'blur'; radius: number };
+
+/** G10 (M23): where a stroke effect lies against the edge. */
+export type StrokePosition = 'outside' | 'centred' | 'inside';
+
+export type FilterKind = ObjectFilter['kind'];
+
+/**
+ * GV4 (M19): an envelope bends an object's box into another shape; kept live (the object stays
+ * editable) until it is applied, which makes plain paths. Points are fractions of the box (0, 0 =
+ * its top left; they may lie outside it). A preset bends by `bend` % (−100 to 100); perspective
+ * moves the four corners; a custom envelope's four sides are Bézier curves, each from its first
+ * corner to the next going round (top: top left → top right; right: → bottom right; bottom:
+ * bottom left → bottom right; left: top left → bottom left), with two control points each.
+ */
+export type Envelope =
+  | { kind: 'preset'; preset: EnvelopePreset; bend: number }
+  | { kind: 'perspective'; corners: [EnvPoint, EnvPoint, EnvPoint, EnvPoint] }
+  | { kind: 'custom'; sides: EnvelopeSides };
+
+export type EnvelopePreset = 'arch' | 'arc' | 'bulge' | 'flag' | 'wave' | 'rise' | 'squeeze';
+
+export interface EnvPoint {
+  x: number;
+  y: number;
+}
+
+/** GV4: a side from corner a to corner b with control points c1 and c2 (box fractions). */
+export interface EnvelopeSide {
+  a: EnvPoint;
+  c1: EnvPoint;
+  c2: EnvPoint;
+  b: EnvPoint;
+}
+
+export interface EnvelopeSides {
+  top: EnvelopeSide;
+  right: EnvelopeSide;
+  bottom: EnvelopeSide;
+  left: EnvelopeSide;
 }
 
 /** AN9: how a tween runs from one keyframe to the next. */
@@ -148,6 +245,12 @@ interface ObjectBase {
    * about it too, and on a motion path it is this point that follows the path. Absent: the centre.
    */
   pivot?: { x: number; y: number };
+  /** G12 (M19): the fill's own opacity, 0–100 %, under the object's. Absent: 100. */
+  fillOpacity?: number;
+  /** G14 (M19): effects drawn with it, in order. Absent or empty: none. */
+  filters?: ObjectFilter[];
+  /** GV4 (M19): bent by an envelope or perspective until applied. Absent: not bent. */
+  envelope?: Envelope;
   /** AN9: keyframes, one track per animated property. Absent or empty: the object stays still. */
   tracks?: Track[];
   /**
@@ -171,7 +274,15 @@ export interface RectObject extends ObjectBase {
 
 export interface EllipseObject extends ObjectBase {
   kind: 'ellipse';
+  /**
+   * GV1 (M19): only part of the ellipse: from `start` to `end` degrees clockwise (0 at the right,
+   * as the canvas), left open (an arc's line), closed to the centre (a pie slice) or straight
+   * across (a chord). Absent: the whole ellipse.
+   */
+  arc?: { start: number; end: number; close: ArcClose };
 }
+
+export type ArcClose = 'open' | 'pie' | 'chord';
 
 export interface StarObject extends ObjectBase {
   kind: 'star';
@@ -193,7 +304,14 @@ export interface PathPoint {
   in?: { x: number; y: number };
   /** The control point of the curve leaving here. */
   out?: { x: number; y: number };
+  /**
+   * GV3 (M19): how its handles move together: cusp (each on its own), smooth (in line, each its
+   * own length; asymmetrical), symmetrical (in line and equal). Absent: cusp, as before.
+   */
+  type?: NodeType;
 }
+
+export type NodeType = 'cusp' | 'smooth' | 'symmetrical';
 
 /** AN3: a line (two points), a pen or brush path. Points stay inside the box; resizing scales them. */
 export interface PathObject extends ObjectBase {
@@ -205,6 +323,12 @@ export interface PathObject extends ObjectBase {
    * filled even-odd. Absent: no holes.
    */
   holes?: PathPoint[][];
+  /**
+   * GT4 (M20): how its outline and holes are filled: 'nonzero' as a font fills its letters (a
+   * letter made curves: its overlapping strokes stay filled, its counters, wound the other way,
+   * stay holes). Absent: even-odd (each hole cut out).
+   */
+  fillRule?: 'nonzero' | 'evenodd';
 }
 
 export type TextAlign = 'left' | 'centre' | 'right';
@@ -224,6 +348,51 @@ export interface TextObject extends ObjectBase {
    * a smile when less; at ±100 the widest line closes into a circle. Absent: 0, straight.
    */
   curve?: number;
+  /**
+   * GT1 (M20): space added after every letter but a line's last, in thousandths of an em (as
+   * tracking in Illustrator and Photoshop), so it grows with the letters; less than 0 tightens.
+   * Absent: 0.
+   */
+  letterSpacing?: number;
+  /**
+   * GT1 (M20): kerning, the space between two letters only: `kerning[i]` is added after the i-th
+   * character of `text` (new lines counted), in thousandths of an em. Absent or 0: none.
+   */
+  kerning?: number[];
+  /** GT1 (M20): the line height, in times the size. Absent: 1.2. */
+  lineSpacing?: number;
+  /**
+   * GT2 (M20): the words follow this path or shape's outline instead of a line (Absent: on a
+   * line, or curved by `curve`). Its points are in the text's own box.
+   */
+  path?: TextPath;
+  /** GT3 (M20): the words wrap inside this closed shape, in the text's own box. */
+  inShape?: TextShape;
+}
+
+/**
+ * GT2 (M20): text on a path. The letters start `start` % of the way along and stand on the
+ * outline: `outside` on the left of the way it runs (above a line drawn left to right, outside a
+ * shape drawn clockwise), `inside` hanging on the other side, `centred` halfway through it
+ * (9626/04 M/22: "each letter halfway through the outline"). `flip` runs them the other way. The
+ * path itself is drawn only when it has a `stroke` ("do not show the path").
+ */
+export interface TextPath {
+  points: PathPoint[];
+  closed: boolean;
+  start: number;
+  side: TextSide;
+  flip?: boolean;
+  stroke?: Stroke;
+}
+
+export type TextSide = 'outside' | 'inside' | 'centred';
+
+/** GT3 (M20): text in a shape: the lines wrap inside its outline, `padding` px in from it. */
+export interface TextShape {
+  points: PathPoint[];
+  holes?: PathPoint[][];
+  padding: number;
 }
 
 /** AN5: an imported picture, kept in `AnimationDoc.pictures`. */
@@ -281,12 +450,79 @@ export interface Layer {
   /** AN12: a mask: its shapes restrict what is seen of the layer directly beneath it. */
   mask?: boolean;
   /**
+   * GV8 (M19): a template to draw over (Chip.png, Plane.jpg): shown faded, locked, and never
+   * exported or sent to Animation mode.
+   */
+  template?: boolean;
+  /**
    * AN14: a frame-by-frame layer: the frames where a new drawing starts, sorted, the first 0.
    * Each drawing (the objects whose `drawing` is that frame) is held until the next one.
    */
   drawings?: number[];
   /** Drawing order: the first object is at the back. */
   objects: AnimObject[];
+  /** G2 (M21): how strongly the whole layer is drawn, 0–1, as one picture. Absent: 1. */
+  opacity?: number;
+  /** G2 (M21): how the layer's colours mix with what is below it. Absent: normal. */
+  blend?: BlendMode;
+  /**
+   * G2 (M21): a clipping mask: the layer is seen only where the nearest layer below it that is
+   * not itself clipped (its base) has something drawn (the photo inside the circle).
+   */
+  clip?: boolean;
+  /**
+   * G2, GB1 (M21): a pixel layer (Graphics mode only): its pixels, where its top left lies on the
+   * image, and its layer mask. A pixel layer has no objects; Send to Animation makes it a picture.
+   */
+  pixels?: PixelContent;
+  /**
+   * G14 (M22): a pixel layer's effects (Photoshop's layer styles): the same shadows, glows,
+   * bevels and blur objects have, drawn from its pixels (after its layer mask), in order, before
+   * its opacity and blend mode are applied to the result. Only on a pixel layer.
+   */
+  effects?: ObjectFilter[];
+}
+
+/** G2 (M21): the blend modes of the Layers panel, named as the canvas names them where it can. */
+export type BlendMode =
+  | 'normal'
+  | 'multiply'
+  | 'screen'
+  | 'overlay'
+  | 'darken'
+  | 'lighten'
+  | 'colour'
+  | 'luminosity'
+  | 'difference';
+
+export const BLEND_MODES: readonly BlendMode[] = [
+  'normal',
+  'multiply',
+  'screen',
+  'overlay',
+  'darken',
+  'lighten',
+  'colour',
+  'luminosity',
+  'difference',
+];
+
+/** G2, GB1, GB2 (M21): what a pixel layer holds. */
+export interface PixelContent {
+  bitmap: Bitmap;
+  /** Where the bitmap's top-left pixel is on the image, in whole image px (may be outside it). */
+  x: number;
+  y: number;
+  /**
+   * GB2: the layer mask, the bitmap's size and at its place (it moves with the layer): 255 shows
+   * the pixel, 0 hides it, between: partly. Absent: all shown.
+   */
+  mask?: Mask;
+  /**
+   * M22 (GN2): a live preview only, never in a document that is kept: each bitmap pixel covers
+   * `scale` image px (a reduced copy, drawn at the layer's own size).
+   */
+  scale?: number;
 }
 
 export interface LayerFolder {
@@ -345,6 +581,13 @@ export interface ViewSettings {
   rulers: boolean;
   grid: { show: boolean; size: number; over: boolean };
   snap: { grid: boolean; guides: boolean; objects: boolean; pixels: boolean };
+  /** GV7 (M19): View ▸ Outline: every shape as a thin line, no fills. Absent: off. */
+  wireframe?: boolean;
+  /**
+   * G3 (Graphics benchmark): Scale outlines and effects — false: a resized group's (or Image
+   * size's) outline widths and effect sizes stay as typed. Absent: on (they scale with it).
+   */
+  scaleOutlines?: boolean;
 }
 
 /** G1, G6 (Graphics mode, M18): the units sizes are typed and shown in. */
@@ -358,14 +601,28 @@ export type Unit = 'px' | 'cm' | 'mm' | 'in' | 'pt';
 export interface GraphicSettings {
   dpi: number;
   units: Unit;
+  /**
+   * Graphics benchmark G6: the printed size as typed (80 mm, not the 79.9 mm its whole pixels
+   * come to), for the SVG's width and height and the PDF's page; used only while it still comes
+   * to the canvas's pixels at `dpi`.
+   */
+  size?: PrintedSize;
+}
+
+/** G6: a width and height in a printed unit, exactly as typed. */
+export interface PrintedSize {
+  width: number;
+  height: number;
+  units: 'cm' | 'mm' | 'in' | 'pt';
 }
 
 export interface AnimationDoc {
   /**
    * 2 since M14 (keyframes), 3 since M15 (paths, morphs, masks), 4 since M16 (buttons, stop
-   * motion and frame-by-frame layers); older apps refuse newer files.
+   * motion and frame-by-frame layers), 5 since M19 (patterns, effects, envelopes, arcs, node
+   * types, template layers); older apps refuse newer files.
    */
-  schemaVersion: 4;
+  schemaVersion: 5;
   name: string;
   stage: Stage;
   /** G1 (M18): present in a Graphics mode image, absent in an animation. */

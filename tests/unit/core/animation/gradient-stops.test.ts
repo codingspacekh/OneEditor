@@ -218,3 +218,57 @@ describe('AN6 gradient colours', () => {
     expect(next.fill).toMatchObject({ stops: [{ at: 30, colour: '#ffff00' }] });
   });
 });
+
+describe('G8 (M23, Graphics benchmark J/22): a gradient colour with its own opacity', () => {
+  // J/22 Balloon2: the balloon darker in the middle, fading to see-through at its edges.
+  const shading: Paint = {
+    kind: 'radial',
+    from: '#000000aa',
+    to: '#00000000',
+    stops: [{ at: 60, colour: '#00000040' }],
+  };
+
+  it('G8 a gradient’s colours may be #rrggbbaa: checked, saved and opened again', () => {
+    expect(() => validateObject(box(shading))).not.toThrow();
+    const doc = stageWith(box(shading));
+    const back = deserializeAnimation(serializeAnimation(doc));
+    expect(back.layers[0]!.objects[0]!.fill).toEqual(shading);
+    // A solid colour keeps its own Fill opacity (G12) instead; nor is a half-typed colour taken.
+    expect(() => validateObject(box({ kind: 'solid', colour: '#00000080' }))).toThrow(EditError);
+    expect(() => validateObject(box({ ...shading, to: '#0000000' } as Paint))).toThrow(EditError);
+  });
+
+  it('G8 the canvas is given the colours as they are; the SVG writes stop-color and stop-opacity', () => {
+    const stops: string[] = [];
+    const ctx = new Proxy({} as Record<string, unknown>, {
+      get: (t, k: string) =>
+        k in t
+          ? t[k]
+          : k === 'withLayer' || k === 'withFilters' || k === 'patternOf' || k === 'drawBitmap'
+            ? undefined
+            : k === 'createRadialGradient' || k === 'createLinearGradient'
+              ? () => ({ addColorStop: (_o: number, c: string) => stops.push(c) })
+              : () => undefined,
+      set: (t, k: string, v) => ((t[k] = v), true),
+    }) as unknown as StageCanvas;
+    drawStage(ctx, stageWith(box(shading)));
+    expect(stops).toEqual(['#000000aa', '#00000040', '#00000000']);
+    const svg = stageSvg(stageWith(box(shading)));
+    expect(svg).toContain('stop-color="#000000" stop-opacity="0.667"');
+    expect(svg).toContain('stop-color="#000000" stop-opacity="0"');
+    expect(svg).not.toMatch(/stop-color="#[0-9a-f]{8}"/i);
+    // An opaque colour is written as before.
+    expect(stageSvg(stageWith(box(meter)))).toMatch(/<stop offset="0" stop-color="#ff0000"\/>/);
+  });
+
+  it('G8 Add a colour between two see-through colours mixes their opacity too', () => {
+    const plain: Paint = { kind: 'linear', from: '#ff000000', to: '#0000ffff', angle: 0 };
+    const added = addStop(plain as Extract<Paint, { kind: 'linear' }>);
+    expect(added.stops).toEqual([{ at: 50, colour: '#80008080' }]);
+    expect(colourStops(added).map((s) => s.colour)).toEqual([
+      '#ff000000',
+      '#80008080',
+      '#0000ffff',
+    ]);
+  });
+});

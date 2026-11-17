@@ -84,16 +84,22 @@ describe('P2 main-process IPC handlers', () => {
         openSound: async () => '/m/alarm.mp3',
         openFrames: async () => ['/shots/1.jpg', '/shots/2.jpg'],
         openExport: async () => ['/e/Task4.html'],
+        openInspect: async () => '/g/Chip.png',
         saveAnimation: async () => null,
         exportAnimation: async () => null,
         openGraphic: async () => '/g/Logo.mveg',
+        openSvg: async () => '/g/ChipLeg.svg',
         saveGraphic: async (name) => `/g/${name}.mveg`,
         exportGraphic: async (name, format) => `/g/${name}.${format}`,
       },
     });
     expect(await api.invoke('dialog:openExport')).toEqual({ ok: true, value: ['/e/Task4.html'] });
+    // GL2 (M23): a file for Learn ▸ Inspect.
+    expect(await api.invoke('dialog:openInspect')).toEqual({ ok: true, value: '/g/Chip.png' });
     // G1, G11 (M18): Graphics mode's files.
     expect(await api.invoke('dialog:openGraphic')).toEqual({ ok: true, value: '/g/Logo.mveg' });
+    // GV6 (M19): an SVG to import.
+    expect(await api.invoke('dialog:openSvg')).toEqual({ ok: true, value: '/g/ChipLeg.svg' });
     expect(await api.invoke('dialog:saveGraphic', 'Logo')).toEqual({
       ok: true,
       value: '/g/Logo.mveg',
@@ -143,6 +149,14 @@ describe('P2 main-process IPC handlers', () => {
     });
   });
 
+  it('M21 D9: reads a file’s bytes (a .mveg image is a zip)', async () => {
+    const { api } = inProcessBridge(createMockMediaEngine());
+    expect(await api.invoke('project:readBytes', '/p/Castle.mveg')).toEqual({
+      ok: true,
+      value: new Uint8Array([1, 2, 3]),
+    });
+  });
+
   it('P2 copies only files the app has opened (never arbitrary files)', async () => {
     const copied: string[] = [];
     const { api } = inProcessBridge(createMockMediaEngine({ '/m/a.mp4': clip }), {
@@ -154,6 +168,7 @@ describe('P2 main-process IPC handlers', () => {
         saveImage: async () => '',
         saveSound: async (name: string) => `/cache/sounds/${name}.wav`,
         writeBytes: async () => {},
+        readBytes: async () => new Uint8Array(),
       },
     });
     expect(await api.invoke('project:copy', '/etc/passwd', '/usb/x')).toMatchObject({ ok: false });
@@ -181,6 +196,7 @@ describe('P2 main-process IPC handlers', () => {
         writeBytes: async (path, bytes) => {
           saved.push(`${path}:${bytes.length}`);
         },
+        readBytes: async () => new Uint8Array(),
       },
     });
     for (const bad of ['../evil', '/etc/x', 'a b', 'C:\\x', '']) {
@@ -211,6 +227,7 @@ describe('P2 main-process IPC handlers', () => {
           return `/cache/sounds/${name}.wav`;
         },
         writeBytes: async () => {},
+        readBytes: async () => new Uint8Array(),
       },
     });
     for (const bad of ['../evil', '/etc/x', 'a b', 'C:\\x', '', 'Pop', 'x'.repeat(60)]) {

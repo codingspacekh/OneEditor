@@ -20,9 +20,11 @@ export function createElectronDialogs(api: MveApi): Dialogs {
     openSound: () => unwrap(api.invoke('dialog:openSound')),
     openFrames: () => unwrap(api.invoke('dialog:openFrames')),
     openExport: () => unwrap(api.invoke('dialog:openExport')),
+    openInspect: () => unwrap(api.invoke('dialog:openInspect')),
     saveAnimation: (name) => unwrap(api.invoke('dialog:saveAnimation', name)),
     exportAnimation: (name, format) => unwrap(api.invoke('dialog:exportAnimation', name, format)),
     openGraphic: () => unwrap(api.invoke('dialog:openGraphic')),
+    openSvg: () => unwrap(api.invoke('dialog:openSvg')),
     saveGraphic: (name) => unwrap(api.invoke('dialog:saveGraphic', name)),
     exportGraphic: (name, format) => unwrap(api.invoke('dialog:exportGraphic', name, format)),
   };
@@ -38,6 +40,7 @@ export function createElectronProjectFiles(api: MveApi): ProjectFiles {
     saveSound: (name, wav) => unwrap(api.invoke('project:saveSound', name, wav)),
     writeBytes: async (path, bytes) =>
       void (await unwrap(api.invoke('project:writeBytes', path, bytes))),
+    readBytes: (path) => unwrap(api.invoke('project:readBytes', path)),
   };
 }
 

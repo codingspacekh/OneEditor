@@ -337,8 +337,117 @@ const ANIMATION: GlossaryEntry[] = [
   },
 ];
 
+// GL1 (M23): the key words of syllabus 19.1 and 19.4 (coursebook Chapter 18), for Learn ▸ Graphics.
+const GRAPHICS: GlossaryEntry[] = [
+  {
+    term: 'Additive colour',
+    meaning:
+      'Colour made by adding light, as a screen does with red, green and blue (RGB): the more light, the brighter, and all three at full strength make white. No light is black.',
+  },
+  {
+    term: 'Alpha channel',
+    meaning:
+      'The fourth number of a 32-bit pixel, beside red, green and blue: how see-through it is, from 0 (fully transparent) to 255 (solid). PNG and TIFF keep it; JPG and most BMPs do not.',
+  },
+  {
+    term: 'CMS (colour matching system)',
+    meaning:
+      'Not a colour of its own but a way of reproducing a colour exactly somewhere else: software selects a colour from an image (the eyedropper: click the red of a car to find its RGB or CMYK values) and uses it again; a printer’s matching system is a book of numbered colours with exact ink recipes.',
+  },
+  {
+    term: 'CMYK',
+    meaning:
+      'Cyan / Magenta / Yellow / Black colour system: the inks a printer mixes, each 0–100 %. It is subtractive: each ink absorbs some light from the white paper, so more ink is darker. Used for print; the screen shows the RGB colour.',
+  },
+  {
+    term: 'Colour depth',
+    meaning:
+      'The number of bits used for each pixel, so the number of colours that can be represented: 1 bit gives 2 colours, 4 bits 16, 8 bits 256, 24 bits 16.7 million (true colour), 32 bits true colour with transparency. The higher the depth, the larger the file.',
+  },
+  {
+    term: 'Dithering',
+    meaning:
+      'Mixing dots of the colours a picture is allowed (its palette) so that, from a distance, they look like the colours in between: it hides the bands that reducing the colour depth makes, at the cost of a speckled look.',
+  },
+  {
+    term: 'DPI (dots per inch)',
+    meaning:
+      'The resolution of an image for print: how many pixels go in each inch. The same pixels print smaller at a higher dpi; below about 150 dpi a print looks blocky, and 300 dpi is usual for photographs.',
+  },
+  {
+    term: 'Generation loss',
+    meaning:
+      'The extra quality lost each time a lossy file such as a JPEG is opened, changed and saved again: it is compressed again each time, so the damage adds up. Keep the original and export copies under a new name.',
+  },
+  {
+    term: 'Hexadecimal colour code',
+    meaning:
+      'An RGB colour written as six hexadecimal digits, RRGGBB, two for each of red, green and blue from 00 (none) to FF (255, the most): FF0000 is red, 000000 black, FFFFFF white.',
+  },
+  {
+    term: 'HSL',
+    meaning:
+      'Hue / Saturation / Lightness colour system: hue is the base colour (an angle round the colour wheel, 0° red, 120° green, 240° blue), saturation the percentage of that colour, lightness a percentage from black to white.',
+  },
+  {
+    term: 'LZW compression',
+    meaning:
+      'Lempel–Ziv–Welch: a lossless compression method used by GIF and TIFF. It builds a dictionary of the patterns of pixels already seen and writes a short code for each pattern met again, so the picture comes back exactly.',
+  },
+  {
+    term: 'Opacity',
+    meaning:
+      'How solid (not see-through) an image, layer or part is, as a percentage: 20 % opacity means it is 80 % transparent; at 0 % it is fully transparent.',
+  },
+  {
+    term: 'Palette',
+    meaning:
+      'The list of colours a picture of 1, 4 or 8 bits a pixel may use (2, 16 or 256): each pixel stores only the number of its colour in the list. GIF always uses one; the colours can be the picture’s own or greys.',
+  },
+  {
+    term: 'Pixel',
+    meaning:
+      'A small square of one colour (short for picture element); pixels are combined in a grid to make a bitmap image.',
+  },
+  {
+    term: 'Pixelation',
+    meaning:
+      'When a bitmap image is enlarged, its pixels are enlarged too and become visible as squares, so the image looks blocky or blurry. Vector graphics do not pixelate.',
+  },
+  {
+    term: 'Raster graphic',
+    meaning:
+      'Another name for a bitmap: a picture stored as a grid (raster) of pixels, such as a photograph, a scan or a painting made in painting software.',
+  },
+  {
+    term: 'Resolution (image)',
+    meaning:
+      'The amount of detail in an image: its number of pixels (width × height), and for print the pixels per inch (dpi). More pixels give more detail but a larger file; too few for the size shown or printed makes it pixelate or blur.',
+  },
+  {
+    term: 'RGB',
+    meaning:
+      'Red / Green / Blue colour system: every colour is a mix of red, green and blue light, each 0–255 (or 00–FF in hexadecimal). It is additive and is used by screens, cameras and the web.',
+  },
+  {
+    term: 'Run-length encoding (RLE)',
+    meaning:
+      'A lossless compression method that stores a run of the same value once with how many times it repeats (“200 white pixels” instead of 200 white pixels). It works well for flat colours and badly for photographs.',
+  },
+  {
+    term: 'Subtractive colour',
+    meaning:
+      'Colour made by inks or paints that absorb (subtract) some of the light falling on them, as printing does with cyan, magenta, yellow and black (CMYK): the more ink, the darker. Cyan, magenta and yellow together make a near-black.',
+  },
+  {
+    term: 'Transparency',
+    meaning:
+      'Being able to see through an object or surface. In a file, see-through pixels are kept by PNG (an alpha channel), GIF (one see-through colour) and TIFF; a JPG cannot keep them and stores them as white or black.',
+  },
+];
+
 /** Every key word, in alphabetical order. */
-export const GLOSSARY: GlossaryEntry[] = [...MEDIA, ...ANIMATION].sort((a, b) =>
+export const GLOSSARY: GlossaryEntry[] = [...MEDIA, ...ANIMATION, ...GRAPHICS].sort((a, b) =>
   a.term.localeCompare(b.term, 'en'),
 );
 

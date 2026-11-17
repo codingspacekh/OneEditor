@@ -67,6 +67,7 @@ function setup(
     saveImage: vi.fn(async (name: string) => `/cache/text/${name}.png`),
     saveSound: async (name: string) => `/cache/sounds/${name}.wav`,
     writeBytes: async () => {},
+    readBytes: async () => Promise.reject(new Error('ENOENT')),
   };
   // Every text picture is 10 bytes; credits blocks are 300 px tall.
   const text = {

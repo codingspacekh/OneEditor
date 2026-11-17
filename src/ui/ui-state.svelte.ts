@@ -4,7 +4,7 @@ export type Mode = 'Video' | 'Audio' | 'Learn' | 'Animation' | 'Graphics';
 /** The editors chosen in the mode switch; Learn is opened from the menu bar (N15). */
 export type Editor = Exclude<Mode, 'Learn'>;
 export const EDITORS: readonly Editor[] = ['Video', 'Audio', 'Animation', 'Graphics'];
-export type LearnTab = 'inspect' | 'formats' | 'animation' | 'task';
+export type LearnTab = 'inspect' | 'formats' | 'animation' | 'graphics' | 'task';
 
 export const ui = $state({
   /** Video, Audio, Learn, Animation or Graphics mode (the native menus act on the mode showing). */
@@ -17,7 +17,7 @@ export const ui = $state({
   snap: true,
   /** Show the 5 % safe area on the preview. */
   safeArea: false,
-  /** Learn mode's tab: screen 21, screen 22, animation theory or the task checker. */
+  /** Learn mode's tab: screen 21, screen 22, animation theory, graphics theory (GL1) or the task checker. */
   learnTab: 'inspect' as LearnTab,
   /** N15: the editor Learn was opened from; Back returns to it. */
   learnFrom: 'Video' as Editor,
@@ -25,6 +25,10 @@ export const ui = $state({
   glossary: false,
   /** X8: the Sound effects box is open (Video mode or Audio mode adds the sound). */
   soundEffects: false,
+  /** Settings… is open. */
+  settings: false,
+  /** Settings: the "Why use this?" links and the Why? part of tooltips are shown (N17). */
+  showWhy: true,
 });
 
 /** How long the mouse rests on a button before its tooltip shows (the built-in one is slower). */

@@ -116,11 +116,11 @@ test('T6: the teacher saves a task; a student checks an export against it', asyn
     duration: 10,
   });
 
-  await task.getByLabel('Width').fill('1280');
-  await task.getByLabel('Width').blur();
+  await task.getByLabel('Width', { exact: true }).fill('1280');
+  await task.getByLabel('Width', { exact: true }).blur();
   await answerDialogs(app, { open: [saved] });
   await task.getByRole('button', { name: 'Open task…' }).click();
-  await expect(task.getByLabel('Width')).toHaveValue('1920');
+  await expect(task.getByLabel('Width', { exact: true })).toHaveValue('1920');
 
   const check = card(page, 'Check an export');
   await answerDialogs(app, { open: [join(dir, CLIP)] });

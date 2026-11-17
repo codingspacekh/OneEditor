@@ -19,3 +19,18 @@ describe("the colour picker's colour maths", () => {
       expect(hsvToHex(hexToHsv(hex))).toBe(hex);
   });
 });
+
+describe('G8 (M23): a colour with its own opacity, #rrggbbaa', () => {
+  it('G8 the opacity in %, the colour without it, and the two put together', async () => {
+    const { alphaOf, opaqueOf, withAlpha } = await import('../../../src/core/colour.ts');
+    expect(alphaOf('#ff0000')).toBe(100);
+    expect(alphaOf('#ff000080')).toBe(50);
+    expect(alphaOf('#FF000000')).toBe(0);
+    expect(opaqueOf('#ff000080')).toBe('#ff0000');
+    expect(opaqueOf('#FF0000')).toBe('#FF0000');
+    expect(withAlpha('#ff0000', 100)).toBe('#ff0000');
+    expect(withAlpha('#ff0000', 50)).toBe('#ff000080');
+    expect(withAlpha('#ff000080', 0)).toBe('#ff000000');
+    expect(withAlpha('#ff000080', 100)).toBe('#ff0000');
+  });
+});

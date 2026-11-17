@@ -29,7 +29,14 @@ import type {
   TextObject,
 } from '../../core/animation/types.ts';
 import { EditError } from '../../core/model/errors.ts';
+import {
+  createArc,
+  createPolyline,
+  createSpiral,
+  DEFAULT_SPIRAL,
+} from '../../core/graphics/shapes.ts';
 import type { AnimationContext } from './context.ts';
+import { deleteChosenNodes, nudgeChosenNodes } from './nodes.ts';
 import type { ShapeKind, Tool } from './state.ts';
 
 /**
@@ -54,6 +61,22 @@ export function drawingActions(ctx: AnimationContext) {
   function followSelection(ids: Id[]): void {
     const first = ids[0] && findObject(present(), ids[0]);
     patch({ selection: ids, ...(first ? { layerId: first.layerId } : {}) });
+  }
+
+  /** GV2 (M19): the last Duplicate's originals and copies, to repeat the copies' move. */
+  let lastDuplicate: { from: Id[]; copies: Id[] } | null = null;
+
+  /** How far the copies just made were moved from their originals, while they are selected. */
+  function repeatedMove(ids: readonly Id[]): { dx: number; dy: number } | undefined {
+    const last = lastDuplicate;
+    if (!last || last.copies.length !== ids.length || last.copies.some((id, i) => id !== ids[i]))
+      return undefined;
+    const from = findObject(present(), last.from[0]!);
+    const to = findObject(present(), ids[0]!);
+    if (!from || !to) return undefined;
+    const { frame } = store.get();
+    const [a, b] = [objectAt(from.object, frame), objectAt(to.object, frame)];
+    return { dx: b.x - a.x, dy: b.y - a.y };
   }
 
   function addToStage(object: AnimObject): void {
@@ -119,6 +142,9 @@ export function drawingActions(ctx: AnimationContext) {
         ellipse: createEllipse,
         star: createStar,
         polygon: createPolygon,
+        // GV1 (M19): an arc (Properties changes its ends), a spiral as the tool's options say.
+        arc: createArc,
+        spiral: (b: typeof box) => createSpiral(b, store.get().spiral ?? DEFAULT_SPIRAL),
       };
       addToStage(make[kind](box));
     },
@@ -131,6 +157,15 @@ export function drawingActions(ctx: AnimationContext) {
     addPath(points: Point[], closed: boolean): void {
       try {
         addToStage(createPath(points, closed));
+      } catch (error) {
+        showError(error);
+      }
+    },
+
+    /** GV1 (M19): a polyline: straight lines through the clicked points. */
+    addPolyline(points: Point[], closed: boolean): void {
+      try {
+        addToStage(createPolyline(points, closed));
       } catch (error) {
         showError(error);
       }
@@ -211,6 +246,7 @@ export function drawingActions(ctx: AnimationContext) {
 
     /** Arrow keys: 1 px, or 10 px with Shift. */
     nudge(dx: number, dy: number): void {
+      if (nudgeChosenNodes(ctx, dx, dy)) return; // GV3: the chosen nodes move instead
       const ids = liveSelection();
       if (ids.length) run(cmd.moveObjects(ids, dx, dy, store.get().frame));
     },
@@ -272,6 +308,7 @@ export function drawingActions(ctx: AnimationContext) {
     },
 
     deleteSelection(): void {
+      if (deleteChosenNodes(ctx)) return; // GV3: the chosen nodes go, not the path
       const ids = liveSelection();
       if (ids.length && run(cmd.removeObjects(ids))) patch({ selection: [] });
     },
@@ -315,11 +352,20 @@ export function drawingActions(ctx: AnimationContext) {
       if (run(cmd.ungroupObjects(ids)) && present() !== before) patch({ selection: [] });
     },
 
+    /**
+     * A copy of the selection 10 px away. GV2 (M19): Duplicate again with the copies still
+     * selected repeats the move they were given ("duplicate twice and arrange": duplicate, move
+     * the copy where the next should be, then Ctrl/Cmd + D for each one more).
+     */
     duplicate(): void {
       const ids = liveSelection();
+      if (!ids.length) return;
+      const offset = repeatedMove(ids);
       let copies: Id[] = [];
-      if (ids.length && run(cmd.duplicateObjects(ids, (made) => (copies = made))))
+      if (run(cmd.duplicateObjects(ids, (made) => (copies = made), offset))) {
+        lastDuplicate = { from: ids, copies };
         patch({ selection: copies });
+      }
     },
 
     copy(): void {
@@ -338,6 +384,15 @@ export function drawingActions(ctx: AnimationContext) {
       let made: Id[] = [];
       const { layerId, frame } = store.get();
       if (run(cmd.pasteObjects(layerId, clipboard, (ids) => (made = ids), frame)))
+        patch({ selection: made });
+    },
+
+    /** GV2 (M19): Paste in place (Ctrl/Cmd + Shift + V): the copies where they were copied from. */
+    pasteInPlace(): void {
+      if (clipboard.objects.length === 0) return;
+      let made: Id[] = [];
+      const { layerId, frame } = store.get();
+      if (run(cmd.pasteObjects(layerId, clipboard, (ids) => (made = ids), frame, 0)))
         patch({ selection: made });
     },
   };

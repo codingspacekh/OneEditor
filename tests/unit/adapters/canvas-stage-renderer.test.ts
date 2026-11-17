@@ -269,4 +269,54 @@ describe('reading a picture’s pixels for Trace bitmap (AN5)', () => {
     expect(await renderer.pixels('/m/small.png', 100)).toMatchObject({ width: 30, height: 20 });
     await expect(renderer.pixels('/m/gone.png', 100)).rejects.toThrow(MediaError);
   });
+
+  it('M21 G2, G11 (M23) draws the stage at its size or another and reads its pixels back (a vector layer merged)', async () => {
+    const calls: string[] = [];
+    const canvas = fakeCanvas(calls);
+    const renderer = createCanvasStageRenderer({
+      makeCanvas: (w, h) => {
+        const made = canvas.make(w, h);
+        const ctx = made.getContext('2d') as unknown as Record<string, unknown>;
+        return {
+          ...made,
+          getContext: (kind: '2d', o?: unknown) => {
+            made.getContext(kind, o);
+            return new Proxy(ctx, {
+              get: (t, key: string) =>
+                key === 'getImageData'
+                  ? (...a: number[]) => {
+                      calls.push(`getImageData(${a.join(',')})`);
+                      return { data: new Uint8ClampedArray(a[2]! * a[3]! * 4) };
+                    }
+                  : t[key],
+            }) as unknown as StageCanvas;
+          },
+        };
+      },
+      loadImage: async () => ({ width: 20, height: 10 }),
+      loadFonts: async () => {},
+    });
+    const pixels = await renderer.renderPixels(doc());
+    expect(pixels).toMatchObject({ width: 600, height: 400 });
+    expect(pixels.data).toHaveLength(600 * 400 * 4);
+    expect(canvas.sizes).toEqual([[600, 400]]);
+    expect(canvas.options).toContainEqual({ willReadFrequently: true });
+    expect(calls).toContain('getImageData(0,0,600,400)');
+    expect(calls[0]).toBe('fillRect(0,0,600,400)');
+    // G11 (M23): at an export's size, the stage drawn scaled onto a canvas of that size.
+    calls.length = 0;
+    const scaled = await renderer.renderPixels(doc(), { width: 300, height: 200 });
+    expect(scaled).toMatchObject({ width: 300, height: 200 });
+    expect(canvas.sizes.at(-1)).toEqual([300, 200]);
+    expect(calls).toContain('scale(0.5,0.5)');
+    expect(calls).toContain('getImageData(0,0,300,200)');
+  });
+
+  it('M21 G2 says so when there is no canvas to draw on', async () => {
+    const renderer = createCanvasStageRenderer({
+      makeCanvas: () => ({ getContext: () => null, convertToBlob: async () => new Blob() }),
+      loadFonts: async () => {},
+    });
+    await expect(renderer.renderPixels(doc())).rejects.toThrow(/No canvas/);
+  });
 });

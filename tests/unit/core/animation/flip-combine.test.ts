@@ -11,7 +11,13 @@ import {
   createRect,
   createText,
 } from '../../../../src/core/animation/factory.ts';
-import { hitTest, setSize, toLocal, toStage } from '../../../../src/core/animation/geometry.ts';
+import {
+  flattenPath,
+  hitTest,
+  setSize,
+  toLocal,
+  toStage,
+} from '../../../../src/core/animation/geometry.ts';
 import { addObject, groupObjects, ungroup } from '../../../../src/core/animation/layers.ts';
 import {
   combineObjects,
@@ -42,7 +48,7 @@ const rect = (
   extra: Partial<AnimObject> = {},
 ) => ({ ...createRect({ x, y, width, height }), fill: red, ...extra }) as AnimObject;
 
-/** The area of a combined shape: its outline less its holes (straight sides). */
+/** The area of a combined shape: its outline less its holes (G1: curves followed). */
 function area(p: PathObject): number {
   const ring = (pts: { x: number; y: number }[]) =>
     Math.abs(
@@ -51,7 +57,10 @@ function area(p: PathObject): number {
         0,
       ),
     ) / 2;
-  return ring(p.points) - (p.holes ?? []).reduce((s, h) => s + ring(h), 0);
+  return (
+    ring(flattenPath(p.points, true)) -
+    (p.holes ?? []).reduce((s, h) => s + ring(flattenPath(h, true)), 0)
+  );
 }
 
 function recorder() {
@@ -178,7 +187,7 @@ describe('AN23 Flip horizontal and vertical', () => {
 });
 
 describe('text scales with its group (O/N/22: OPEN DAY on the smaller plane)', () => {
-  it('the font size scales as the group does (the smaller way when it is stretched)', () => {
+  it('the font size scales as the group does (B2: by √(sx·sy) when it is stretched)', () => {
     const words: TextObject = {
       ...createText('OPEN DAY', { x: 10, y: 10, size: 40 }),
       tracks: [
@@ -196,7 +205,10 @@ describe('text scales with its group (O/N/22: OPEN DAY on the smaller plane)', (
     const text = half.children[1] as TextObject;
     expect(text.size).toBe(20);
     expect(text.tracks![0]!.keyframes.map((k) => k.value)).toEqual([20, 40]);
-    expect((setSize(group, 100, 100).children[1] as TextObject).size).toBe(20);
+    expect((setSize(group, 100, 100).children[1] as TextObject).size).toBeCloseTo(
+      40 * Math.SQRT1_2,
+      9,
+    );
   });
 });
 

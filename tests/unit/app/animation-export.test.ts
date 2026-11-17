@@ -6,6 +6,12 @@ import { drawFrames, FRAMES_AT_ONCE } from '../../../src/app/animation/exporting
 import type { AnimObject } from '../../../src/core/animation/types.ts';
 import { MediaError } from '../../../src/core/model/errors.ts';
 import { testApp } from '../../helpers/test-app.ts';
+import { readFileSync } from 'node:fs';
+import { join } from 'node:path';
+import { createOpentypeGlyphs } from '../../../src/adapters/fonts/opentype-glyphs.ts';
+import { setGlyphSource } from '../../../src/core/graphics/glyphs.ts';
+
+const FONTS = join(import.meta.dirname, '../../../resources/fonts');
 
 function setup(width = 600, height = 400) {
   const t = testApp();
@@ -65,6 +71,29 @@ describe('exporting the animation (AN15)', () => {
     // Its words sit on the baseline the stage draws them on (measured by the renderer).
     expect(s.stageRenderer.textTops).toHaveBeenCalledWith(['400 48px "Inter"']);
     expect(svg).toContain('dominant-baseline="alphabetic"');
+  });
+
+  it('G4 (benchmark): with the fonts’ outlines read, only the letters used go inside (Woodlands: 1.15 MB before)', async () => {
+    setGlyphSource(
+      createOpentypeGlyphs(async (file) => new Uint8Array(readFileSync(join(FONTS, file)))),
+    );
+    try {
+      const s = setup();
+      s.anim.addText({ x: 20, y: 20 }, 'Woodlands');
+      s.anim.addText({ x: 20, y: 120 }, 'Homes');
+      s.anim.setProperties({ size: 64 } as Partial<AnimObject>);
+      s.dialogs.exportAnimation.mockResolvedValueOnce('/work/Woodlands.svg');
+      await s.anim.exportAnimation('svg');
+      const svg = s.disk.get('/work/Woodlands.svg')!;
+      // Two sizes of Inter: a small font for each, with just their letters; no whole font file.
+      expect(svg.match(/format\('opentype'\)/g)).toHaveLength(2);
+      expect(svg).not.toContain('data:font/ttf');
+      expect(s.pageAssets.fontDataUrl).not.toHaveBeenCalled();
+      expect(svg).toContain(`font-family="'OE Inter 400 48', 'Inter', sans-serif"`);
+      expect(svg.length).toBeLessThan(60_000);
+    } finally {
+      setGlyphSource(null);
+    }
   });
 
   it('AN26 SVG: curved text has each letter where the stage puts it, measured by the renderer', async () => {

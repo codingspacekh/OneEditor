@@ -65,6 +65,14 @@ export const fontFaceRule = (face: FontFile, url: string): string =>
   `@font-face { font-family: '${face.family}'; font-style: ${face.style}; ` +
   `font-weight: ${face.weight}; src: url('${url}') format('truetype'); }`;
 
+/**
+ * G4 (benchmark 2026-11-17): the CSS rule for a font made of just the letters an SVG uses
+ * (OpenType), at the weight and style of the words it is for, so the browser takes it as it is.
+ */
+export const subsetFaceRule = (family: string, italic: boolean, weight: number, url: string) =>
+  `@font-face { font-family: '${family}'; font-style: ${italic ? 'italic' : 'normal'}; ` +
+  `font-weight: ${weight}; src: url('${url}') format('opentype'); }`;
+
 const GENERIC: Record<FontGroup, string> = {
   'Sans-serif': 'sans-serif',
   Serif: 'serif',

@@ -1,7 +1,9 @@
 // StageRenderer (AN15) on an OffscreenCanvas: the stage drawn by core/animation/draw.ts — the
-// same drawing as the preview — and saved as a PNG. Pictures are fetched through media://.
+// same drawing as the preview — and saved as a PNG. Pictures are fetched through media://. G2
+// (M21): or read back as pixels (a vector layer merged into a pixel layer).
 import { drawStage, fontsUsed, type StageCanvas } from '../../core/animation/draw.ts';
 import { fontKey } from '../../core/animation/svg-export.ts';
+import { loadGlyphsFor } from '../../core/graphics/glyphs.ts';
 import { withLayers } from './layers.ts';
 import type { AnimationDoc } from '../../core/animation/types.ts';
 import type { Pixels } from '../../core/animation/trace.ts';
@@ -100,6 +102,28 @@ export function createCanvasStageRenderer({
     return images;
   }
 
+  /** What the stage's text and pictures need, loaded; then a function that draws the stage. */
+  async function readyToDraw(doc: AnimationDoc) {
+    const images = await imagesOf(doc);
+    await loadFonts(fontsUsed(doc.layers.flatMap((l) => l.objects)));
+    // GT5 (M20): bent text is drawn as its letters' outlines.
+    await loadGlyphsFor(doc.layers.flatMap((l) => l.objects));
+    return (
+      ctx: StageCanvas,
+      frame: number,
+      size?: { width: number; height: number },
+      background?: string,
+    ) => {
+      const stage = withLayers(ctx);
+      if (size) stage.scale(size.width / doc.stage.width, size.height / doc.stage.height);
+      drawStage(stage, doc, {
+        image: (id) => images.get(id) ?? null,
+        frame,
+        ...(background ? { background } : {}),
+      });
+    };
+  }
+
   return {
     async renderPng(
       doc: AnimationDoc,
@@ -112,27 +136,33 @@ export function createCanvasStageRenderer({
       // its caches (over 250 MB for a 10 s export of 100 moving objects). The PNG is read back anyway.
       const ctx = canvas.getContext('2d', { willReadFrequently: true });
       if (!ctx) throw new Error('No canvas is available to draw the stage.');
-      const images = await imagesOf(doc);
-      await loadFonts(fontsUsed(doc.layers.flatMap((l) => l.objects)));
-      const stage = withLayers(ctx);
-      if (size) stage.scale(size.width / doc.stage.width, size.height / doc.stage.height);
-      drawStage(stage, doc, { image: (id) => images.get(id) ?? null, frame });
+      (await readyToDraw(doc))(ctx, frame, size);
       const blob = await canvas.convertToBlob({ type: 'image/png' });
       return new Uint8Array(await blob.arrayBuffer());
+    },
+
+    async renderPixels(
+      doc: AnimationDoc,
+      size?: { width: number; height: number },
+    ): Promise<Pixels> {
+      // G11 (M23): another size drawn scaled, as renderPng does, so the vectors stay sharp.
+      const { width, height } = size ?? doc.stage;
+      const ctx = makeCanvas(width, height).getContext('2d', { willReadFrequently: true }) as
+        | (StageCanvas & { getImageData(x: number, y: number, w: number, h: number): ImageData })
+        | null;
+      if (!ctx) throw new Error('No canvas is available to draw the stage.');
+      (await readyToDraw(doc))(ctx, 0, size);
+      return { width, height, data: ctx.getImageData(0, 0, width, height).data };
     },
 
     async renderJpeg(doc, { quality, background, size }): Promise<Uint8Array> {
       const canvas = makeCanvas(size?.width ?? doc.stage.width, size?.height ?? doc.stage.height);
       const ctx = canvas.getContext('2d', { willReadFrequently: true });
       if (!ctx) throw new Error('No canvas is available to draw the stage.');
-      const images = await imagesOf(doc);
-      await loadFonts(fontsUsed(doc.layers.flatMap((l) => l.objects)));
-      // G11: a JPEG cannot be see-through: what is transparent is drawn on the background.
-      ctx.fillStyle = background;
-      ctx.fillRect(0, 0, size?.width ?? doc.stage.width, size?.height ?? doc.stage.height);
-      const stage = withLayers(ctx);
-      if (size) stage.scale(size.width / doc.stage.width, size.height / doc.stage.height);
-      drawStage(stage, doc, { image: (id) => images.get(id) ?? null, frame: 0 });
+      const draw = await readyToDraw(doc);
+      // G11: a JPEG cannot be see-through: what is transparent is drawn on the background (B1:
+      // painted by drawStage itself, which would otherwise clear a transparent stage over it).
+      draw(ctx, 0, size, background);
       const blob = await canvas.convertToBlob({ type: 'image/jpeg', quality: quality / 100 });
       return new Uint8Array(await blob.arrayBuffer());
     },
@@ -179,12 +209,21 @@ export function createCanvasStageRenderer({
       const scale = Math.min(1, maxSide / Math.max(image.width, image.height));
       const width = Math.max(1, Math.round(image.width * scale));
       const height = Math.max(1, Math.round(image.height * scale));
-      const ctx = makeCanvas(width, height).getContext('2d') as
+      // GN1 (M21): read in ordinary memory (not the graphics card's), and the decoded picture and
+      // the canvas let go at once: a 12-megapixel photo is 48 MB each.
+      const canvas = makeCanvas(width, height);
+      const ctx = canvas.getContext('2d', { willReadFrequently: true }) as
         | (StageCanvas & { getImageData(x: number, y: number, w: number, h: number): ImageData })
         | null;
       if (!ctx) throw new Error('No canvas is available to read the picture.');
-      ctx.drawImage(image, 0, 0, width, height);
-      return { width, height, data: ctx.getImageData(0, 0, width, height).data };
+      try {
+        ctx.drawImage(image, 0, 0, width, height);
+        return { width, height, data: ctx.getImageData(0, 0, width, height).data };
+      } finally {
+        (image as { close?: () => void }).close?.();
+        const sized = canvas as { width?: number; height?: number };
+        if (typeof sized.width === 'number') sized.width = sized.height = 0;
+      }
     },
   };
 }
