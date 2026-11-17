@@ -97,6 +97,24 @@
   input[aria-invalid='true'] {
     color: var(--danger);
   }
+  /* Alone in a properties panel (props.css): a row of the grid, the colour across the fields. */
+  :global(.prop-panel) .field {
+    grid-template-columns: var(--prop-cols);
+    column-gap: var(--prop-gap-x);
+    margin-bottom: var(--prop-gap-y);
+  }
+  :global(.prop-panel) .field > .box {
+    grid-column: 2 / -1;
+    min-width: 0;
+  }
+  /* In a properties row (props.css): the label in the first column, the colour across the rest. */
+  :global(.prop-row) > .field {
+    display: contents;
+  }
+  :global(.prop-row) > .field > .box {
+    grid-column: 2 / -1;
+    min-width: 0;
+  }
   .error {
     grid-column: 1 / -1;
     margin: 0;

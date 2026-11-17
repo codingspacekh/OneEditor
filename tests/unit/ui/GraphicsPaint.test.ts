@@ -11,6 +11,7 @@ import { createLayer } from '../../../src/core/animation/factory.ts';
 import { createBitmap, fillRect, pixelAt } from '../../../src/core/graphics/pixels/raster.ts';
 import { animUi } from '../../../src/ui/animation/animation-ui.svelte.ts';
 import { testApp } from '../../helpers/test-app.ts';
+import { pickTool, toolControl } from '../../helpers/tools.ts';
 
 const WHITE = [255, 255, 255, 255];
 
@@ -57,14 +58,14 @@ describe('M21 GB4: painting on screen', () => {
   it('has the painting tools on the strip, each with a “Why use this?”', async () => {
     const s = await open();
     for (const name of ['Paintbrush', 'Pencil', 'Eraser', 'Airbrush', 'Paint bucket', 'Gradient'])
-      expect(s.tools().getByRole('button', { name }).getAttribute('title')).toMatch(/Why\? /);
-    await fireEvent.click(s.tools().getByRole('button', { name: 'Pencil' }));
+      expect((await toolControl(name)).getAttribute('title')).toMatch(/Why\? /);
+    await pickTool('Pencil');
     expect(s.g.store.get().tool).toBe('pencil');
   });
 
   it('a stroke dragged is shown, then kept as one undo step', async () => {
     const s = await open();
-    await fireEvent.click(s.tools().getByRole('button', { name: 'Paintbrush' }));
+    await pickTool('Paintbrush');
     const p = s.props();
     await type(p.getByLabelText('Size'), '10');
     await type(p.getByLabelText('Hardness'), '100');
@@ -80,23 +81,23 @@ describe('M21 GB4: painting on screen', () => {
 
   it('shows the brush’s size under the pointer, a box for the pencil', async () => {
     const s = await open();
-    await fireEvent.click(s.tools().getByRole('button', { name: 'Paintbrush' }));
+    await pickTool('Paintbrush');
     await type(s.props().getByLabelText('Size'), '30');
     await fireEvent.pointerMove(s.stage(), { clientX: 50, clientY: 40 });
     const circle = s.stage().querySelector('.brush-cursor circle')!;
     expect(circle.getAttribute('r')).toBe('15');
     expect(circle.getAttribute('cx')).toBe('50');
-    await fireEvent.click(s.tools().getByRole('button', { name: 'Pencil' }));
+    await pickTool('Pencil');
     const box = s.stage().querySelector('.brush-cursor rect')!;
     expect(box.getAttribute('width')).toBe('1');
     expect(box.getAttribute('x')).toBe('50');
-    await fireEvent.click(s.tools().getByRole('button', { name: 'Select' }));
+    await pickTool('Select');
     expect(s.stage().querySelector('.brush-cursor')).toBeNull();
   });
 
   it('[ and ] change the size; X swaps the colours, D makes them black and white', async () => {
     const s = await open();
-    await fireEvent.click(s.tools().getByRole('button', { name: 'Paintbrush' }));
+    await pickTool('Paintbrush');
     await key(']');
     expect(s.g.paintOptions().brushes.paintbrush.size).toBe(25);
     await key('[');
@@ -120,11 +121,11 @@ describe('M21 GB4: painting on screen', () => {
     await fireEvent.click(s.props().getByRole('button', { name: 'Black and white' }));
     expect(s.g.paintOptions().foreground).toBe('#000000');
     // Not with another tool: X and D do nothing, [ ] nothing.
-    await fireEvent.click(s.tools().getByRole('button', { name: 'Select' }));
+    await pickTool('Select');
     await key('x');
     await key(']');
     expect(s.g.paintOptions().foreground).toBe('#000000');
-    await fireEvent.click(s.tools().getByRole('button', { name: 'Paint bucket' }));
+    await pickTool('Paint bucket');
     await key(']');
     await key('x');
     expect(s.g.paintOptions().foreground).toBe('#ffffff');
@@ -132,7 +133,7 @@ describe('M21 GB4: painting on screen', () => {
 
   it('the brush settings: opacity, flow, spacing, shape and pen pressure', async () => {
     const s = await open();
-    await fireEvent.click(s.tools().getByRole('button', { name: 'Eraser' }));
+    await pickTool('Eraser');
     const p = s.props();
     expect(p.getByText('Eraser')).toBeTruthy();
     await type(p.getByLabelText('Opacity'), '40');
@@ -152,13 +153,13 @@ describe('M21 GB4: painting on screen', () => {
     await type(p.getByLabelText('Opacity'), '0');
     expect(p.getByText('The opacity is 1 to 100 %.')).toBeTruthy();
     // The pencil has no hardness: it is always hard.
-    await fireEvent.click(s.tools().getByRole('button', { name: 'Pencil' }));
+    await pickTool('Pencil');
     expect(s.props().queryByLabelText('Hardness')).toBeNull();
   });
 
   it('a built-in preset chooses its tool; a brush saved as a preset comes back and is deleted', async () => {
     const s = await open();
-    await fireEvent.click(s.tools().getByRole('button', { name: 'Paintbrush' }));
+    await pickTool('Paintbrush');
     await fireEvent.change(s.props().getByLabelText('Preset'), {
       target: { value: 'built:Scatter: stars and lights' },
     });
@@ -185,7 +186,7 @@ describe('M21 GB4: painting on screen', () => {
 
   it('a preset with no name is not saved', async () => {
     const s = await open();
-    await fireEvent.click(s.tools().getByRole('button', { name: 'Paintbrush' }));
+    await pickTool('Paintbrush');
     const save = s.props().getByRole('button', { name: 'Save' }) as HTMLButtonElement;
     expect(save.disabled).toBe(true);
   });
@@ -193,13 +194,13 @@ describe('M21 GB4: painting on screen', () => {
   it('on the layer mask says what black and white do', async () => {
     const s = await open();
     s.g.store.update((st) => ({ ...st, editingMask: true }));
-    await fireEvent.click(s.tools().getByRole('button', { name: 'Paintbrush' }));
+    await pickTool('Paintbrush');
     expect(s.props().getByText(/black hides, white shows/)).toBeTruthy();
   });
 
   it('the airbrush keeps painting while held still', async () => {
     const s = await open();
-    await fireEvent.click(s.tools().getByRole('button', { name: 'Airbrush' }));
+    await pickTool('Airbrush');
     await fireEvent.pointerDown(s.stage(), { clientX: 100, clientY: 50, button: 0 });
     await new Promise((r) => setTimeout(r, 150));
     await fireEvent.pointerUp(window, { clientX: 100, clientY: 50 });
@@ -211,7 +212,7 @@ describe('M21 GB4: painting on screen', () => {
 describe('M21 GB3: the bucket and the gradient on screen', () => {
   it('the bucket fills where it is clicked, with its tolerance, contiguous and opacity', async () => {
     const s = await open();
-    await fireEvent.click(s.tools().getByRole('button', { name: 'Paint bucket' }));
+    await pickTool('Paint bucket');
     const p = s.props();
     expect(p.getByText('Paint bucket')).toBeTruthy();
     await type(p.getByLabelText('Tolerance'), '10');
@@ -225,7 +226,7 @@ describe('M21 GB3: the bucket and the gradient on screen', () => {
 
   it('the gradient: its line shown while dragged, then the layer filled along it', async () => {
     const s = await open();
-    await fireEvent.click(s.tools().getByRole('button', { name: 'Gradient' }));
+    await pickTool('Gradient');
     const p = s.props();
     await fireEvent.change(p.getByLabelText('Type'), { target: { value: 'radial' } });
     await type(p.getByLabelText('Opacity'), '100');
@@ -246,7 +247,7 @@ describe('M21 GB3: the bucket and the gradient on screen', () => {
 
   it('the gradient’s colours between are added, changed and taken off', async () => {
     const s = await open();
-    await fireEvent.click(s.tools().getByRole('button', { name: 'Gradient' }));
+    await pickTool('Gradient');
     await fireEvent.click(s.props().getByRole('button', { name: 'Add a colour' }));
     expect(s.g.paintOptions().gradient.stops).toHaveLength(1);
     expect(s.g.paintOptions().gradient.stops[0]!.at).toBe(50);

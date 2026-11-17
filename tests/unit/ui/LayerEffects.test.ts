@@ -47,11 +47,11 @@ describe('M22 G14: Properties ▸ Effects on the current pixel layer', () => {
     // G10 (M23): a stroke round the layer's pixels is one click too.
     expect(
       within(within(section).getByRole('group', { name: 'Add quickly' })).getByRole('button', {
-        name: '+ Stroke',
+        name: 'Add stroke',
       }),
     ).toBeTruthy();
     const quick = within(section).getByRole('group', { name: 'Add quickly' });
-    await fireEvent.click(within(quick).getByRole('button', { name: '+ Glow' }));
+    await fireEvent.click(within(quick).getByRole('button', { name: 'Add glow' }));
     expect(s.layer().effects).toEqual([newFilter('glow')]);
     const glow = screen.getByRole('group', { name: 'Glow' });
     await typeIn('Colour', '#FFF4C0', glow);
@@ -61,10 +61,10 @@ describe('M22 G14: Properties ▸ Effects on the current pixel layer', () => {
     expect(within(glow).getByRole('alert').textContent).toBe(
       "A filter's opacity must be between 0 and 100 %.",
     );
-    await fireEvent.click(within(quick).getByRole('button', { name: '+ Shadow' }));
-    await fireEvent.click(within(quick).getByRole('button', { name: '+ Bevel' }));
+    await fireEvent.click(within(quick).getByRole('button', { name: 'Add shadow' }));
+    await fireEvent.click(within(quick).getByRole('button', { name: 'Add bevel' }));
     expect(s.layer().effects!.map((f) => f.kind)).toEqual(['glow', 'dropShadow', 'bevel']);
-    expect(within(quick).getByRole('button', { name: '+ Glow' }).title).toMatch(/on the layer$/);
+    expect(within(quick).getByRole('button', { name: 'Add glow' }).title).toMatch(/on the layer$/);
     // The list's other filters too, as on an object.
     await fireEvent.change(within(section).getByLabelText('Add', { exact: true }), {
       target: { value: 'blur' },
@@ -89,7 +89,7 @@ describe('M22 G14: Properties ▸ Effects on the current pixel layer', () => {
     }).parentElement!;
     await fireEvent.click(
       within(within(vector).getByRole('group', { name: 'Add quickly' })).getByRole('button', {
-        name: '+ Stroke',
+        name: 'Add stroke',
       }),
     );
     expect(s.layer().effects).toEqual([newFilter('stroke')]);

@@ -24,26 +24,28 @@
 
 <div class="sec">
   <h4>Curves and copies <span class="syl">19.2 selection tools</span></h4>
-  <div class="line">
-    <span class="cap">Curves</span>
-    <button
-      class="sm"
-      title={words
-        ? withWhy(
-            'Turn the selected text into its letters’ shapes: a path for each letter, grouped',
-            'textCurves',
-          )
-        : withWhy(
-            'Turn the selected shapes into paths of nodes and curves that look the same',
-            'graphicCurves',
-          )}
-      disabled={!curvable}
-      onclick={() => (error = anim.convertToCurves())}>Convert to curves</button
-    >
+  <div class="prop-row">
+    <span class="prop-label">Curves</span>
+    <div class="prop-buttons">
+      <button
+        class="sm"
+        title={words
+          ? withWhy(
+              'Turn the selected text into its letters’ shapes: a path for each letter, grouped',
+              'textCurves',
+            )
+          : withWhy(
+              'Turn the selected shapes into paths of nodes and curves that look the same',
+              'graphicCurves',
+            )}
+        disabled={!curvable}
+        onclick={() => (error = anim.convertToCurves())}>Convert to curves</button
+      >
+    </div>
   </div>
-  <div class="line">
-    <span class="cap">Copies</span>
-    <div class="cells two-up">
+  <div class="prop-row">
+    <span class="prop-label">Copies</span>
+    <div class="prop-buttons">
       <button
         class="sm"
         title={withWhy(
@@ -59,9 +61,9 @@
       >
     </div>
   </div>
-  <div class="line">
-    <span class="cap">Mirror copy</span>
-    <div class="cells two-up" role="group" aria-label="Mirror copy">
+  <div class="prop-row">
+    <span class="prop-label">Mirror copy</span>
+    <div class="prop-buttons" role="group" aria-label="Mirror copy">
       <button
         class="sm"
         aria-label="Mirror copy left to right"
@@ -102,26 +104,6 @@
     font-size: 10px;
     font-weight: 500;
     color: var(--tx-3);
-  }
-  .line {
-    display: grid;
-    grid-template-columns: 76px 1fr;
-    align-items: center;
-    gap: 6px;
-    margin-bottom: 6px;
-    min-width: 0;
-  }
-  .cap {
-    color: var(--tx-2);
-    font-size: 12px;
-  }
-  .cells {
-    display: grid;
-    gap: 4px;
-    min-width: 0;
-  }
-  .cells.two-up {
-    grid-template-columns: repeat(2, 1fr);
   }
   button {
     justify-content: center;

@@ -9,6 +9,7 @@ import { mkdtempSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join, resolve } from 'node:path';
 import { fileURLToPath } from 'node:url';
+import { familyButtonName, familyOf, VIEW_BUTTON } from '../../src/ui/animation/tool-families.ts';
 
 // No trailing separator: on Windows a trailing backslash before the closing quote of a
 // command-line argument escapes the quote, so Electron received a garbled app path and never started.
@@ -112,6 +113,30 @@ export async function answerDialogs(
       return { canceled: !path, filePath: path ?? '' };
     }) as unknown as typeof dialog.showSaveDialog;
   }, answers);
+}
+
+/**
+ * Chooses a tool on the strip (2026-11-17: the tools come in families, tool-families.ts): its
+ * button when its family shows it, else from the family's flyout (its corner clicked).
+ */
+export async function pickTool(page: Page, name: string) {
+  const strip = page.getByRole('toolbar', { name: /^(Drawing|Animation) tools$/ });
+  const direct = strip.getByRole('button', { name, exact: true });
+  if (await direct.count()) return direct.click();
+  const family = familyOf(name);
+  if (!family) throw new Error(`No tool named ${name}`);
+  await strip.getByRole('button', { name: familyButtonName(family), exact: true }).click();
+  await page
+    .getByRole('menu', { name: family.label, exact: true })
+    .getByRole('menuitemradio', { name, exact: true })
+    .click();
+}
+
+/** A view helper's switch (Rulers, Grid, Snap, Outline view, Pixel grid), its flyout opened. */
+export async function viewHelper(page: Page, name: string) {
+  const menu = page.getByRole('menu', { name: 'View options', exact: true });
+  if (!(await menu.count())) await page.getByRole('button', { name: VIEW_BUTTON }).click();
+  return menu.getByRole('menuitemcheckbox', { name, exact: true });
 }
 
 /** Clicks a native menu item, e.g. menu(app, 'File', 'Save'). */

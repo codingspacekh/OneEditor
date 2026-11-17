@@ -8,7 +8,7 @@ import { mkdtemp, readFile, rm } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { bundledFfmpeg, run } from '../integration/helpers/ffmpeg.ts';
-import { answerDialogs, launchApp, menu } from './app.ts';
+import { answerDialogs, launchApp, menu, pickTool } from './app.ts';
 
 // CI's macOS runners are virtual Macs drawing without a graphics card (see
 // animation-performance.spec.ts): looser limits there, still far from a stalled window.
@@ -140,7 +140,7 @@ test('GN2 GN1 a brush stroke follows at 30 fps; 6 layers and 50 undo steps stay 
   await openPhoto(app, page);
   await page.waitForTimeout(2000);
   const opened = await appMB(app);
-  await page.getByRole('button', { name: 'Paintbrush', exact: true }).click();
+  await pickTool(page, 'Paintbrush');
   const size = page.getByLabel('Size', { exact: true });
   await size.fill('80');
   await size.press('Tab');

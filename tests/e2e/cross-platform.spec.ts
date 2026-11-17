@@ -26,7 +26,7 @@ import { decodePng } from '../../src/core/image/png.ts';
 import { createNodeMediaEngine } from '../../src/main/media/engine.ts';
 import { bundledFfmpeg } from '../integration/helpers/ffmpeg.ts';
 import { measure } from '../integration/helpers/measure.ts';
-import { answerDialogs, exportVideo, launchApp, menu, openTab } from './app.ts';
+import { answerDialogs, exportVideo, launchApp, menu, openTab, pickTool } from './app.ts';
 import { audioMode, importAudio } from './audio.ts';
 
 const STEP = process.env.CROSS_STEP;
@@ -233,7 +233,7 @@ test('make: an animation with an SVG and a PNG picture, a moving star and text, 
     [PNG, '400', '60'],
   ] as const) {
     await answerDialogs(app, { open: [join(media, file)] });
-    await page.getByRole('button', { name: 'Picture', exact: true }).click();
+    await pickTool(page, 'Picture');
     await clickStage(page, [0.3, 0.3]);
     await expect(page.getByText(file, { exact: true }).first()).toBeVisible();
     await type(page, 'X', x);
@@ -241,7 +241,7 @@ test('make: an animation with an SVG and a PNG picture, a moving star and text, 
   }
 
   // A star that moves across the stage over the 2 s.
-  await page.getByRole('button', { name: 'Star', exact: true }).click();
+  await pickTool(page, 'Star');
   const box = (await page.getByRole('application', { name: 'Stage' }).boundingBox())!;
   await page.mouse.move(box.x + box.width * 0.2, box.y + box.height * 0.7);
   await page.mouse.down();
@@ -263,7 +263,7 @@ test('make: an animation with an SVG and a PNG picture, a moving star and text, 
   // Text in the bundled font (X2: the same letters on every computer).
   await goTo.fill('0');
   await goTo.press('Enter');
-  await page.getByRole('button', { name: 'Text', exact: true }).click();
+  await pickTool(page, 'Text');
   await clickStage(page, [0.5, 0.85]);
   await type(page, 'Words', 'Lake Naivasha');
   await type(page, 'X', '200');

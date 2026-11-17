@@ -7,6 +7,7 @@ import App from '../../../src/ui/App.svelte';
 import { animUi } from '../../../src/ui/animation/animation-ui.svelte.ts';
 import { ui } from '../../../src/ui/ui-state.svelte.ts';
 import { testApp } from '../../helpers/test-app.ts';
+import { toolControl } from '../../helpers/tools.ts';
 
 async function graphicsMode() {
   animUi.dialog = null;
@@ -30,8 +31,9 @@ describe('Graphics mode (M18)', () => {
     await graphicsMode();
     expect(ui.mode).toBe('Graphics');
     const tools = within(screen.getByRole('toolbar', { name: 'Drawing tools' }));
+    // On the strip or behind their family's corner (tool-families.ts).
     for (const name of ['Select', 'Rectangle', 'Ellipse', 'Star', 'Pen', 'Text', 'Picture'])
-      expect(tools.getByRole('button', { name })).toBeTruthy();
+      expect(await toolControl(name)).toBeTruthy();
     expect(tools.queryByRole('button', { name: 'Button' })).toBeNull();
     expect(screen.queryByRole('button', { name: 'Import frames' })).toBeNull();
     expect(screen.queryByRole('region', { name: /timeline/i })).toBeNull();

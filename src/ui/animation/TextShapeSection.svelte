@@ -47,11 +47,13 @@
       shape bigger.
     </p>
   {/if}
-  <button
-    class="sm"
-    title="Make the words a straight text again"
-    onclick={() => (error = anim.takeOffOutline((t) => textBox(t)))}>Take out of shape</button
-  >
+  <div class="prop-buttons">
+    <button
+      class="sm"
+      title="Make the words a straight text again"
+      onclick={() => (error = anim.takeOffOutline((t) => textBox(t)))}>Take out of shape</button
+    >
+  </div>
   {#if error}<p class="error" role="alert">{error}</p>{/if}
   <Why tool="textShape" />
 </div>

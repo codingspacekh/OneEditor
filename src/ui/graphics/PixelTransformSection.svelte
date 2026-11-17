@@ -148,8 +148,9 @@
       {selected ? 'Selected pixels' : 'Pixel layer'}
       <span class="syl">19.3 creating and editing bitmap images</span>
     </h4>
-    <div class="place">
-      <div class="anchors" role="group" aria-label="Reference point">
+    <div class="prop-row">
+      <span class="prop-label">Reference</span>
+      <div class="anchors prop-half" role="group" aria-label="Reference point">
         {#each ANCHORS as a (a)}
           <button
             class="sm"
@@ -162,24 +163,24 @@
           >
         {/each}
       </div>
-      <div class="xy">
-        <NumField
-          label="X"
-          value={shownLength(draft.x ?? ref.x)}
-          unit={image.units}
-          decimals={lengthDecimals}
-          commit={(v) => change({ x: typedLength(v) })}
-        />
-        <NumField
-          label="Y"
-          value={shownLength(draft.y ?? ref.y)}
-          unit={image.units}
-          decimals={lengthDecimals}
-          commit={(v) => change({ y: typedLength(v) })}
-        />
-      </div>
     </div>
-    <div class="two">
+    <div class="prop-row">
+      <NumField
+        label="X"
+        value={shownLength(draft.x ?? ref.x)}
+        unit={image.units}
+        decimals={lengthDecimals}
+        commit={(v) => change({ x: typedLength(v) })}
+      />
+      <NumField
+        label="Y"
+        value={shownLength(draft.y ?? ref.y)}
+        unit={image.units}
+        decimals={lengthDecimals}
+        commit={(v) => change({ y: typedLength(v) })}
+      />
+    </div>
+    <div class="prop-row">
       <NumField
         label="W"
         value={pxToSize(width, unit, image.dpi, box.width)}
@@ -208,15 +209,14 @@
     <label class="check">
       <input type="checkbox" bind:checked={keep} /> Keep proportions
     </label>
-    <div class="two">
-      <NumField
-        label="Rotate"
-        value={draft.rotate ?? 0}
-        unit="°"
-        decimals={1}
-        commit={(v) => change({ rotate: v })}
-      />
-      <span></span>
+    <NumField
+      label="Rotate"
+      value={draft.rotate ?? 0}
+      unit="°"
+      decimals={1}
+      commit={(v) => change({ rotate: v })}
+    />
+    <div class="prop-row">
       <NumField
         label="Skew ↔"
         value={draft.skewX ?? 0}
@@ -243,7 +243,7 @@
         {#each RESAMPLE_METHODS as m (m)}<option value={m}>{RESAMPLE_NAMES[m]}</option>{/each}
       </select>
     </div>
-    <div class="cells">
+    <div class="prop-buttons">
       <button
         class="sm primary"
         disabled={!pending}
@@ -260,9 +260,9 @@
         }}>Reset</button
       >
     </div>
-    <div class="line">
-      <span class="cap">Flip</span>
-      <div class="cells" role="group" aria-label="Flip pixels">
+    <div class="prop-row">
+      <span class="prop-label">Flip</span>
+      <div class="prop-buttons" role="group" aria-label="Flip pixels">
         <button
           class="sm"
           aria-label="Flip pixels horizontal"
@@ -277,9 +277,9 @@
         >
       </div>
     </div>
-    <div class="line">
-      <span class="cap">Turn</span>
-      <div class="cells" role="group" aria-label="Turn pixels">
+    <div class="prop-row">
+      <span class="prop-label">Turn</span>
+      <div class="prop-buttons" style:--n="3" role="group" aria-label="Turn pixels">
         <button
           class="sm"
           aria-label="Turn 90° anticlockwise"
@@ -329,58 +329,34 @@
     font-weight: 500;
     color: var(--tx-3);
   }
-  .place {
-    display: flex;
-    gap: 10px;
-    margin-bottom: 6px;
-  }
+  /* The nine points fill the first field column (on the grid's lines, as the boxes below). */
   .anchors {
     display: grid;
-    grid-template-columns: repeat(3, 22px);
+    grid-template-columns: repeat(3, minmax(0, 1fr));
     gap: 2px;
-    align-content: start;
   }
   .anchors button {
-    width: 22px;
+    width: 100%;
     height: 22px;
     padding: 0;
+    justify-content: center;
   }
   .anchors button[aria-pressed='true'] {
     background: var(--accent);
     color: #fff;
   }
-  .xy {
-    flex: 1;
-    min-width: 0;
-  }
-  .two {
-    display: grid;
-    grid-template-columns: 1fr 1fr;
-    column-gap: 8px;
-  }
-  .cells {
-    display: flex;
-    flex-wrap: wrap;
-    gap: 6px;
-    margin-bottom: 8px;
-  }
-  .line {
-    display: grid;
-    grid-template-columns: 36px 1fr;
-    align-items: start;
-    gap: 6px;
-  }
-  .cap {
-    color: var(--tx-2);
-    font-size: 12px;
-    padding-top: 4px;
-  }
+  /* A label and a menu or box in a row of its own: on the property grid (props.css), the control
+     across the field columns. */
   .field {
     display: grid;
-    grid-template-columns: 58px 1fr;
+    grid-template-columns: var(--prop-cols);
+    column-gap: var(--prop-gap-x);
     align-items: center;
-    gap: 3px 6px;
-    margin-bottom: 6px;
+    margin-bottom: var(--prop-gap-y);
+    min-width: 0;
+  }
+  .field > :not(label) {
+    grid-column: 2 / -1;
     min-width: 0;
   }
   .field label,

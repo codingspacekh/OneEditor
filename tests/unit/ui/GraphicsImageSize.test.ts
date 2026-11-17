@@ -11,6 +11,7 @@ import { createLayer } from '../../../src/core/animation/factory.ts';
 import { createBitmap, fillRect } from '../../../src/core/graphics/pixels/raster.ts';
 import { animUi } from '../../../src/ui/animation/animation-ui.svelte.ts';
 import { testApp } from '../../helpers/test-app.ts';
+import { pickTool, viewHelper } from '../../helpers/tools.ts';
 
 async function graphicsMode(withPhoto = true) {
   animUi.dialog = null;
@@ -238,8 +239,7 @@ describe('M21 GB1: the view', () => {
 
   it('M21 GB1: the Zoom tool zooms in a step where clicked, Alt-click out; to 3200 %', async () => {
     const s = await graphicsMode();
-    const tools = within(screen.getByRole('toolbar', { name: 'Drawing tools' }));
-    await fireEvent.click(tools.getByRole('button', { name: 'Zoom' }));
+    await pickTool('Zoom');
     expect(s.g.store.get().tool).toBe('zoom');
     expect(stage().style.cursor).toBe('zoom-in');
     s.g.setZoom(4);
@@ -264,11 +264,7 @@ describe('M21 GB1: the view', () => {
   it('M21 GB1: the Hand drags the image: the area scrolls the other way', async () => {
     const s = await graphicsMode();
     const scrolled = scrollable(area());
-    await fireEvent.click(
-      within(screen.getByRole('toolbar', { name: 'Drawing tools' })).getByRole('button', {
-        name: 'Hand',
-      }),
-    );
+    await pickTool('Hand');
     expect(stage().style.cursor).toBe('grab');
     await fireEvent.pointerDown(stage(), { clientX: 100, clientY: 100, button: 0 });
     await fireEvent.pointerMove(window, { clientX: 70, clientY: 80 });
@@ -320,10 +316,10 @@ describe('M21 GB1: the view', () => {
     s.g.setZoom(8);
     await tick();
     expect(screen.getByTestId('pixel-grid').getAttribute('d')).toMatch(/^M0 0V100/);
-    const toggle = screen.getByRole('button', { name: 'Pixel grid' });
+    const toggle = await viewHelper('Pixel grid');
     await fireEvent.click(toggle);
     expect(screen.queryByTestId('pixel-grid')).toBeNull();
-    expect(toggle.getAttribute('aria-pressed')).toBe('false');
+    expect(toggle.getAttribute('aria-checked')).toBe('false');
     await fireEvent.click(toggle);
     // At 3200 % a 200 × 100 image would be a 6400 × 3200 canvas and more: a part only.
     s.g.setZoom(32);

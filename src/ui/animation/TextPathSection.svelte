@@ -61,7 +61,7 @@
       <input type="checkbox" bind:checked={show} />
       Show the path (with the shape’s outline)
     </label>
-    <div class="cells two-up">
+    <div class="prop-buttons">
       <button
         class="sm"
         title={withWhy(
@@ -142,9 +142,11 @@
     {:else}
       <p class="hint">The path is hidden: only the words show its shape.</p>
     {/if}
-    <button class="sm" title="Make the words a straight line again" onclick={takeOff}
-      >Take off path</button
-    >
+    <div class="prop-buttons">
+      <button class="sm" title="Make the words a straight line again" onclick={takeOff}
+        >Take off path</button
+      >
+    </div>
     {#if error}<p class="error" role="alert">{error}</p>{/if}
     <Why tool="textPath" />
   </div>
@@ -172,12 +174,18 @@
     font-weight: 500;
     color: var(--tx-3);
   }
+  /* A label and a menu or box in a row of its own: on the property grid (props.css), the control
+     across the field columns. */
   .field {
     display: grid;
-    grid-template-columns: 58px 1fr;
+    grid-template-columns: var(--prop-cols);
+    column-gap: var(--prop-gap-x);
     align-items: center;
-    gap: 3px 6px;
-    margin-bottom: 6px;
+    margin-bottom: var(--prop-gap-y);
+    min-width: 0;
+  }
+  .field > :not(label) {
+    grid-column: 2 / -1;
     min-width: 0;
   }
   .field label {
@@ -194,14 +202,6 @@
     margin-bottom: 6px;
     color: var(--tx-2);
     font-size: 12px;
-  }
-  .cells {
-    display: grid;
-    gap: 4px;
-    min-width: 0;
-  }
-  .cells.two-up {
-    grid-template-columns: repeat(2, 1fr);
   }
   button {
     justify-content: center;

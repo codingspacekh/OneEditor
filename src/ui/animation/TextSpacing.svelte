@@ -41,7 +41,7 @@
 
 <div class="sec">
   <h4>Spacing <span class="syl">19.5 kerning and spacing</span></h4>
-  <div class="two">
+  <div class="prop-row">
     <NumField
       label="Letter spacing"
       value={text.letterSpacing ?? 0}
@@ -70,3 +70,30 @@
   </p>
   <Why tool="textSpacing" />
 </div>
+
+<style>
+  /* The Properties panel's own look (its styles are its own: Svelte scopes them). */
+  .sec {
+    padding: 8px 0 10px;
+    border-bottom: 1px solid var(--line);
+  }
+  h4 {
+    margin: 0 0 8px;
+    font-size: 11.5px;
+    font-weight: 600;
+    color: var(--tx-2);
+    display: flex;
+    align-items: baseline;
+    gap: 8px;
+  }
+  .syl {
+    font-size: 10px;
+    font-weight: 500;
+    color: var(--tx-3);
+  }
+  .hint {
+    margin: 0 0 6px;
+    color: var(--tx-3);
+    font-size: 11.5px;
+  }
+</style>

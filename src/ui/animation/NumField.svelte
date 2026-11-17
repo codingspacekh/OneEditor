@@ -23,10 +23,11 @@
   const id = `num-${Math.random().toString(36).slice(2, 9)}`;
   const shown = $derived(Number.isFinite(value) ? value.toFixed(decimals) : '');
   /**
-   * As wide as the numbers it holds need (the teacher's layout check: the boxes were wider than
-   * their numbers, squeezing the labels): "-360", "100.0", "1280.00"; wider for a longer value.
+   * On its own (a dialog), as wide as the numbers it holds need (the teacher's layout check: the
+   * boxes were wider than their numbers, squeezing the labels): "-360", "100.0", "1280.00". In a
+   * properties row (props.css) it is as wide as its column, so the boxes line up.
    */
-  const chars = $derived(Math.max(decimals === 0 ? 4 : decimals === 1 ? 5 : 7, shown.length));
+  const chars = $derived(decimals === 0 ? 4 : decimals === 1 ? 5 : 7);
 
   function onchange(event: Event): void {
     const text = (event.currentTarget as HTMLInputElement).value.trim().replace(unit, '');
@@ -43,7 +44,7 @@
       type="text"
       inputmode="decimal"
       value={shown}
-      style:width="{chars + 0.5}ch"
+      style:min-width="{chars + 0.5}ch"
       {step}
       {disabled}
       {onchange}
@@ -75,7 +76,7 @@
     background: var(--bg-2);
     border: 1px solid var(--line);
     border-radius: 4px;
-    padding: 0 5px;
+    padding: 0 4px 0 5px;
     min-width: 0;
   }
   .box.disabled {
@@ -86,7 +87,7 @@
   }
   input {
     flex: none;
-    min-width: 0;
+    field-sizing: content;
     border: 0;
     text-align: right;
     background: transparent;
@@ -105,6 +106,37 @@
     margin-left: 2px;
     color: var(--tx-3);
     font-size: 10.5px;
+  }
+  /* Alone in a properties panel (props.css): a row of the grid, the box in the first field column
+     (as wide as a pair's). */
+  :global(.prop-panel) .field {
+    grid-template-columns: var(--prop-cols);
+    column-gap: var(--prop-gap-x);
+    margin-bottom: var(--prop-gap-y);
+  }
+  :global(.prop-panel) .field > .box {
+    grid-column: 2 / 3;
+    width: 100%;
+  }
+  :global(.prop-panel) .field input {
+    flex: 1;
+    min-width: 0 !important;
+    width: 0;
+    field-sizing: fixed;
+  }
+  /* In a properties row (props.css): the label and box go into the row's columns. */
+  :global(.prop-row) > .field {
+    display: contents;
+  }
+  :global(.prop-row) > .field > .box {
+    grid-column: auto; /* the next column: a pair's second box goes in column 4 */
+    width: 100%;
+  }
+  :global(.prop-row) > .field input {
+    flex: 1;
+    min-width: 0 !important;
+    width: 0;
+    field-sizing: fixed;
   }
   .error {
     grid-column: 1 / -1;

@@ -70,7 +70,7 @@
       {#each pictures as p (p.id)}<option value={p.id}>{fileNameOf(p.path)}</option>{/each}
     </select>
   </div>
-  <div class="row">
+  <div class="prop-buttons">
     <button class="sm" title="Tile a picture file from the computer" onclick={choose}
       >Choose a picture…</button
     >
@@ -96,7 +96,7 @@
     />
   {/if}
 {/if}
-<div class="two">
+<div class="prop-row">
   <NumField
     label="Tile size"
     value={fill.size}
@@ -115,13 +115,25 @@
 <Why tool="graphicPattern" />
 
 <style>
+  /* A label and a menu or box in a row of its own: on the property grid (props.css), the control
+     across the field columns. */
   .field {
     display: grid;
-    grid-template-columns: 76px 1fr;
+    grid-template-columns: var(--prop-cols);
+    column-gap: var(--prop-gap-x);
     align-items: center;
-    gap: 3px 6px;
-    margin-bottom: 6px;
+    margin-bottom: var(--prop-gap-y);
     min-width: 0;
+  }
+  .field > :not(label) {
+    grid-column: 2 / -1;
+    min-width: 0;
+  }
+  :global(.prop-row) > .field {
+    display: contents;
+  }
+  :global(.prop-row) > .field > :not(label) {
+    grid-column: auto;
   }
   .field label,
   .check {
@@ -137,16 +149,6 @@
     align-items: center;
     gap: 6px;
     margin: 0 0 8px;
-  }
-  .two {
-    display: grid;
-    grid-template-columns: 1fr 1fr;
-    column-gap: 8px;
-  }
-  .row {
-    display: flex;
-    gap: 4px;
-    margin-bottom: 6px;
   }
   .error {
     margin: 0 0 6px;

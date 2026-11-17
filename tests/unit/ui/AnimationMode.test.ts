@@ -8,6 +8,7 @@ import { animUi } from '../../../src/ui/animation/animation-ui.svelte.ts';
 import { objectAt } from '../../../src/core/animation/tween.ts';
 import type { AnimObject, StarObject } from '../../../src/core/animation/types.ts';
 import { testApp } from '../../helpers/test-app.ts';
+import { pickTool, toolControl, viewHelper } from '../../helpers/tools.ts';
 
 async function animationMode() {
   const t = testApp();
@@ -43,6 +44,7 @@ const typeIn = async (label: string, value: string) => {
 describe('Animation mode layout', () => {
   it('has the drawing tools, the stage chip, Save, Undo, Redo and Export; the title names the animation', async () => {
     await animationMode();
+    // The tools on the strip or behind their family's corner (tool-families.ts).
     for (const name of [
       'Select',
       'Rectangle',
@@ -54,14 +56,10 @@ describe('Animation mode layout', () => {
       'Brush',
       'Text',
       'Picture',
-      'Rulers',
-      'Grid',
-      'Snap',
-      'Save',
-      'Undo',
-      'Redo',
-      'Export',
     ])
+      expect(await toolControl(name)).toBeTruthy();
+    for (const name of ['Rulers', 'Grid', 'Snap']) expect(await viewHelper(name)).toBeTruthy();
+    for (const name of ['Save', 'Undo', 'Redo', 'Export'])
       expect(screen.getByRole('button', { name })).toBeTruthy();
     expect(
       screen.getByRole('button', { name: /^Stage settings: 16:9 · 1280 × 720 · 24 fps/ }),
@@ -85,7 +83,7 @@ describe('Animation mode layout', () => {
 describe('drawing (AN3, AN4)', () => {
   it('dragging a rectangle on the stage adds it to the selected layer with the dragged size, selected', async () => {
     const s = await animationMode();
-    await fireEvent.click(screen.getByRole('button', { name: 'Rectangle' }));
+    await pickTool('Rectangle');
     await drag(s.stage(), [100, 100], [200, 150]);
     expect(s.objects()).toHaveLength(1);
     expect(s.objects()[0]).toMatchObject({ kind: 'rect', x: 100, y: 100, width: 100, height: 50 });
@@ -99,7 +97,7 @@ describe('drawing (AN3, AN4)', () => {
 
   it('Task 1: a star dragged out, then typed to 135 × 135 at (128, 102) in the Properties panel', async () => {
     const s = await animationMode();
-    await fireEvent.click(screen.getByRole('button', { name: 'Star' }));
+    await pickTool('Star');
     await drag(s.stage(), [300, 300], [400, 400]);
     await typeIn('X', '128');
     await typeIn('Y', '102');
@@ -149,7 +147,7 @@ describe('drawing (AN3, AN4)', () => {
 
   it('the fill can become a gradient with two colours, and the outline switched off', async () => {
     const s = await animationMode();
-    await fireEvent.click(screen.getByRole('button', { name: 'Rectangle' }));
+    await pickTool('Rectangle');
     await drag(s.stage(), [0, 0], [300, 150]);
     await fireEvent.change(screen.getByLabelText('Fill', { exact: true }), {
       target: { value: 'linear' },
@@ -172,7 +170,7 @@ describe('drawing (AN3, AN4)', () => {
       grid: { show: true, size: 10, over: false },
       snap: { grid: true, guides: false, objects: false, pixels: false },
     });
-    await fireEvent.click(screen.getByRole('button', { name: 'Rectangle' }));
+    await pickTool('Rectangle');
     await drag(s.stage(), [100, 100], [140, 140]);
     // Move it by (13, 0): the left edge at 113 snaps to 110 on the 10 px grid.
     await drag(s.stage(), [120, 120], [133, 120]);
@@ -274,10 +272,10 @@ describe('stage settings (AN1) and the status bar (AN2)', () => {
 
   it('Rulers and Grid toggle the view; the status bar shows the pointer and the saved state', async () => {
     const s = await animationMode();
-    await fireEvent.click(screen.getByRole('button', { name: 'Rulers' }));
+    await fireEvent.click(await viewHelper('Rulers'));
     expect(s.doc().view.rulers).toBe(true);
     expect(screen.getByLabelText('Horizontal ruler')).toBeTruthy();
-    await fireEvent.click(screen.getByRole('button', { name: 'Grid' }));
+    await fireEvent.click(await viewHelper('Grid'));
     expect(s.doc().view.grid.show).toBe(true);
     await fireEvent.pointerMove(s.stage(), { clientX: 100, clientY: 50 });
     expect(screen.getByLabelText('Pointer position').textContent).toMatch(/x 100, y 50/);

@@ -9,6 +9,7 @@ import App from '../../../src/ui/App.svelte';
 import { animUi } from '../../../src/ui/animation/animation-ui.svelte.ts';
 import type { AnimObject, PathObject } from '../../../src/core/animation/types.ts';
 import { testApp } from '../../helpers/test-app.ts';
+import { toolControl } from '../../helpers/tools.ts';
 import { whyTexts } from '../../helpers/why.ts';
 
 async function open(modeName: 'Graphics' | 'Animation' = 'Graphics') {
@@ -46,15 +47,12 @@ const key = (k: string, init: Record<string, unknown> = {}) =>
 describe('GV1: the new tools on the strip', () => {
   it('shows Arc, Spiral and Polyline, chosen by C, O and Y, with a "Why use this?"', async () => {
     const s = await open();
-    const tools = within(screen.getByRole('toolbar', { name: 'Drawing tools' }));
     for (const [name, letter, tool] of [
       ['Arc', 'c', 'arc'],
       ['Spiral', 'o', 'spiral'],
       ['Polyline', 'y', 'polyline'],
     ] as const) {
-      expect(tools.getByRole('button', { name }).getAttribute('title')).toMatch(
-        /Why\? Arcs, spirals/,
-      );
+      expect((await toolControl(name)).getAttribute('title')).toMatch(/Why\? Arcs, spirals/);
       await key(letter);
       expect(s.g.store.get().tool).toBe(tool);
     }

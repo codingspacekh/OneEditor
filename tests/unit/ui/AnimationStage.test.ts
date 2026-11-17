@@ -14,6 +14,7 @@ import type {
   TextObject,
 } from '../../../src/core/animation/types.ts';
 import { testApp } from '../../helpers/test-app.ts';
+import { pickTool, viewHelper } from '../../helpers/tools.ts';
 
 async function mode() {
   const t = testApp();
@@ -35,8 +36,7 @@ async function mode() {
     state: () => anim.store.get(),
     doc: () => anim.store.get().history.present,
     stage: () => screen.getByRole('application', { name: 'Stage' }),
-    tool: (name: string) =>
-      fireEvent.click(screen.getByRole('button', { name, exact: true } as object)),
+    tool: (name: string) => pickTool(name),
   };
 }
 
@@ -352,9 +352,9 @@ describe('toolbar, status bar and stage settings', () => {
     expect(s.state().zoom).toBe(1);
     s.anim.setView({ snap: { grid: true, guides: true, objects: true, pixels: false } });
     await tick();
-    await fireEvent.click(screen.getByRole('button', { name: 'Snap' }));
+    await fireEvent.click(await viewHelper('Snap'));
     expect(s.doc().view.snap).toMatchObject({ grid: false, guides: false, objects: false });
-    await fireEvent.click(screen.getByRole('button', { name: 'Snap' }));
+    await fireEvent.click(await viewHelper('Snap'));
     expect(s.doc().view.snap.guides).toBe(true);
     s.anim.moveGuide('x', 9, 1);
     await tick();

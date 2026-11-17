@@ -16,7 +16,7 @@ import {
   createText,
 } from '../../src/core/animation/factory.ts';
 import { serializeAnimation } from '../../src/core/animation/serialize.ts';
-import { answerDialogs, launchApp, menu } from './app.ts';
+import { answerDialogs, launchApp, menu, pickTool } from './app.ts';
 
 let dir: string;
 test.beforeAll(async () => {
@@ -71,7 +71,7 @@ test('AN21 Conveyor / Gas: a transparent 400 × 100 stage exports a see-through 
   await settings.getByRole('button', { name: 'Apply' }).click();
 
   // A rectangle in the middle, with exact numbers.
-  await page.getByRole('button', { name: 'Rectangle', exact: true }).click();
+  await pickTool(page, 'Rectangle');
   const stage = page.getByRole('application', { name: 'Stage' });
   const box = (await stage.boundingBox())!;
   await page.mouse.move(box.x + box.width * 0.4, box.y + box.height * 0.3);
@@ -108,7 +108,7 @@ test('AN22 Apple: the SVG of a frame, drawn by a browser, matches the PNG of tha
     .click();
   const stage = page.getByRole('application', { name: 'Stage' });
   const draw = async (tool: string, from: [number, number], to: [number, number]) => {
-    await page.getByRole('button', { name: tool, exact: true }).click();
+    await pickTool(page, tool);
     const box = (await stage.boundingBox())!;
     await page.mouse.move(box.x + box.width * from[0], box.y + box.height * from[1]);
     await page.mouse.down();

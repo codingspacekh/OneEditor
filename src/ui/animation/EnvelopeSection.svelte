@@ -108,7 +108,7 @@
     {:else if envelope?.kind === 'custom'}
       <p class="hint">Drag the corners and the sides’ round handles on the {where}.</p>
     {/if}
-    <div class="cells two-up" role="group" aria-label="Envelope">
+    <div class="prop-buttons" role="group" aria-label="Envelope">
       <button
         class="sm"
         disabled={!envelope}
@@ -147,12 +147,18 @@
     font-weight: 500;
     color: var(--tx-3);
   }
+  /* A label and a menu or box in a row of its own: on the property grid (props.css), the control
+     across the field columns. */
   .field {
     display: grid;
-    grid-template-columns: 58px 1fr;
+    grid-template-columns: var(--prop-cols);
+    column-gap: var(--prop-gap-x);
     align-items: center;
-    gap: 3px 6px;
-    margin-bottom: 6px;
+    margin-bottom: var(--prop-gap-y);
+    min-width: 0;
+  }
+  .field > :not(label) {
+    grid-column: 2 / -1;
     min-width: 0;
   }
   .field label {
@@ -172,16 +178,5 @@
     margin: 0 0 6px;
     color: var(--danger);
     font-size: 11.5px;
-  }
-  .cells {
-    display: grid;
-    grid-template-columns: repeat(2, 1fr);
-    gap: 4px;
-    min-width: 0;
-    margin-bottom: 6px;
-  }
-  .cells button {
-    justify-content: center;
-    min-width: 0;
   }
 </style>

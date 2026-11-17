@@ -8,7 +8,7 @@ import { mkdtemp, readFile, rm } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { bundledFfmpeg, run } from '../integration/helpers/ffmpeg.ts';
-import { answerDialogs, launchApp, menu } from './app.ts';
+import { answerDialogs, launchApp, menu, pickTool } from './app.ts';
 
 let dir: string;
 let picture: string;
@@ -68,7 +68,7 @@ async function stagePixel(page: Page, x: number, y: number): Promise<number[]> {
 }
 
 async function tool(page: Page, name: string) {
-  await page.getByRole('button', { name, exact: true }).click();
+  await pickTool(page, name);
 }
 
 async function exportPng(page: Page) {
@@ -235,7 +235,7 @@ test('GB5 GB3 G14: a clone stroke, an adjustment and a filter from their dialogs
   await expect(blur).toBeHidden({ timeout: 30_000 });
 
   // G14: a glow on the pixel layer (Properties, nothing selected).
-  await page.getByRole('button', { name: '+ Glow' }).click();
+  await page.getByRole('button', { name: 'Add glow' }).click();
 
   const output = join(dir, 'Retouched.png');
   await answerDialogs(app, { exportTo: output });

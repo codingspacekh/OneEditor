@@ -19,6 +19,7 @@ import { animUi } from '../../../src/ui/animation/animation-ui.svelte.ts';
 import { selUi } from '../../../src/ui/graphics/selection-ui.svelte.ts';
 import { cancelPolygonLasso } from '../../../src/ui/graphics/selection-tools.ts';
 import { testApp } from '../../helpers/test-app.ts';
+import { pickTool, toolControl } from '../../helpers/tools.ts';
 
 async function open() {
   animUi.dialog = null;
@@ -101,7 +102,6 @@ afterEach(() => {
 describe('M21 GB2: the selection tools on the strip', () => {
   it('shows the seven tools in Graphics mode; M and W choose the marquee and the wand', async () => {
     const s = await open();
-    const tools = within(screen.getByRole('toolbar', { name: 'Drawing tools' }));
     for (const name of [
       'Rectangle select',
       'Ellipse select',
@@ -111,12 +111,12 @@ describe('M21 GB2: the selection tools on the strip', () => {
       'Magic wand',
       'Colour select',
     ])
-      expect(tools.getByRole('button', { name })).toBeTruthy();
+      expect(await toolControl(name)).toBeTruthy();
     await key('m');
     expect(s.g.store.get().tool).toBe('select-rect');
     await key('w');
     expect(s.g.store.get().tool).toBe('magic-wand');
-    await fireEvent.click(tools.getByRole('button', { name: 'Lasso' }));
+    await pickTool('Lasso');
     expect(s.g.store.get().tool).toBe('lasso');
     // The option bar shows while a selection tool is chosen.
     expect(screen.getByRole('toolbar', { name: 'Selection options' })).toBeTruthy();
@@ -366,23 +366,36 @@ describe('M21 GB2: drawing selections', () => {
 });
 
 describe('M21 GB2, G8, G13: the commands in the option bar', () => {
+  // issues/graphics-3.png: the commands are in the bar's three menus, Select, Modify and
+  // Selected pixels (a command closes its menu; Modify stays open).
+  type S = Awaited<ReturnType<typeof open>>;
+  async function menuOf(s: S, menu: 'Select' | 'Modify' | 'Selected pixels') {
+    await fireEvent.click(s.bar().getByRole('button', { name: menu }));
+    return within(s.bar().getByRole('group', { name: menu }));
+  }
+  async function pick(s: S, menu: 'Select' | 'Selected pixels', command: string) {
+    await fireEvent.click((await menuOf(s, menu)).getByRole('button', { name: command }));
+    // Closed (or the whole bar gone: nothing selected after a crop).
+    const bar = screen.queryByRole('toolbar', { name: 'Selection options' });
+    expect(bar && within(bar).queryByRole('group', { name: menu })).toBeFalsy();
+  }
+
   it('All, None, Invert, Layer pixels and From shape', async () => {
     const s = await open();
     s.g.setTool('select-rect');
     await tick();
-    const bar = s.bar();
-    await fireEvent.click(bar.getByRole('button', { name: 'All' }));
+    await pick(s, 'Select', 'All');
     expect(s.bounds()).toEqual({ x: 0, y: 0, width: 1280, height: 720 });
-    await fireEvent.click(s.bar().getByRole('button', { name: 'None' }));
+    await pick(s, 'Select', 'None');
     expect(s.bounds()).toBeNull();
-    await fireEvent.click(s.bar().getByRole('button', { name: 'Layer pixels' }));
+    await pick(s, 'Select', 'Layer pixels');
     expect(s.bounds()).toEqual({ x: 0, y: 0, width: 200, height: 100 });
-    await fireEvent.click(s.bar().getByRole('button', { name: 'Invert' }));
+    await pick(s, 'Select', 'Invert');
     expect(pixelAt(s.g.pixelSelection()!, 10, 10)).toBe(0);
-    await fireEvent.click(s.bar().getByRole('button', { name: 'From shape' }));
+    await pick(s, 'Select', 'From shape');
     expect(s.g.store.get().message?.text).toMatch(/Select the shapes or text/);
     s.g.select([s.shapes.objects[0]!.id]);
-    await fireEvent.click(s.bar().getByRole('button', { name: 'From shape' }));
+    await pick(s, 'Select', 'From shape');
     expect(s.bounds()).toEqual({ x: 300, y: 300, width: 50, height: 50 });
   });
 
@@ -390,7 +403,7 @@ describe('M21 GB2, G8, G13: the commands in the option bar', () => {
     const s = await open();
     s.g.selectRect({ x: 100, y: 100, width: 50, height: 50 });
     await tick();
-    const bar = s.bar();
+    const bar = await menuOf(s, 'Modify');
     await fireEvent.change(bar.getByLabelText(/By/), { target: { value: '5' } });
     await fireEvent.click(bar.getByRole('button', { name: 'Grow' }));
     expect(s.bounds()).toEqual({ x: 95, y: 95, width: 60, height: 60 });
@@ -406,26 +419,27 @@ describe('M21 GB2, G8, G13: the commands in the option bar', () => {
     const s = await open();
     s.g.selectRect({ x: 100, y: 30, width: 40, height: 40 });
     await tick();
-    await fireEvent.click(s.bar().getByRole('button', { name: 'Copy to layer' }));
+    await pick(s, 'Selected pixels', 'Copy to layer');
     expect(s.g.store.get().history.present.layers).toHaveLength(3);
     s.g.store.update((st) => ({ ...st, layerId: s.photo.id }));
     s.g.selectRect({ x: 100, y: 30, width: 40, height: 40 });
     await tick();
-    await fireEvent.click(s.bar().getByRole('button', { name: 'Cut to layer' }));
+    await pick(s, 'Selected pixels', 'Cut to layer');
     expect(pixelAt(s.pixels().bitmap, 110, 40)[3]).toBe(0);
     s.g.store.update((st) => ({ ...st, layerId: s.photo.id }));
     s.g.selectRect({ x: 0, y: 0, width: 10, height: 10 });
     await tick();
-    await fireEvent.click(s.bar().getByRole('button', { name: 'Delete' }));
+    await pick(s, 'Selected pixels', 'Delete');
     expect(pixelAt(s.pixels().bitmap, 5, 5)[3]).toBe(0);
     s.g.selectRect({ x: 10, y: 0, width: 10, height: 10 });
     await tick();
-    await fireEvent.change(s.bar().getByLabelText('Fade to %'), { target: { value: '40' } });
-    await fireEvent.click(s.bar().getByRole('button', { name: 'Fade' }));
+    const pixels = await menuOf(s, 'Selected pixels');
+    await fireEvent.change(pixels.getByLabelText('Fade to %'), { target: { value: '40' } });
+    await fireEvent.click(pixels.getByRole('button', { name: 'Fade' }));
     expect(pixelAt(s.pixels().bitmap, 15, 5)[3]).toBe(102);
-    await fireEvent.click(s.bar().getByRole('button', { name: 'Layer mask' }));
+    await pick(s, 'Selected pixels', 'Layer mask');
     expect(s.pixels().mask).toBeDefined();
-    await fireEvent.click(s.bar().getByRole('button', { name: 'Crop' }));
+    await pick(s, 'Selected pixels', 'Crop');
     expect(s.g.store.get().history.present.stage).toMatchObject({ width: 16, height: 16 });
     // Nothing selected after the crop: the bar goes with the tool not a selection tool.
     await tick();

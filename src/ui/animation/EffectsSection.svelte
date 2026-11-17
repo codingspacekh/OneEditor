@@ -53,15 +53,17 @@
     <label for="effect-seconds">Lasts (s)</label>
     <input id="effect-seconds" type="number" min="0.1" max="60" step="0.1" bind:value={seconds} />
   </div>
-  <button
-    class="sm primary"
-    title="Add the {effect?.label ??
-      'effect'} to the selected objects, starting at the playhead ({timeLabel(
-      $store.frame,
-      stage.fps,
-    )})"
-    onclick={() => (error = anim.applyEffect(chosen, Number(seconds)))}>Add effect</button
-  >
+  <div class="prop-buttons">
+    <button
+      class="sm primary"
+      title="Add the {effect?.label ??
+        'effect'} to the selected objects, starting at the playhead ({timeLabel(
+        $store.frame,
+        stage.fps,
+      )})"
+      onclick={() => (error = anim.applyEffect(chosen, Number(seconds)))}>Add effect</button
+    >
+  </div>
   {#if error}<p class="error" role="alert">{error}</p>{/if}
   <p class="hint">
     Starts at the playhead. It adds keyframes you can change on the timeline; Undo takes it away.
@@ -73,12 +75,9 @@
   .sec {
     padding: 8px 0 10px;
     border-bottom: 1px solid var(--line);
-    display: flex;
-    flex-direction: column;
-    gap: 6px;
   }
   h4 {
-    margin: 0 0 2px;
+    margin: 0 0 8px;
     font-size: 11.5px;
     font-weight: 600;
     color: var(--tx-2);
@@ -91,20 +90,29 @@
     font-weight: 500;
     color: var(--tx-3);
   }
-  /* The same label column as the other properties (issues/animate-2.png); boxes fill the row. */
+  /* A label and a menu or box in a row of its own: on the property grid (props.css), the control
+     across the field columns. */
   .field {
     display: grid;
-    grid-template-columns: 58px 1fr;
+    grid-template-columns: var(--prop-cols);
+    column-gap: var(--prop-gap-x);
     align-items: center;
-    gap: 6px;
-    font-size: 12px;
+    margin-bottom: var(--prop-gap-y);
+    min-width: 0;
+  }
+  .field > :not(label) {
+    grid-column: 2 / -1;
+    min-width: 0;
+  }
+  .field label {
     color: var(--tx-2);
+    font-size: 12px;
+    line-height: 1.25;
   }
   .field input {
-    /* A number box as wide as its number, on the right, as in the Properties above. */
-    width: 9ch;
-    min-width: 0;
-    justify-self: end;
+    /* A number alone: in the first field column, as wide as a pair's (props.css). */
+    grid-column: 2 / 3;
+    width: 100%;
     text-align: right;
   }
   .field select {
@@ -113,12 +121,8 @@
     width: 100%;
     justify-content: safe flex-end; /* a choice too long for the box starts at its left */
   }
-  button {
-    /* On the right, under the boxes it uses (the teacher's layout check, 2026-11-15). */
-    align-self: flex-end;
-  }
   .hint {
-    margin: 0;
+    margin: 0 0 6px;
     font-size: 11.5px;
     color: var(--tx-3);
   }

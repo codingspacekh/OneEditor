@@ -96,7 +96,7 @@
     arrow keys move them.
   </p>
   {#if one}
-    <div class="two">
+    <div class="prop-row">
       <NumField
         label="Node X"
         value={shown(one.x)}
@@ -113,9 +113,9 @@
       />
     </div>
   {/if}
-  <div class="line">
-    <span class="cap">Type</span>
-    <div class="cells three" role="group" aria-label="Node type">
+  <div class="prop-row">
+    <span class="prop-label">Type</span>
+    <div class="prop-buttons" style:--n="3" role="group" aria-label="Node type">
       {#each TYPES as [type, label, tip] (type)}
         <button
           class="sm"
@@ -127,9 +127,9 @@
       {/each}
     </div>
   </div>
-  <div class="line">
-    <span class="cap">Segment</span>
-    <div class="cells two-up" role="group" aria-label="Segment">
+  <div class="prop-row">
+    <span class="prop-label">Segment</span>
+    <div class="prop-buttons" role="group" aria-label="Segment">
       <button
         class="sm"
         title="Make the segment after each chosen node a straight line"
@@ -144,7 +144,7 @@
       >
     </div>
   </div>
-  <div class="cells six" role="group" aria-label="Align nodes">
+  <div class="prop-buttons" style:--n="6" role="group" aria-label="Align nodes">
     {#each EDGES as [edge, label, icon] (edge)}
       <button
         class="sm"
@@ -155,9 +155,9 @@
       >
     {/each}
   </div>
-  <div class="line">
-    <span class="cap">Space</span>
-    <div class="cells two-up" role="group" aria-label="Distribute nodes">
+  <div class="prop-row">
+    <span class="prop-label">Space</span>
+    <div class="prop-buttons" role="group" aria-label="Distribute nodes">
       <button
         class="sm"
         aria-label="Space the chosen nodes evenly across"
@@ -176,7 +176,7 @@
       >
     </div>
   </div>
-  <div class="cells three" role="group" aria-label="Path">
+  <div class="prop-buttons" style:--n="3" role="group" aria-label="Path">
     <button
       class="sm"
       title="Break the path at the chosen node: a shape opens there, a line becomes two"
@@ -221,15 +221,15 @@
     >
   </div>
   {#if simplifying}
-    <div class="simplify">
-      <NumField
-        label="Tolerance"
-        value={tolerance}
-        unit="px"
-        step={0.5}
-        decimals={1}
-        commit={setTolerance}
-      />
+    <NumField
+      label="Tolerance"
+      value={tolerance}
+      unit="px"
+      step={0.5}
+      decimals={1}
+      commit={setTolerance}
+    />
+    <div class="prop-buttons">
       <button class="sm" onclick={simplify}>Simplify</button>
       <button class="sm" onclick={() => (simplifying = false)}>Cancel</button>
     </div>
@@ -267,56 +267,5 @@
     margin: 0 0 6px;
     color: var(--danger, #e5484d);
     font-size: 11.5px;
-  }
-  .two {
-    display: grid;
-    grid-template-columns: 1fr 1fr;
-    column-gap: 8px;
-  }
-  .line {
-    display: grid;
-    grid-template-columns: 58px 1fr;
-    align-items: center;
-    gap: 3px 6px;
-    margin-bottom: 6px;
-    min-width: 0;
-  }
-  .cap {
-    color: var(--tx-2);
-    font-size: 12px;
-  }
-  .cells {
-    display: grid;
-    gap: 4px;
-    min-width: 0;
-    margin-bottom: 6px;
-  }
-  .line .cells {
-    margin-bottom: 0;
-  }
-  .cells.six {
-    grid-template-columns: repeat(6, 1fr);
-  }
-  .cells.three {
-    grid-template-columns: repeat(3, 1fr);
-  }
-  .cells.two-up {
-    grid-template-columns: repeat(2, 1fr);
-  }
-  .cells button {
-    justify-content: center;
-    min-width: 0;
-    padding-left: 4px;
-    padding-right: 4px;
-    white-space: nowrap;
-    overflow: hidden;
-    text-overflow: ellipsis;
-  }
-  .simplify {
-    display: grid;
-    grid-template-columns: 1fr auto auto;
-    align-items: center;
-    gap: 4px;
-    margin-bottom: 6px;
   }
 </style>

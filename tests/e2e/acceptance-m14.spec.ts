@@ -9,7 +9,7 @@ import { join } from 'node:path';
 import { promisify } from 'node:util';
 import { createNodeMediaEngine } from '../../src/main/media/engine.ts';
 import { bundledFfmpeg } from '../integration/helpers/ffmpeg.ts';
-import { answerDialogs, launchApp } from './app.ts';
+import { answerDialogs, launchApp, pickTool } from './app.ts';
 
 const execFileAsync = promisify(execFile);
 let dir: string;
@@ -61,7 +61,7 @@ test('Task 1.1: a circle tweened over 3 s, seen halfway at 1.50 s, exported as M
   await settings.getByRole('button', { name: 'Apply' }).click();
 
   // The circle, radius 102 at (0, 0), moved to (396, 196) at 3 s.
-  await page.getByRole('button', { name: 'Ellipse' }).click();
+  await pickTool(page, 'Ellipse');
   const stage = page.getByRole('application', { name: 'Stage' });
   const box = (await stage.boundingBox())!;
   await page.mouse.move(box.x + box.width * 0.3, box.y + box.height * 0.3);
@@ -146,14 +146,14 @@ test('Exam-style question 3, Films by Ying: 16:10, F B Y bounce in from the left
   ).toBeVisible();
 
   // The outline, then the letters, split so each can move on its own.
-  await page.getByRole('button', { name: 'Rectangle' }).click();
+  await pickTool(page, 'Rectangle');
   const stage = page.getByRole('application', { name: 'Stage' });
   const box = (await stage.boundingBox())!;
   await page.mouse.move(box.x + box.width * 0.2, box.y + box.height * 0.25);
   await page.mouse.down();
   await page.mouse.move(box.x + box.width * 0.8, box.y + box.height * 0.75, { steps: 5 });
   await page.mouse.up();
-  await page.getByRole('button', { name: 'Text' }).click();
+  await pickTool(page, 'Text');
   await page.mouse.click(box.x + box.width * 0.3, box.y + box.height * 0.3);
   const words = page.getByLabel('Words');
   await words.fill('FBY');

@@ -109,7 +109,7 @@
       value={options.background}
       commit={(c) => anim.setPaintColours({ background: c })}
     />
-    <div class="cells">
+    <div class="prop-buttons">
       <button
         class="sm"
         title="Swap the colour and the background colour (X)"
@@ -148,7 +148,7 @@
           {/if}
         </select>
       </div>
-      <div class="two">
+      <div class="prop-row">
         <NumField
           label="Size"
           value={brush.size}
@@ -215,20 +215,21 @@
           /> Pen pressure: flow
         </label>
       </div>
-      <div class="field">
+      <!-- The name in columns 2–3, Save in 4. -->
+      <div class="prop-row save">
         <label for="paint-preset-name">Save as</label>
-        <div class="row">
-          <input
-            id="paint-preset-name"
-            type="text"
-            placeholder="Preset name"
-            bind:value={presetName}
-          />
-          <button class="sm" disabled={presetName.trim() === ''} onclick={savePreset}>Save</button>
-        </div>
+        <input
+          id="paint-preset-name"
+          type="text"
+          placeholder="Preset name"
+          bind:value={presetName}
+        />
+        <button class="sm" disabled={presetName.trim() === ''} onclick={savePreset}>Save</button>
       </div>
       {#if chosen.startsWith('mine:')}
-        <button class="sm" onclick={deletePreset}>Delete the preset</button>
+        <div class="prop-buttons">
+          <button class="sm" onclick={deletePreset}>Delete the preset</button>
+        </div>
       {/if}
       <p class="hint">
         Drag on the image to paint; Shift-click draws a straight line from where the last stroke
@@ -236,7 +237,7 @@
       </p>
       <Why tool="graphicPaint" />
     {:else if tool === 'bucket'}
-      <div class="two">
+      <div class="prop-row">
         <NumField
           label="Tolerance"
           value={options.bucket.tolerance}
@@ -287,23 +288,27 @@
             value={stop.colour}
             commit={(c) => setStops(changeStop(asPaint, i, { colour: c }))}
           />
-          <NumField
-            label="At"
-            value={stop.at}
-            unit="%"
-            commit={(v) =>
-              v < 0 || v > 100
-                ? 'Between 0 and 100 %.'
-                : setStops(changeStop(asPaint, i, { at: v }))}
-          />
-          <button
-            class="sm"
-            aria-label="Take colour {i + 2} off"
-            onclick={() => setStops(removeStop(asPaint, i))}>×</button
-          >
+          <div class="prop-row">
+            <NumField
+              label="At"
+              value={stop.at}
+              unit="%"
+              commit={(v) =>
+                v < 0 || v > 100
+                  ? 'Between 0 and 100 %.'
+                  : setStops(changeStop(asPaint, i, { at: v }))}
+            />
+            <button
+              class="sm remove"
+              aria-label="Take colour {i + 2} off"
+              onclick={() => setStops(removeStop(asPaint, i))}>Remove</button
+            >
+          </div>
         </div>
       {/each}
-      <button class="sm" onclick={() => setStops(addStop(asPaint))}>Add a colour</button>
+      <div class="prop-buttons">
+        <button class="sm" onclick={() => setStops(addStop(asPaint))}>Add a colour</button>
+      </div>
       <p class="hint">
         Drag a line across the layer or the selection: from the colour to the background colour.
         Shift keeps the line to steps of 45°.
@@ -334,22 +339,18 @@
     font-weight: 500;
     color: var(--tx-3);
   }
-  .two {
-    display: grid;
-    grid-template-columns: 1fr 1fr;
-    column-gap: 8px;
-  }
-  .cells {
-    display: flex;
-    gap: 6px;
-    margin-bottom: 8px;
-  }
+  /* A label and a menu or box in a row of its own: on the property grid (props.css), the control
+     across the field columns. */
   .field {
     display: grid;
-    grid-template-columns: 58px 1fr;
+    grid-template-columns: var(--prop-cols);
+    column-gap: var(--prop-gap-x);
     align-items: center;
-    gap: 3px 6px;
-    margin-bottom: 6px;
+    margin-bottom: var(--prop-gap-y);
+    min-width: 0;
+  }
+  .field > :not(label) {
+    grid-column: 2 / -1;
     min-width: 0;
   }
   .field label,
@@ -366,24 +367,23 @@
   .checks {
     margin-bottom: 6px;
   }
-  .row {
-    display: flex;
-    gap: 6px;
-    min-width: 0;
+  .save > input {
+    grid-column: 2 / 4;
   }
-  .row input {
-    flex: 1;
+  .save > button,
+  .remove {
+    grid-column: 4;
+    justify-content: center;
     min-width: 0;
   }
   select {
     width: 100%;
     justify-content: safe flex-end;
   }
+  /* A colour between the two: set apart by a line above, not indented (the grid's columns). */
   .stop {
-    display: grid;
-    grid-template-columns: 1fr auto auto;
-    align-items: start;
-    gap: 6px;
+    padding-top: 6px;
+    border-top: 1px dashed var(--line);
   }
   .hint {
     margin: 6px 0;

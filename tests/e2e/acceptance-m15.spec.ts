@@ -8,7 +8,7 @@ import { join } from 'node:path';
 import { promisify } from 'node:util';
 import { createNodeMediaEngine } from '../../src/main/media/engine.ts';
 import { bundledFfmpeg } from '../integration/helpers/ffmpeg.ts';
-import { answerDialogs, launchApp } from './app.ts';
+import { answerDialogs, launchApp, pickTool } from './app.ts';
 
 const execFileAsync = promisify(execFile);
 let dir: string;
@@ -35,11 +35,9 @@ async function goTo(page: Page, time: string) {
   await box.press('Enter');
 }
 
-const tools = (page: Page) => page.getByRole('toolbar', { name: 'Animation tools' });
-
 /** Draws a shape anywhere, then types its exact box. */
 async function shape(page: Page, tool: string, box: [number, number, number, number]) {
-  await tools(page).getByRole('button', { name: tool, exact: true }).click();
+  await pickTool(page, tool);
   const stage = (await page.getByRole('application', { name: 'Stage' }).boundingBox())!;
   await page.mouse.move(stage.x + stage.width * 0.4, stage.y + stage.height * 0.4);
   await page.mouse.down();
@@ -148,7 +146,7 @@ test('Task 5 in small: a car follows a curved road drawn with the pen, turning w
   const stage = (await page.getByRole('application', { name: 'Stage' }).boundingBox())!;
   const at = (fx: number, fy: number) =>
     [stage.x + stage.width * fx, stage.y + stage.height * fy] as const;
-  await tools(page).getByRole('button', { name: 'Pen' }).click();
+  await pickTool(page, 'Pen');
   for (const [fx, fy] of [
     [0.05, 0.6],
     [0.5, 0.3],
@@ -156,7 +154,7 @@ test('Task 5 in small: a car follows a curved road drawn with the pen, turning w
   ] as const)
     await page.mouse.click(...at(fx, fy));
   await page.keyboard.press('Enter');
-  await tools(page).getByRole('button', { name: 'Select', exact: true }).click();
+  await pickTool(page, 'Select');
   await page.mouse.click(...at(0.5, 0.3));
   await expect(page.getByLabel('Point 2')).toBeVisible();
 

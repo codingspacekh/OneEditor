@@ -13,7 +13,7 @@ import { writeGraphicFile } from '../../src/core/graphics/mveg.ts';
 import { webCompression } from '../../src/core/image/deflate.ts';
 import { jpegDpi, pngDpi } from '../../src/core/image/dpi.ts';
 import { bundledFfmpeg, run } from '../integration/helpers/ffmpeg.ts';
-import { answerDialogs, launchApp, menu } from './app.ts';
+import { answerDialogs, launchApp, menu, pickTool } from './app.ts';
 
 let dir: string;
 test.beforeAll(async () => {
@@ -54,7 +54,7 @@ async function newImage(page: Page, preset: string) {
 }
 
 async function drawEllipse(page: Page) {
-  await page.getByRole('button', { name: 'Ellipse', exact: true }).click();
+  await pickTool(page, 'Ellipse');
   const stage = page.getByRole('application', { name: 'Stage' });
   const box = (await stage.boundingBox())!;
   await page.mouse.move(box.x + box.width * 0.3, box.y + box.height * 0.3);
@@ -223,7 +223,7 @@ test('M20: letter-spaced text drawn by the real canvas, then turned into its let
     .getByRole('button', { name: 'Graphics' })
     .click();
   await newImage(page, 'Logo 200 × 200 px');
-  await page.getByRole('button', { name: 'Text', exact: true }).click();
+  await pickTool(page, 'Text');
   const stage = page.getByRole('application', { name: 'Stage' });
   const box = (await stage.boundingBox())!;
   await page.mouse.click(box.x + box.width * 0.2, box.y + box.height * 0.4);

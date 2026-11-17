@@ -31,6 +31,7 @@ import App from './App.svelte';
 import './fonts.css';
 import './theme.css';
 import './forms.css';
+import './props.css';
 
 const target = document.getElementById('app')!;
 

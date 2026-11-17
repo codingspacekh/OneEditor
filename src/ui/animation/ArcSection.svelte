@@ -29,7 +29,7 @@
 <div class="sec">
   <h4>Arc <span class="syl">19.2 arcs</span></h4>
   {#if arc}
-    <div class="two">
+    <div class="prop-row">
       <NumField
         label="Start"
         value={arc.start}
@@ -55,14 +55,19 @@
       </select>
     </div>
     <p class="hint">Degrees clockwise from the right: 180 to 360 is the top half.</p>
-    <button class="sm" title="Draw the whole ellipse again" onclick={() => setArc(undefined)}
-      >Whole ellipse</button
-    >
+    <div class="prop-buttons">
+      <button class="sm" title="Draw the whole ellipse again" onclick={() => setArc(undefined)}
+        >Whole ellipse</button
+      >
+    </div>
   {:else}
     <p class="hint">Only part of the ellipse: a meter's scale, a slice of cake.</p>
-    <button class="sm" title="Draw only part of the ellipse" onclick={() => setArc(FIRST_ARC)}
-      >Make an arc</button
-    >
+    <!-- A lone button fills the row (issues/graphics-4.png). -->
+    <div class="prop-buttons">
+      <button class="sm" title="Draw only part of the ellipse" onclick={() => setArc(FIRST_ARC)}
+        >Make an arc</button
+      >
+    </div>
   {/if}
   {#if error}<p class="error" role="alert">{error}</p>{/if}
   <Why tool="graphicShapes" />
@@ -88,17 +93,18 @@
     font-weight: 500;
     color: var(--tx-3);
   }
-  .two {
-    display: grid;
-    grid-template-columns: 1fr 1fr;
-    column-gap: 8px;
-  }
+  /* A label and a menu or box in a row of its own: on the property grid (props.css), the control
+     across the field columns. */
   .field {
     display: grid;
-    grid-template-columns: 58px 1fr;
+    grid-template-columns: var(--prop-cols);
+    column-gap: var(--prop-gap-x);
     align-items: center;
-    gap: 3px 6px;
-    margin-bottom: 6px;
+    margin-bottom: var(--prop-gap-y);
+    min-width: 0;
+  }
+  .field > :not(label) {
+    grid-column: 2 / -1;
     min-width: 0;
   }
   .field label {

@@ -8,7 +8,7 @@ import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { promisify } from 'node:util';
 import { bundledFfmpeg } from '../integration/helpers/ffmpeg.ts';
-import { answerDialogs, launchApp, menu } from './app.ts';
+import { answerDialogs, launchApp, menu, pickTool } from './app.ts';
 
 const execFileAsync = promisify(execFile);
 let dir: string;
@@ -29,8 +29,6 @@ async function type(page: Page, label: string, value: string) {
   await box.press('Tab');
 }
 
-const tools = (page: Page) => page.getByRole('toolbar', { name: 'Animation tools' });
-
 async function animationMode(page: Page) {
   await page
     .getByRole('navigation', { name: 'Mode' })
@@ -40,7 +38,7 @@ async function animationMode(page: Page) {
 
 /** Places a picture with the Picture tool, waits for it (named after its file), then types where it goes. */
 async function placePicture(page: Page, name: string, at: [number, number]) {
-  await tools(page).getByRole('button', { name: 'Picture', exact: true }).click();
+  await pickTool(page, 'Picture');
   const stage = (await page.getByRole('application', { name: 'Stage' }).boundingBox())!;
   await page.mouse.click(stage.x + stage.width * 0.3, stage.y + stage.height * 0.3);
   await expect(page.getByText(name, { exact: true }).first()).toBeVisible();
@@ -172,7 +170,7 @@ test('AN15 HTML web animation: one file that plays by itself in a browser, with 
   await animationMode(page);
   await answerDialogs(app, { open: [png] });
   await placePicture(page, 'paris.png', [100, 100]);
-  await tools(page).getByRole('button', { name: 'Text', exact: true }).click();
+  await pickTool(page, 'Text');
   const stage = (await page.getByRole('application', { name: 'Stage' }).boundingBox())!;
   await page.mouse.click(stage.x + stage.width * 0.6, stage.y + stage.height * 0.7);
 
@@ -235,7 +233,7 @@ test('AN18 workbook Task 4: Pause and Continue buttons work in Test and in the e
   await animationMode(page);
   const stage = (await page.getByRole('application', { name: 'Stage' }).boundingBox())!;
   const place = async (x: number, y: number) => {
-    await tools(page).getByRole('button', { name: 'Button', exact: true }).click();
+    await pickTool(page, 'Button');
     await page.mouse.click(stage.x + stage.width * 0.5, stage.y + stage.height * 0.5);
     await type(page, 'X', String(x));
     await type(page, 'Y', String(y));
@@ -245,7 +243,7 @@ test('AN18 workbook Task 4: Pause and Continue buttons work in Test and in the e
   await page.getByLabel('Action', { exact: true }).selectOption('continue');
   await expect(page.getByLabel('Label', { exact: true })).toHaveValue('Continue');
   // Something that moves, so playing and pausing can be seen.
-  await tools(page).getByRole('button', { name: 'Rectangle', exact: true }).click();
+  await pickTool(page, 'Rectangle');
   await page.mouse.move(stage.x + stage.width * 0.3, stage.y + stage.height * 0.3);
   await page.mouse.down();
   await page.mouse.move(stage.x + stage.width * 0.4, stage.y + stage.height * 0.4);
@@ -428,7 +426,7 @@ test('AN14 frame-by-frame: Duplicate frame and onion skin on the stage; exported
   await animationMode(page);
   await stageSize(page, 400, 200, 24);
   // A black square at (20, 80) in the first drawing.
-  await tools(page).getByRole('button', { name: 'Rectangle', exact: true }).click();
+  await pickTool(page, 'Rectangle');
   const stage = (await page.getByRole('application', { name: 'Stage' }).boundingBox())!;
   await page.mouse.move(stage.x + stage.width * 0.4, stage.y + stage.height * 0.4);
   await page.mouse.down();
@@ -484,7 +482,7 @@ test('N10 at 1100 × 700 the timeline keeps its rows when its bar wraps; a row c
   await animationMode(page);
   const stage = (await page.getByRole('application', { name: 'Stage' }).boundingBox())!;
   for (const tool of ['Rectangle', 'Ellipse', 'Star', 'Polygon']) {
-    await tools(page).getByRole('button', { name: tool, exact: true }).click();
+    await pickTool(page, tool);
     await page.mouse.move(stage.x + stage.width * 0.2, stage.y + stage.height * 0.2);
     await page.mouse.down();
     await page.mouse.move(stage.x + stage.width * 0.3, stage.y + stage.height * 0.3, { steps: 3 });

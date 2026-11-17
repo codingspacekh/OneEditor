@@ -1,5 +1,6 @@
 // UI-only state of Animation mode shared by its panels (not part of the animation, not undoable).
 import type { AnimationFormat } from '../../core/animation/export.ts';
+import type { Tool } from '../../app/animation.ts';
 import type { ColourDepth, GraphicFormat, TiffCompression } from '../../core/graphics/export.ts';
 
 export type AnimDialog =
@@ -54,6 +55,11 @@ export const animUi = $state({
   focusText: 0,
   /** GB1 (M21): View ▸ Pixel grid: lines between the pixels from 800 % (Graphics mode). */
   pixelGrid: true,
+  /**
+   * The tool strip's families (tool-families.ts): the tool each one shows, the one of it last
+   * used (by its button, its flyout or its key), for the session.
+   */
+  toolFamily: {} as Record<string, Tool>,
 });
 
 /** How close (screen px) a drag must come to a snap target. */

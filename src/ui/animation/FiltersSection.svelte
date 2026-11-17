@@ -93,7 +93,7 @@
       {#if f.kind === 'dropShadow' || f.kind === 'innerShadow'}
         {@const set = edit<typeof f>(i)}
         <ColourField label="Colour" value={f.colour} commit={(c) => set({ colour: c })} />
-        <div class="two">
+        <div class="prop-row">
           <NumField
             label="Across"
             value={f.dx}
@@ -125,7 +125,7 @@
       {:else if f.kind === 'glow'}
         {@const set = edit<typeof f>(i)}
         <ColourField label="Colour" value={f.colour} commit={(c) => set({ colour: c })} />
-        <div class="two">
+        <div class="prop-row">
           <NumField
             label="Blur"
             value={f.blur}
@@ -142,7 +142,7 @@
         </div>
       {:else if f.kind === 'bevel'}
         {@const set = edit<typeof f>(i)}
-        <div class="two">
+        <div class="prop-row">
           <NumField
             label="Depth"
             value={f.depth}
@@ -171,7 +171,7 @@
       {:else if f.kind === 'stroke'}
         {@const set = edit<typeof f>(i)}
         <ColourField label="Colour" value={f.colour} commit={(c) => set({ colour: c })} />
-        <div class="two">
+        <div class="prop-row">
           <NumField
             label="Width"
             value={f.width}
@@ -186,7 +186,7 @@
             commit={(v) => set({ opacity: v })}
           />
         </div>
-        <div class="field">
+        <div class="prop-row">
           <label for="stroke-lies-{i}">Lies</label>
           <select
             id="stroke-lies-{i}"
@@ -214,18 +214,20 @@
     </div>
   {/each}
   {#if quick}
-    <div class="quick" role="group" aria-label="Add quickly">
+    <!-- One even row, the names alone (issues/graphics-1.png: a "+" above each name wrapped). -->
+    <div class="prop-buttons" style:--n={QUICK.length} role="group" aria-label="Add quickly">
       {#each QUICK as q (q.kind)}
         <button
           class="sm"
+          aria-label="Add {q.label.toLowerCase()}"
           title="{q.tip}, on {owner}"
-          onclick={() => put([...filters, newFilter(q.kind)])}>+ {q.label}</button
+          onclick={() => put([...filters, newFilter(q.kind)])}>{q.label}</button
         >
       {/each}
     </div>
   {/if}
-  <div class="add">
-    <label for="filter-kind" class="cap">Add</label>
+  <div class="prop-row add">
+    <label for="filter-kind">Add</label>
     <select id="filter-kind" bind:value={adding}>
       {#each FILTER_KINDS as kind (kind)}<option value={kind}>{FILTER_LABELS[kind]}</option>{/each}
     </select>
@@ -258,11 +260,11 @@
     font-weight: 500;
     color: var(--tx-3);
   }
+  /* A filter: set apart by a line above, not boxed in (its fields stay on the grid's columns). */
   .filter {
-    border: 1px solid var(--line);
-    border-radius: 4px;
-    padding: 6px;
+    padding-top: 6px;
     margin-bottom: 6px;
+    border-top: 1px dashed var(--line);
   }
   .head {
     display: flex;
@@ -276,27 +278,17 @@
     font-weight: 600;
     color: var(--tx-1);
   }
-  .two {
-    display: grid;
-    grid-template-columns: 1fr 1fr;
-    column-gap: 8px;
+  /* Add [menu] [Add filter]: the menu in columns 2–3, the button in 4. */
+  .add > select {
+    grid-column: 2 / 4;
   }
-  .quick {
-    display: flex;
-    gap: 4px;
-    justify-content: flex-end;
-    margin-bottom: 6px;
-  }
-  .add {
-    display: grid;
-    grid-template-columns: auto minmax(0, 1fr) auto;
-    align-items: center;
-    gap: 6px;
-    margin-bottom: 6px;
-  }
-  .cap {
-    color: var(--tx-2);
-    font-size: 12px;
+  .add > button {
+    grid-column: 4;
+    justify-content: center;
+    min-width: 0;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
   }
   select {
     width: 100%;

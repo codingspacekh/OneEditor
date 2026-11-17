@@ -8,7 +8,7 @@ import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { createNodeMediaEngine } from '../../src/main/media/engine.ts';
 import { bundledFfmpeg } from '../integration/helpers/ffmpeg.ts';
-import { answerDialogs, launchApp, menu } from './app.ts';
+import { answerDialogs, launchApp, menu, pickTool, viewHelper } from './app.ts';
 import { shot } from './audio.ts';
 
 let dir: string;
@@ -68,7 +68,7 @@ test('Workbook Task 1 set-up: stage, star, circle and text with exact numbers; s
   ).toBeVisible();
 
   // A star, then its exact numbers.
-  await page.getByRole('button', { name: 'Star', exact: true }).click();
+  await pickTool(page, 'Star');
   await dragOnStage(page, [0.3, 0.3], [0.5, 0.6]);
   await type(page, 'X', '128');
   await type(page, 'Y', '102');
@@ -77,7 +77,7 @@ test('Workbook Task 1 set-up: stage, star, circle and text with exact numbers; s
   await expect(page.getByLabel('W', { exact: true })).toHaveValue('135.00');
 
   // The circle of radius 102 at (0, 0).
-  await page.getByRole('button', { name: 'Ellipse', exact: true }).click();
+  await pickTool(page, 'Ellipse');
   await dragOnStage(page, [0.6, 0.3], [0.8, 0.6]);
   await type(page, 'X', '0');
   await type(page, 'Y', '0');
@@ -85,7 +85,7 @@ test('Workbook Task 1 set-up: stage, star, circle and text with exact numbers; s
   await type(page, 'H', '204');
 
   // The text "Task 1" at (193, 73), 64 px.
-  await page.getByRole('button', { name: 'Text', exact: true }).click();
+  await pickTool(page, 'Text');
   const stage = page.getByRole('application', { name: 'Stage' });
   const box = (await stage.boundingBox())!;
   await page.mouse.click(box.x + box.width * 0.5, box.y + box.height * 0.5);
@@ -147,10 +147,11 @@ test('Workbook Task 3 stage (1024 × 768, #CBCDF0, rulers and grid) and Activity
   await expect(
     page.getByRole('button', { name: /^Stage settings: 4:3 · 1024 × 768/ }),
   ).toBeVisible();
-  await page.getByRole('button', { name: 'Rulers' }).click();
-  await page.getByRole('button', { name: 'Grid' }).click();
+  await (await viewHelper(page, 'Rulers')).click();
+  await (await viewHelper(page, 'Grid')).click();
   await expect(page.getByLabel('Horizontal ruler')).toBeVisible();
-  await expect(page.getByRole('button', { name: 'Grid' })).toHaveAttribute('aria-pressed', 'true');
+  await expect(await viewHelper(page, 'Grid')).toHaveAttribute('aria-checked', 'true');
+  await page.keyboard.press('Escape');
 
   // 19.01: the stick person's parts, each on its own layer, in a folder.
   await page.getByRole('button', { name: 'Folder' }).click();
@@ -183,7 +184,8 @@ test('N10: at 1100 × 700 the header fits — no horizontal scroll, Export in vi
   expect(fits.scroll).toBeLessThanOrEqual(fits.width);
   const exportBox = (await page.getByRole('button', { name: 'Export' }).boundingBox())!;
   expect(exportBox.x + exportBox.width).toBeLessThanOrEqual(fits.width);
-  await expect(page.getByRole('button', { name: 'Brush' })).toBeVisible();
+  // The strip's families fit the narrow window (Pen and lines, the last drawing family).
+  await expect(page.getByRole('button', { name: 'Pen and lines tools' })).toBeVisible();
   await shot(page, 'animation-m13-narrow');
   await app.close();
 });

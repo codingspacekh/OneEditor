@@ -16,7 +16,10 @@
     const seconds = parseTime((event.currentTarget as HTMLInputElement).value);
     error = seconds === null ? 'Type a time such as 12.5 or 00:12.50.' : commit(seconds);
   }
-  /** As wide as its number needs (the teacher's layout check, 2026-11-15), wider for a longer one. */
+  /**
+   * On its own, as wide as its number needs (the teacher's layout check, 2026-11-15); in a
+   * properties row (props.css), as wide as its column.
+   */
   const chars = $derived(Math.max(6, String(value.toFixed(2)).length));
 </script>
 
@@ -28,7 +31,7 @@
       type="text"
       inputmode="decimal"
       value={value.toFixed(2)}
-      style:width="{chars + 0.5}ch"
+      style:min-width="{chars + 0.5}ch"
       {onchange}
       aria-invalid={error !== null}
     />
@@ -63,7 +66,7 @@
   }
   input {
     flex: none;
-    min-width: 0;
+    field-sizing: content;
     text-align: right;
     border: 0;
     background: transparent;
@@ -81,6 +84,21 @@
   .unit {
     color: var(--tx-3);
     font-size: 11px;
+  }
+  /* In a properties row (props.css): the label and box go into the row's columns, the box as wide
+     as its column, so the boxes of every row line up. */
+  :global(.prop-row) > .field {
+    display: contents;
+  }
+  :global(.prop-row) > .field > .box {
+    width: 100%;
+    min-width: 0;
+  }
+  :global(.prop-row) > .field input {
+    flex: 1;
+    min-width: 0 !important;
+    width: 0;
+    field-sizing: fixed;
   }
   .error {
     grid-column: 1 / -1;

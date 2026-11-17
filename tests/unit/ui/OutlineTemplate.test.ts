@@ -6,6 +6,7 @@ import App from '../../../src/ui/App.svelte';
 import { animUi } from '../../../src/ui/animation/animation-ui.svelte.ts';
 import type { ProbeInfo } from '../../../src/core/ports.ts';
 import { testApp } from '../../helpers/test-app.ts';
+import { viewHelper } from '../../helpers/tools.ts';
 
 const CHIP: ProbeInfo = {
   kind: 'image',
@@ -30,20 +31,21 @@ async function inMode(mode: 'Graphics' | 'Animation') {
 describe('GV7: the Outline toggle', () => {
   it('GV7: sits with the stage helpers, says why, and turns the outline view on and off', async () => {
     const s = await inMode('Graphics');
-    const helpers = within(screen.getByRole('group', { name: 'Stage helpers' }));
-    const outline = helpers.getByRole('button', { name: 'Outline view' });
-    expect(outline.getAttribute('aria-pressed')).toBe('false');
+    // In the View options flyout, with the stage helpers.
+    within(screen.getByRole('group', { name: 'Stage helpers' }));
+    const outline = await viewHelper('Outline view');
+    expect(outline.getAttribute('aria-checked')).toBe('false');
     expect(outline.getAttribute('title')).toMatch(/thin line[\s\S]*Why\?/);
     await fireEvent.click(outline);
     expect(s.doc().view.wireframe).toBe(true);
-    expect(outline.getAttribute('aria-pressed')).toBe('true');
+    expect(outline.getAttribute('aria-checked')).toBe('true');
     await fireEvent.click(outline);
     expect(s.doc().view.wireframe).toBe(false);
   });
 
   it('GV7: is in Animation mode too', async () => {
     const s = await inMode('Animation');
-    await fireEvent.click(screen.getByRole('button', { name: 'Outline view' }));
+    await fireEvent.click(await viewHelper('Outline view'));
     expect(s.doc().view.wireframe).toBe(true);
   });
 });

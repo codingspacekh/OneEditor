@@ -74,11 +74,13 @@
   {#if clip}
     <div class="panel-h">Selected clip</div>
     <div class="sec">
-      <TimeField
-        label="Starts at"
-        value={clip.offset}
-        commit={(seconds) => app.audio.setClipStart(clip.id, seconds)}
-      />
+      <div class="prop-row">
+        <TimeField
+          label="Starts at"
+          value={clip.offset}
+          commit={(seconds) => app.audio.setClipStart(clip.id, seconds)}
+        />
+      </div>
       <p class="hint">
         Plays {clip.offset.toFixed(2)} – {clipEnd(clip, doc.rate).toFixed(2)} s. Silence before it, when
         nothing else plays there.

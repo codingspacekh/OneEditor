@@ -117,86 +117,100 @@
 
 <aside class="layers" aria-label="Layers">
   <div class="panel-h">Layers</div>
-  <div class="actions">
-    <button class="sm" title="New layer above the selected one" onclick={() => anim.addLayer()}>
-      <Icon name="plus" size={14} /> Layer
-    </button>
-    <button
-      class="sm"
-      title="New folder holding the selected layer: drag more layers onto it"
-      onclick={() => anim.addFolder()}
-    >
-      <Icon name="folder" size={14} /> Folder
-    </button>
-    <!-- GV8 (M19): a picture to draw over, on a template layer of its own at the bottom. -->
-    <button
-      class="sm icon-only"
-      aria-label="Place template"
-      title={withWhy(
-        'Place template…: a picture under the drawing, faded and locked, to draw over (never exported)',
-        'templateLayer',
-      )}
-      onclick={() => anim.placeTemplate()}><Icon name="template" size={14} /></button
-    >
-    {#if editor.still}
-      <!-- GB1 (M21): a pixel layer to paint on, or a picture's pixels as a layer. -->
+  <!-- issues/graphics-2.png: one row of equal icon buttons in two groups — make (a layer, a pixel
+       layer, a picture, a folder, a template) and arrange (duplicate, up, down, delete) — which
+       wrap as whole groups in a narrow panel, never one button at a time. -->
+  <div class="actions" role="toolbar" aria-label="Layer actions">
+    <div class="group" role="group" aria-label="New">
       <button
         class="sm icon-only"
-        aria-label="New pixel layer"
-        title="New pixel layer: empty, the size of the image, to paint and select on"
-        onclick={() => anim.addPixelLayer()}><Icon name="paintbrush" size={14} /></button
+        aria-label="Layer"
+        title="New layer above the selected one"
+        onclick={() => anim.addLayer()}><Icon name="plus" size={15} /></button
+      >
+      {#if editor.still}
+        <!-- GB1 (M21): a pixel layer to paint on, or a picture's pixels as a layer. -->
+        <button
+          class="sm icon-only"
+          aria-label="New pixel layer"
+          title="New pixel layer: empty, the size of the image, to paint and select on"
+          onclick={() => anim.addPixelLayer()}><Icon name="paintbrush" size={15} /></button
+        >
+        <button
+          class="sm icon-only"
+          aria-label="Add picture as layer"
+          title="Add a picture (JPG, PNG, GIF, BMP or WebP) as a new pixel layer"
+          onclick={() => anim.addPictureAsLayer()}><Icon name="image" size={15} /></button
+        >
+      {/if}
+      <button
+        class="sm icon-only"
+        aria-label="Folder"
+        title="New folder holding the selected layer: drag more layers onto it"
+        onclick={() => anim.addFolder()}><Icon name="folder" size={15} /></button
+      >
+      <!-- GV8 (M19): a picture to draw over, on a template layer of its own at the bottom. -->
+      <button
+        class="sm icon-only"
+        aria-label="Place template"
+        title={withWhy(
+          'Place template…: a picture under the drawing, faded and locked, to draw over (never exported)',
+          'templateLayer',
+        )}
+        onclick={() => anim.placeTemplate()}><Icon name="template" size={15} /></button
+      >
+    </div>
+    <div class="group" role="group" aria-label="Arrange">
+      {#if editor.still}
+        <button
+          class="sm icon-only"
+          aria-label="Duplicate layer"
+          title="Duplicate the selected layer"
+          disabled={!current}
+          onclick={() => anim.duplicateLayer($store.layerId)}><Icon name="copy" size={15} /></button
+        >
+      {/if}
+      <button
+        class="sm icon-only"
+        aria-label="Move layer up"
+        title="Move the layer up (in front)"
+        disabled={selectedIndex < 0 || selectedIndex >= doc.layers.length - 1}
+        onclick={() => anim.moveLayer($store.layerId, selectedIndex + 1)}
+        ><Icon name="up" size={15} /></button
       >
       <button
         class="sm icon-only"
-        aria-label="Add picture as layer"
-        title="Add a picture (JPG, PNG, GIF, BMP or WebP) as a new pixel layer"
-        onclick={() => anim.addPictureAsLayer()}><Icon name="image" size={14} /></button
+        aria-label="Move layer down"
+        title="Move the layer down (behind)"
+        disabled={selectedIndex <= 0}
+        onclick={() => anim.moveLayer($store.layerId, selectedIndex - 1)}
+        ><Icon name="down" size={15} /></button
       >
       <button
         class="sm icon-only"
-        aria-label="Duplicate layer"
-        title="Duplicate the selected layer"
-        disabled={!current}
-        onclick={() => anim.duplicateLayer($store.layerId)}><Icon name="copy" size={14} /></button
+        aria-label="Delete layer"
+        title="Delete the selected layer and its objects"
+        disabled={doc.layers.length <= 1}
+        onclick={() => anim.removeLayer($store.layerId)}><Icon name="delete" size={15} /></button
       >
-    {/if}
-    <span class="spacer"></span>
-    <button
-      class="sm icon-only"
-      aria-label="Move layer up"
-      title="Move the layer up (in front)"
-      disabled={selectedIndex < 0 || selectedIndex >= doc.layers.length - 1}
-      onclick={() => anim.moveLayer($store.layerId, selectedIndex + 1)}
-      ><Icon name="up" size={14} /></button
-    >
-    <button
-      class="sm icon-only"
-      aria-label="Move layer down"
-      title="Move the layer down (behind)"
-      disabled={selectedIndex <= 0}
-      onclick={() => anim.moveLayer($store.layerId, selectedIndex - 1)}
-      ><Icon name="down" size={14} /></button
-    >
-    <button
-      class="sm icon-only"
-      aria-label="Delete layer"
-      title="Delete the selected layer and its objects"
-      disabled={doc.layers.length <= 1}
-      onclick={() => anim.removeLayer($store.layerId)}><Icon name="delete" size={14} /></button
-    >
+    </div>
   </div>
   {#if editor.still && current}
     <!-- G2 (M21): how the selected layer is drawn, its layer mask, and merging. -->
     <div class="look" role="group" aria-label="Layer look">
-      <NumField
-        label="Opacity"
-        unit="%"
-        value={Math.round((current.opacity ?? 1) * 100)}
-        commit={(v) => anim.setLayerLook(current.id, { opacity: v / 100 })}
-      />
-      <label class="blend"
-        >Blend
+      <!-- The properties grid (props.css), as in Properties: the fields start on one line. -->
+      <div class="prop-row">
+        <NumField
+          label="Opacity"
+          unit="%"
+          value={Math.round((current.opacity ?? 1) * 100)}
+          commit={(v) => anim.setLayerLook(current.id, { opacity: v / 100 })}
+        />
+      </div>
+      <div class="prop-row">
+        <label for="layer-blend">Blend</label>
         <select
+          id="layer-blend"
           aria-label="Blend mode"
           value={current.blend ?? 'normal'}
           onchange={(e) => setBlend(current.id, e)}
@@ -204,39 +218,39 @@
           {#each BLEND_MODES as mode (mode)}<option value={mode}>{BLEND_LABELS[mode]}</option
             >{/each}
         </select>
-      </label>
-      <button
-        class="sm"
-        class:on={current.clip}
-        aria-pressed={current.clip === true}
-        title={current.clip
-          ? 'Clipped: seen only where the layer below has something drawn. Click to release it.'
-          : 'Clipping mask: show this layer only where the layer below has something drawn (the photo inside the circle)'}
-        disabled={selectedIndex <= 0}
-        onclick={() => (lookError = anim.setLayerLook(current.id, { clip: !current.clip }))}
-        >Clip</button
-      >
-      {#if current.pixels}
-        {#if current.pixels.mask}
-          <button
-            class="sm"
-            title="Apply the layer mask: what it hides becomes transparent"
-            onclick={() => anim.removeLayerMask(current.id, true)}>Apply mask</button
-          >
-          <button
-            class="sm"
-            title="Delete the layer mask: the whole layer shows again"
-            onclick={() => anim.removeLayerMask(current.id, false)}>Delete mask</button
-          >
-        {:else}
-          <button
-            class="sm"
-            title="Add a layer mask: from the selection if there is one, else showing everything. Paint on it to hide parts without erasing them."
-            onclick={() => anim.addLayerMask(current.id)}>Add mask</button
-          >
+      </div>
+      <div class="prop-buttons cmds">
+        <button
+          class="sm"
+          class:on={current.clip}
+          aria-pressed={current.clip === true}
+          title={current.clip
+            ? 'Clipped: seen only where the layer below has something drawn. Click to release it.'
+            : 'Clipping mask: show this layer only where the layer below has something drawn (the photo inside the circle)'}
+          disabled={selectedIndex <= 0}
+          onclick={() => (lookError = anim.setLayerLook(current.id, { clip: !current.clip }))}
+          >Clip</button
+        >
+        {#if current.pixels}
+          {#if current.pixels.mask}
+            <button
+              class="sm"
+              title="Apply the layer mask: what it hides becomes transparent"
+              onclick={() => anim.removeLayerMask(current.id, true)}>Apply mask</button
+            >
+            <button
+              class="sm"
+              title="Delete the layer mask: the whole layer shows again"
+              onclick={() => anim.removeLayerMask(current.id, false)}>Delete mask</button
+            >
+          {:else}
+            <button
+              class="sm"
+              title="Add a layer mask: from the selection if there is one, else showing everything. Paint on it to hide parts without erasing them."
+              onclick={() => anim.addLayerMask(current.id)}>Add mask</button
+            >
+          {/if}
         {/if}
-      {/if}
-      <span class="merge">
         <button
           class="sm"
           title="Merge the selected layer into the layer below it (shapes and text become pixels)"
@@ -253,7 +267,7 @@
           title="Flatten: every layer into one on the background; hidden layers are thrown away"
           onclick={() => anim.mergeLayers('flatten')}>Flatten</button
         >
-      </span>
+      </div>
     </div>
     {#if lookError}<p class="error" role="alert">{lookError}</p>{/if}
   {/if}
@@ -355,7 +369,7 @@
             onclick={(e) => {
               e.stopPropagation();
               anim.toggleLayer(layer.id, 'visible');
-            }}><Icon name={layer.visible ? 'eye' : 'eyeOff'} size={14} /></button
+            }}><Icon name={layer.visible ? 'eye' : 'eyeOff'} size={13} /></button
           >
           <button
             class="ghost sm icon-only"
@@ -365,7 +379,7 @@
             onclick={(e) => {
               e.stopPropagation();
               anim.toggleLayer(layer.id, 'locked');
-            }}><Icon name={layer.locked ? 'lock' : 'unlock'} size={14} /></button
+            }}><Icon name={layer.locked ? 'lock' : 'unlock'} size={13} /></button
           >
           <button
             class="ghost sm icon-only"
@@ -378,7 +392,7 @@
             onclick={(e) => {
               e.stopPropagation();
               anim.toggleLayer(layer.id, 'mask');
-            }}><Icon name="mask" size={14} /></button
+            }}><Icon name="mask" size={13} /></button
           >
           <button
             class="ghost sm icon-only"
@@ -391,7 +405,7 @@
             onclick={(e) => {
               e.stopPropagation();
               anim.toggleTemplate(layer.id);
-            }}><Icon name="template" size={14} /></button
+            }}><Icon name="template" size={13} /></button
           >
           {#if renaming === layer.id}
             <input
@@ -405,19 +419,22 @@
               onclick={(e) => e.stopPropagation()}
             />
           {:else}
-            <span class="name" title="Double-click to rename; drag to move">{layer.name}</span>
-            <!-- The selected layer shows its folder button instead, so its name keeps its room. -->
-            {#if !(doc.folders.length && layer.id === $store.layerId)}
-              {#if layer.template}<span class="badge" title="Faded, locked and never exported"
-                  >Template</span
-                >{:else if layer.pixels}<span
-                  class="badge"
-                  title="A pixel layer: paint, select and erase its pixels">Pixels</span
-                >{#if layer.pixels.mask}<span class="badge" title="It has a layer mask">Mask</span
-                  >{/if}{:else}<span class="count">{count(layer)}</span>{/if}
-              {#if layer.clip}<span class="badge" title="Clipped to the layer below it">Clip</span
-                >{/if}
-            {/if}
+            <!-- The name on a line of its own (the whole width the icons leave), what the layer
+                 is under it: its objects, or Pixels, Template, Mask, Clip. -->
+            <span class="text">
+              <span class="name" title="Double-click to rename; drag to move">{layer.name}</span>
+              <span class="meta">
+                {#if layer.template}<span class="badge" title="Faded, locked and never exported"
+                    >Template</span
+                  >{:else if layer.pixels}<span
+                    class="badge"
+                    title="A pixel layer: paint, select and erase its pixels">Pixels</span
+                  >{#if layer.pixels.mask}<span class="badge" title="It has a layer mask">Mask</span
+                    >{/if}{:else}<span class="count">{count(layer)}</span>{/if}
+                {#if layer.clip}<span class="badge" title="Clipped to the layer below it">Clip</span
+                  >{/if}
+              </span>
+            </span>
           {/if}
           {#if doc.folders.length && layer.id === $store.layerId}
             <button
@@ -477,7 +494,8 @@
   /* GV8 (M19): a template layer's badge, where the count of objects is. */
   .badge {
     flex: none;
-    font-size: 10px;
+    font-size: 9.5px;
+    line-height: 14px;
     padding: 0 5px;
     border-radius: 8px;
     border: 1px solid var(--line-strong);
@@ -485,6 +503,7 @@
   }
   .layers {
     /* N16: the size is the panel slot's (App, PanelSlot.svelte). */
+    container: layers / inline-size;
     flex: 1;
     min-width: 0;
     display: flex;
@@ -493,13 +512,26 @@
     background: var(--bg-1);
     border-right: 1px solid var(--line);
   }
+  /* issues/graphics-2.png: equal icon buttons, evenly spaced; the two groups wrap as wholes in a
+     narrow panel (N10), the second one then under the first, both from the left. */
   .actions {
     display: flex;
-    /* M21: Graphics mode's pixel layer buttons make the row wrap in a narrow panel (N10). */
     flex-wrap: wrap;
-    gap: 4px;
+    justify-content: space-between;
+    gap: 6px 10px;
     padding: 6px 8px;
     border-bottom: 1px solid var(--line);
+  }
+  .group {
+    display: flex;
+    gap: 4px;
+  }
+  /* (as specific as theme.css's button.sm.icon-only, which they would otherwise take) */
+  .actions button.sm.icon-only {
+    width: 28px;
+    height: 28px;
+    padding: 0;
+    justify-content: center;
   }
   .list {
     list-style: none;
@@ -508,47 +540,61 @@
     overflow: auto;
     flex: 1;
   }
+  /* A layer's row: the colour, then its icons in columns of one width (so every row's icons line
+     up), then its name with what it is under it. */
   .layer,
   .folder {
     display: flex;
     flex-wrap: wrap;
     align-items: center;
-    gap: 2px;
-    padding: 3px 8px 3px 6px;
+    gap: 0 2px;
+    min-height: 34px;
+    padding: 2px 8px 2px 6px;
     font-size: 12px;
     cursor: pointer;
     border-left: 3px solid transparent;
   }
+  .layer > button.sm.icon-only,
+  .folder > button.sm.icon-only {
+    flex: none;
+    width: 21px;
+    height: 24px;
+    padding: 0;
+    justify-content: center;
+  }
   .layer.infolder {
-    padding-left: 18px;
+    padding-left: 14px;
   }
   /* G2 (M21): a layer clipped to the one below sits in from it. */
   .layer.clipped {
     padding-left: 22px;
   }
   .look {
-    display: flex;
-    flex-wrap: wrap;
-    align-items: center;
-    gap: 4px 8px;
-    padding: 6px 8px;
+    /* The properties grid's columns, as fractions only: the Layers panel is narrower than the
+       Properties panel the grid's minimum widths are for, and here a row is a label with one
+       field (Opacity in the first field column, Blend across). */
+    --prop-cols: minmax(0, 0.8fr) minmax(0, 1fr) minmax(0, 0.6fr) minmax(0, 1fr);
+    padding: 8px 8px 2px;
     border-bottom: 1px solid var(--line);
-    font-size: 11.5px;
   }
-  .blend {
-    display: flex;
-    align-items: center;
-    gap: 4px;
-    color: var(--tx-2);
+  .look select {
+    justify-content: safe flex-end;
   }
-  .blend select {
-    font-size: 11.5px;
+  /* Clip, the mask's buttons and the merges: two even columns, three in a wide panel; one left
+     over fills its row. */
+  .cmds {
+    --n: 2;
   }
-  .merge {
-    display: flex;
-    flex-wrap: wrap;
-    gap: 4px;
-    flex-basis: 100%;
+  .cmds > button:last-child:nth-child(odd) {
+    grid-column: 1 / -1;
+  }
+  @container layers (min-width: 300px) {
+    .cmds {
+      --n: 3;
+    }
+    .cmds > button:last-child:nth-child(odd) {
+      grid-column: auto;
+    }
   }
   .layer.cur {
     background: var(--bg-3);
@@ -589,15 +635,34 @@
     height: 8px;
     border-radius: 2px;
     flex: none;
-    margin-right: 2px;
+    margin-right: 4px;
+  }
+  .text {
+    flex: 1;
+    min-width: 0;
+    display: flex;
+    flex-direction: column;
+    padding-left: 4px;
+    line-height: 1.25;
   }
   .name {
-    flex: 1;
     min-width: 0;
     overflow: hidden;
     text-overflow: ellipsis;
     white-space: nowrap;
-    padding-left: 4px;
+  }
+  .folder .name {
+    flex: 1;
+    padding-left: 6px;
+  }
+  .meta {
+    display: flex;
+    gap: 4px;
+    min-width: 0;
+    overflow: hidden;
+  }
+  .meta:empty {
+    display: none;
   }
   .count {
     color: var(--tx-3);

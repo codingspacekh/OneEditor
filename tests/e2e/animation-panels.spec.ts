@@ -139,14 +139,19 @@ test('Search properties: typing shows only the matching settings, and types no s
   await page.mouse.move(stage.x + stage.width * 0.5, stage.y + stage.height * 0.5, { steps: 4 });
   await page.mouse.up();
   const panel = page.getByRole('complementary', { name: 'Properties' });
+  // The tool shown pressed on the strip (a tool family's button is named after its tool).
+  const pressed = () =>
+    page
+      .getByRole('toolbar', { name: 'Animation tools' })
+      .locator('button[aria-pressed="true"]')
+      .evaluateAll((bs) => bs.map((b) => b.getAttribute('aria-label')));
+  const before = await pressed();
+  expect(before).toHaveLength(1);
   await panel.getByRole('searchbox', { name: 'Search properties' }).pressSequentially('opac');
   await expect(panel.getByLabel('Opacity', { exact: true })).toBeVisible();
   await expect(panel.getByLabel('Rotation', { exact: true })).toBeHidden();
-  // "o" is the Ellipse tool's key: typing in the box chose no tool.
-  await expect(page.getByRole('button', { name: /^Ellipse/ }).first()).not.toHaveAttribute(
-    'aria-pressed',
-    'true',
-  );
+  // "o", "p" and "c" are tools' keys (spiral, pen, arc): typing in the box chose no tool.
+  expect(await pressed()).toEqual(before);
   await panel.getByRole('searchbox').press('Escape');
   await expect(panel.getByLabel('Rotation', { exact: true })).toBeVisible();
   await app.close();

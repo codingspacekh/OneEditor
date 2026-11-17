@@ -301,39 +301,44 @@
         <!-- G1, G10 (M18): the image: its canvas, printed size, resolution and background. -->
         <div class="sec">
           <h4>Image <span class="syl">19.1 image resolutions</span></h4>
-          <table class="facts">
-            <tbody>
-              <tr><td>Canvas</td><td>{doc.stage.width} × {doc.stage.height} px</td></tr>
-              {#if image.units !== 'px'}
-                <tr>
-                  <td>Size</td><td
-                    >{Number(shownLength(doc.stage.width).toFixed(DECIMALS[image.units]))} × {Number(
-                      shownLength(doc.stage.height).toFixed(DECIMALS[image.units]),
-                    )}
-                    {image.units}</td
-                  >
-                </tr>
-              {/if}
-              <tr><td>Resolution</td><td>{image.dpi} dpi</td></tr>
-              <tr
-                ><td>Background</td><td
-                  >{doc.stage.background === 'none'
-                    ? 'Transparent'
-                    : doc.stage.background.toUpperCase()}</td
-                ></tr
+          <div class="prop-facts">
+            <div class="prop-row">
+              <span class="prop-label">Canvas</span>
+              <span class="prop-fact">{doc.stage.width} × {doc.stage.height} px</span>
+            </div>
+            {#if image.units !== 'px'}
+              <div class="prop-row">
+                <span class="prop-label">Size</span>
+                <span class="prop-fact"
+                  >{Number(shownLength(doc.stage.width).toFixed(DECIMALS[image.units]))} × {Number(
+                    shownLength(doc.stage.height).toFixed(DECIMALS[image.units]),
+                  )}
+                  {image.units}</span
+                >
+              </div>
+            {/if}
+            <div class="prop-row">
+              <span class="prop-label">Resolution</span>
+              <span class="prop-fact">{image.dpi} dpi</span>
+            </div>
+            <div class="prop-row">
+              <span class="prop-label">Background</span>
+              <span class="prop-fact"
+                >{doc.stage.background === 'none'
+                  ? 'Transparent'
+                  : doc.stage.background.toUpperCase()}</span
               >
-            </tbody>
-          </table>
-          <div class="cells two-up">
+            </div>
+          </div>
+          <!-- GB6, G8 (M21): the whole image resized, its canvas, trimmed, its colours reduced:
+               one even grid of buttons (issues/graphics-1.png: the same gap between every row). -->
+          <div class="prop-buttons" role="group" aria-label="Image">
             <button class="sm" onclick={() => (animUi.dialog = 'image')}>Image settings…</button>
             <button
               class="sm"
               title="Make the canvas just big enough for everything drawn"
               onclick={() => anim.cropCanvas('drawing')}>Fit to drawing</button
             >
-          </div>
-          <!-- GB6, G8 (M21): the whole image resized, its canvas, trimmed, its colours reduced. -->
-          <div class="cells two-up">
             <button
               class="sm"
               title="Image size: every layer resampled to a new size, or only the resolution changed"
@@ -365,14 +370,14 @@
       {:else}
         <div class="sec">
           <h4>Stage</h4>
-          <table class="facts">
-            <tbody>
-              <tr><td>Size</td><td>{doc.stage.width} × {doc.stage.height} px</td></tr>
-              <tr><td>Aspect ratio</td><td>{aspectOf(doc.stage.width, doc.stage.height)}</td></tr>
-              <tr><td>Frame rate</td><td>{doc.stage.fps} fps</td></tr>
-              <tr><td>Colour</td><td>{doc.stage.background.toUpperCase()}</td></tr>
-            </tbody>
-          </table>
+          <div class="prop-facts">
+            {#each [['Size', `${doc.stage.width} × ${doc.stage.height} px`], ['Aspect ratio', aspectOf(doc.stage.width, doc.stage.height)], ['Frame rate', `${doc.stage.fps} fps`], ['Colour', doc.stage.background.toUpperCase()]] as [name, fact] (name)}
+              <div class="prop-row">
+                <span class="prop-label">{name}</span>
+                <span class="prop-fact">{fact}</span>
+              </div>
+            {/each}
+          </div>
         </div>
         <Why tool="objectProperties" />
       {/if}
@@ -383,7 +388,7 @@
           <span class="syl">20.1 object properties</span>
         </h4>
         {#if !many}
-          <div class="field">
+          <div class="prop-row">
             <label for="prop-name">Name</label>
             <input
               id="prop-name"
@@ -395,7 +400,7 @@
             />
           </div>
         {/if}
-        <div class="two">
+        <div class="prop-row">
           <NumField
             label="X"
             value={shownLength(first.x)}
@@ -432,24 +437,28 @@
             )} px.
           </p>
         {/if}
-        <label class="check">
-          <input type="checkbox" bind:checked={animUi.lockRatio} /> Lock proportions
-        </label>
+        <div class="prop-row">
+          <label class="prop-check">
+            <input type="checkbox" bind:checked={animUi.lockRatio} /> Lock proportions
+          </label>
+        </div>
         {#if many || first.kind === 'group'}
           <!-- G3 (Graphics benchmark): Illustrator's Scale Strokes & Effects, for the image. -->
-          <label
-            class="check"
-            title="On: a resized group's outlines and shadows grow and shrink with it. Off: they stay as typed (a 1 pt outline stays 1 pt), here and in Image size."
-          >
-            <input
-              type="checkbox"
-              checked={$store.history.present.view.scaleOutlines !== false}
-              onchange={(e) =>
-                anim.setView({ scaleOutlines: (e.currentTarget as HTMLInputElement).checked })}
-            /> Scale outlines and effects
-          </label>
+          <div class="prop-row">
+            <label
+              class="prop-check"
+              title="On: a resized group's outlines and shadows grow and shrink with it. Off: they stay as typed (a 1 pt outline stays 1 pt), here and in Image size."
+            >
+              <input
+                type="checkbox"
+                checked={$store.history.present.view.scaleOutlines !== false}
+                onchange={(e) =>
+                  anim.setView({ scaleOutlines: (e.currentTarget as HTMLInputElement).checked })}
+              /> Scale outlines and effects
+            </label>
+          </div>
         {/if}
-        <div class="two">
+        <div class="prop-row">
           <NumField
             label="Rotation"
             value={first.rotation}
@@ -491,7 +500,7 @@
             commit={(v) => anim.setPivot({ y: v / 100 })}
           />
         </div>
-        <div class="cells" role="group" aria-label="Turn about">
+        <div class="prop-buttons" role="group" aria-label="Turn about">
           <button
             class="sm"
             aria-label="Turn about the centre"
@@ -506,7 +515,7 @@
       {#if first.kind === 'picture' && !many}
         <div class="sec">
           <h4>Picture <span class="syl">20.1 tracing bitmaps</span></h4>
-          <div class="cells" role="group" aria-label="Picture">
+          <div class="prop-buttons" style:--n="1" role="group" aria-label="Picture">
             <!-- AN5: a new picture beside this one (O/N/19: the pearl cut from its photo). -->
             <button
               class="sm"
@@ -574,16 +583,16 @@
                   commit={(c) =>
                     setFill(changeStop(fill, i, { colour: withAlpha(c, alphaOf(stop.colour)) }))}
                 />
-                <NumField
-                  label="Opacity"
-                  value={alphaOf(stop.colour)}
-                  unit="%"
-                  commit={(v) => {
-                    const colour = opacityOf(stop.colour, v);
-                    return colour ? setFill(changeStop(fill, i, { colour })) : OPACITY_RANGE;
-                  }}
-                />
-                <div class="stop-at">
+                <div class="prop-row">
+                  <NumField
+                    label="Opacity"
+                    value={alphaOf(stop.colour)}
+                    unit="%"
+                    commit={(v) => {
+                      const colour = opacityOf(stop.colour, v);
+                      return colour ? setFill(changeStop(fill, i, { colour })) : OPACITY_RANGE;
+                    }}
+                  />
                   <NumField
                     label="At"
                     value={stop.at}
@@ -591,6 +600,8 @@
                     decimals={1}
                     commit={(v) => setFill(changeStop(fill, i, { at: v }))}
                   />
+                </div>
+                <div class="prop-buttons">
                   <button
                     class="sm"
                     aria-label="Remove colour {i + 2}"
@@ -614,7 +625,7 @@
                 return to ? fillPatch({ to }) : OPACITY_RANGE;
               }}
             />
-            <div class="row">
+            <div class="prop-buttons">
               <button
                 class="sm"
                 title="Another colour between From and To, in the middle of the widest gap"
@@ -630,7 +641,7 @@
               />
             {:else}
               <!-- AN6: where the gradient starts, in % of the box (M/J/18: the bloom's light). -->
-              <div class="two">
+              <div class="prop-row">
                 <NumField
                   label="Centre X"
                   value={fill.cx ?? 50}
@@ -667,26 +678,28 @@
         </div>
         <div class="sec">
           <h4>Stroke</h4>
-          <label class="check">
-            <input
-              type="checkbox"
-              checked={first.stroke !== undefined}
-              onchange={(e) =>
-                set({
-                  stroke: (e.currentTarget as HTMLInputElement).checked
-                    ? { ...DEFAULT_STROKE }
-                    : undefined,
-                })}
-            />
-            Outline
-          </label>
+          <div class="prop-row">
+            <label class="prop-check">
+              <input
+                type="checkbox"
+                checked={first.stroke !== undefined}
+                onchange={(e) =>
+                  set({
+                    stroke: (e.currentTarget as HTMLInputElement).checked
+                      ? { ...DEFAULT_STROKE }
+                      : undefined,
+                  })}
+              />
+              Outline
+            </label>
+          </div>
           {#if first.stroke}
             <ColourField
               label="Colour"
               value={first.stroke.colour}
               commit={(c) => strokePatch({ colour: c })}
             />
-            <div class="two">
+            <div class="prop-row">
               <NumField
                 label="Width"
                 value={first.stroke.width}
@@ -742,7 +755,7 @@
       {:else if first.kind === 'star'}
         <div class="sec">
           <h4>Star</h4>
-          <div class="two">
+          <div class="prop-row">
             <NumField
               label="Points"
               value={first.points}
@@ -805,7 +818,7 @@
               commit={(v) => set({ frame: v } as Partial<AnimObject>)}
             />
           {/if}
-          <div class="two">
+          <div class="prop-row">
             <NumField
               label="Label size"
               value={first.size}
@@ -843,7 +856,7 @@
             <label for="prop-font">Font</label>
             <FontPicker value={first.font} onchange={(font) => textPatch({ font })} />
           </div>
-          <div class="two">
+          <div class="prop-row">
             <NumField
               label="Size"
               value={first.size}
@@ -881,26 +894,29 @@
                one text at a time, as each box follows its own words. -->
           {#if !many}
             <NumField label="Curve" value={first.curve ?? 0} commit={curvePatch} />
-            <div class="curve">
-              <span aria-hidden="true">⌣</span>
-              <input
-                type="range"
-                aria-label="Curve slider"
-                title="Bend the words: up like a rainbow, or down like a smile"
-                min={-MAX_CURVE}
-                max={MAX_CURVE}
-                step="1"
-                value={first.curve ?? 0}
-                onchange={(e) => curvePatch(Number((e.currentTarget as HTMLInputElement).value))}
-              />
-              <span aria-hidden="true">⌢</span>
+            <div class="prop-row">
+              <span class="prop-label" aria-hidden="true"></span>
+              <div class="prop-wide curve">
+                <span aria-hidden="true">⌣</span>
+                <input
+                  type="range"
+                  aria-label="Curve slider"
+                  title="Bend the words: up like a rainbow, or down like a smile"
+                  min={-MAX_CURVE}
+                  max={MAX_CURVE}
+                  step="1"
+                  value={first.curve ?? 0}
+                  onchange={(e) => curvePatch(Number((e.currentTarget as HTMLInputElement).value))}
+                />
+                <span aria-hidden="true">⌢</span>
+              </div>
             </div>
             <p class="hint">
               0 is straight, 50 a half circle (a rainbow), 100 a whole circle; below 0 the words
               bend down like a smile.
             </p>
           {/if}
-          <div class="row">
+          <div class="prop-buttons">
             <button
               class="sm"
               aria-pressed={first.bold}
@@ -912,6 +928,8 @@
               onclick={() => textPatch({ italic: !(first as TextObject).italic })}
               ><i>I</i> Italic</button
             >
+          </div>
+          <div class="prop-buttons">
             <button
               class="sm"
               title="One text object per letter, so the letters can move one at a time"
@@ -931,28 +949,26 @@
           {#each paths as m, i (i)}
             {@const n = i + 1}
             <div class="path-head">Path {n}: {m.source ?? 'a path'}</div>
-            <div class="two">
-              <label class="inline"
-                >From
-                <input
-                  class="frame"
-                  aria-label="Path {n} from frame"
-                  value={m.from}
-                  onchange={(e) => frames(first!.id, i, 'from', e)}
-                /></label
-              >
-              <label class="inline"
-                >To
-                <input
-                  class="frame"
-                  aria-label="Path {n} to frame"
-                  value={m.to}
-                  onchange={(e) => frames(first!.id, i, 'to', e)}
-                /></label
-              >
+            <div class="prop-row frames">
+              <label for="path-{n}-from">From</label>
+              <input
+                id="path-{n}-from"
+                class="frame"
+                aria-label="Path {n} from frame"
+                value={m.from}
+                onchange={(e) => frames(first!.id, i, 'from', e)}
+              />
+              <label for="path-{n}-to">To</label>
+              <input
+                id="path-{n}-to"
+                class="frame"
+                aria-label="Path {n} to frame"
+                value={m.to}
+                onchange={(e) => frames(first!.id, i, 'to', e)}
+              />
             </div>
-            <div class="row">
-              <label class="inline" title="Turn with the path, as a car turns with the road"
+            <div class="prop-row">
+              <label class="prop-check" title="Turn with the path, as a car turns with the road"
                 ><input
                   type="checkbox"
                   aria-label="Orient to path {n}"
@@ -963,8 +979,10 @@
                     }))}
                 /> Orient to path</label
               >
+            </div>
+            <div class="prop-row">
               <label
-                class="inline"
+                class="prop-check"
                 title="The same speed all along the path (off: each part takes the same time)"
                 ><input
                   type="checkbox"
@@ -977,8 +995,10 @@
                 /> Even speed</label
               >
             </div>
-            <div class="row">
+            <div class="prop-row">
+              <label for="path-{n}-easing">Easing</label>
               <select
+                id="path-{n}-easing"
                 aria-label="Path {n} easing"
                 title="How the object speeds up or slows down along the path"
                 value={m.easing}
@@ -989,6 +1009,8 @@
               >
                 {#each EASINGS as ez (ez.id)}<option value={ez.id}>{ez.label}</option>{/each}
               </select>
+            </div>
+            <div class="prop-buttons">
               <button
                 class="sm"
                 aria-label="Remove path {n}"
@@ -1056,9 +1078,9 @@
       <EnvelopeSection {app} />
       <div class="sec arrange">
         <h4>Arrange</h4>
-        <div class="line">
-          <span class="cap">Order</span>
-          <div class="cells four" role="group" aria-label="Order">
+        <div class="prop-row">
+          <span class="prop-label">Order</span>
+          <div class="prop-buttons" style:--n="4" role="group" aria-label="Order">
             <button
               class="sm"
               aria-label="Bring to front"
@@ -1085,9 +1107,9 @@
             >
           </div>
         </div>
-        <div class="line">
-          <span class="cap">Parts</span>
-          <div class="cells two-up">
+        <div class="prop-row">
+          <span class="prop-label">Parts</span>
+          <div class="prop-buttons">
             <button
               class="sm"
               title="Group the selected objects into one (Ctrl/Cmd + G)"
@@ -1103,9 +1125,9 @@
           </div>
         </div>
         <!-- AN5: after Trace bitmap, all the parts of one colour at once. -->
-        <div class="line">
-          <span class="cap">Select</span>
-          <div class="cells two-up" role="group" aria-label="Select same colour">
+        <div class="prop-row">
+          <span class="prop-label">Select</span>
+          <div class="prop-buttons" role="group" aria-label="Select same colour">
             <button
               class="sm"
               aria-label="Select same fill colour"
@@ -1122,9 +1144,9 @@
             >
           </div>
         </div>
-        <div class="line">
-          <span class="cap">Object</span>
-          <div class="cells two-up">
+        <div class="prop-row">
+          <span class="prop-label">Object</span>
+          <div class="prop-buttons">
             <button
               class="sm"
               title="Make a copy 10 px away (Ctrl/Cmd + D)"
@@ -1137,9 +1159,9 @@
             >
           </div>
         </div>
-        <div class="line">
-          <span class="cap">Flip</span>
-          <div class="cells two-up" role="group" aria-label="Flip">
+        <div class="prop-row">
+          <span class="prop-label">Flip</span>
+          <div class="prop-buttons" role="group" aria-label="Flip">
             <button
               class="sm"
               aria-label="Flip horizontal"
@@ -1154,9 +1176,9 @@
             >
           </div>
         </div>
-        <div class="line">
-          <span class="cap">Combine</span>
-          <div class="cells three" role="group" aria-label="Combine shapes">
+        <div class="prop-row">
+          <span class="prop-label">Combine</span>
+          <div class="prop-buttons" style:--n="3" role="group" aria-label="Combine shapes">
             {#each COMBINE as [how, label, hint] (how)}
               <button
                 class="sm"
@@ -1232,26 +1254,33 @@
     font-weight: 500;
     color: var(--tx-3);
   }
-  .two {
-    display: grid;
-    grid-template-columns: 1fr 1fr;
-    column-gap: 8px;
-  }
+  /* A row of its own (a label and a menu, a text box or the font list): on the property grid
+     (props.css), the control across the field columns. */
   .field {
     display: grid;
-    grid-template-columns: 76px 1fr;
+    grid-template-columns: var(--prop-cols);
+    column-gap: var(--prop-gap-x);
     align-items: center;
-    gap: 3px 6px;
-    margin-bottom: 6px;
+    margin-bottom: var(--prop-gap-y);
     min-width: 0;
   }
-  /* Beside another field (Width | Style) a label takes only the room its words need. */
-  .two > .field {
-    grid-template-columns: auto minmax(0, 1fr);
+  /* (global: the font list is another component's element) */
+  .field > :global(:not(label)) {
+    grid-column: 2 / -1;
+    width: 100%;
+    min-width: 0;
+  }
+  /* Beside a number in a pair (Width | Style, Size | Align): the label and menu in columns 3–4. */
+  :global(.prop-row) > .field {
+    display: contents;
+  }
+  :global(.prop-row) > .field > :global(:not(label)) {
+    grid-column: auto;
   }
   .field label {
     color: var(--tx-2);
     font-size: 12px;
+    line-height: 1.25;
   }
   input.text,
   .words {
@@ -1269,73 +1298,18 @@
     resize: vertical;
     font-family: var(--font);
   }
-  .check {
-    display: flex;
-    align-items: center;
-    gap: 6px;
-    font-size: 12px;
-    color: var(--tx-2);
-    margin: 0 0 8px;
-  }
   .path-head {
     font-size: 12px;
     font-weight: 600;
     margin: 6px 0 4px;
   }
-  .inline {
-    display: flex;
-    align-items: center;
-    gap: 4px;
-    font-size: 12px;
-    color: var(--tx-2);
-  }
-  .frame {
-    width: 56px;
-    font: inherit;
-    font-family: var(--mono);
-    font-size: 12px;
-    background: var(--bg-2);
-    color: var(--tx-1);
-    border: 1px solid var(--line);
-    border-radius: 4px;
-    padding: 3px 6px;
-  }
-  /* Arrange (issues/animate-2.png): a caption column as the fields have, then even buttons. */
-  .line {
-    display: grid;
-    grid-template-columns: 76px 1fr;
-    align-items: center;
-    gap: 6px;
-    margin-bottom: 6px;
-  }
-  .cap {
-    color: var(--tx-2);
-    font-size: 12px;
-  }
-  .cells {
-    display: grid;
-    gap: 4px;
-    min-width: 0;
-  }
-  .cells.four {
-    grid-template-columns: repeat(4, 1fr);
-  }
-  .cells.two-up {
-    grid-template-columns: repeat(2, 1fr);
-  }
-  .cells.three {
-    grid-template-columns: repeat(3, 1fr);
-  }
-  .cells button {
-    justify-content: center;
-    min-width: 0;
-    padding-left: 4px;
-    padding-right: 4px;
-    white-space: nowrap;
-    overflow: hidden;
-    text-overflow: ellipsis;
-  }
   /* AN26: the curve's slider, between a smile and a rainbow. */
+  /* Two numbers in a row of their own (a path's From and To frames). */
+  .frames > input {
+    grid-column: auto;
+    text-align: right;
+    font-family: var(--mono);
+  }
   .curve {
     display: grid;
     grid-template-columns: auto 1fr auto;
@@ -1348,37 +1322,10 @@
     width: 100%;
     min-width: 0;
   }
-  /* AN6: a colour between From and To, with where it is and a way to take it off. */
+  /* AN6: a colour between From and To (its opacity, where it is, Remove), set apart by a line
+     above, not indented (the fields stay on the grid's columns). */
   .stop {
-    padding-left: 8px;
-    border-left: 2px solid var(--line);
-    margin-bottom: 6px;
-  }
-  .stop-at {
-    display: grid;
-    grid-template-columns: 1fr auto;
-    gap: 6px;
-    align-items: start;
-  }
-  .row {
-    display: flex;
-    gap: 4px;
-    align-items: center;
-    margin-bottom: 6px;
-    flex-wrap: wrap;
-  }
-  .facts {
-    width: 100%;
-    border-collapse: collapse;
-    font-size: 12px;
-  }
-  .facts td {
-    padding: 2px 0;
-    color: var(--tx-2);
-  }
-  .facts td + td {
-    color: var(--tx-1);
-    text-align: right;
-    font-family: var(--mono);
+    padding-top: 6px;
+    border-top: 1px dashed var(--line);
   }
 </style>

@@ -12,6 +12,7 @@ import { createLayer } from '../../../src/core/animation/factory.ts';
 import { bitmapFromRGBA, pixelAt, type Bitmap } from '../../../src/core/graphics/pixels/raster.ts';
 import { animUi } from '../../../src/ui/animation/animation-ui.svelte.ts';
 import { testApp } from '../../helpers/test-app.ts';
+import { pickTool, toolControl } from '../../helpers/tools.ts';
 
 /** r = x, g = y, b = 7, opaque — and a red pupil of radius 5 at (150, 50) on skin. */
 function photo(): Bitmap {
@@ -53,7 +54,7 @@ async function open() {
   const tools = () => within(screen.getByRole('toolbar', { name: 'Drawing tools' }));
   const props = () => within(screen.getByRole('complementary', { name: 'Properties' }));
   const stage = () => screen.getByRole('application', { name: 'Stage' });
-  const choose = (name: string) => fireEvent.click(tools().getByRole('button', { name }));
+  const choose = (name: string) => pickTool(name);
   return { ...t, g, bitmap, steps, label, tools, props, stage, choose };
 }
 
@@ -65,7 +66,7 @@ describe('M22 GB5: retouching on screen', () => {
   it('has the retouching tools on the strip, each with a “Why use this?”', async () => {
     const s = await open();
     for (const name of ['Clone stamp', 'Heal', 'Blur brush', 'Sharpen brush', 'Smudge', 'Red eye'])
-      expect(s.tools().getByRole('button', { name }).getAttribute('title')).toMatch(/Why\? /);
+      expect((await toolControl(name)).getAttribute('title')).toMatch(/Why\? /);
     await s.choose('Heal');
     expect(s.g.store.get().tool).toBe('heal');
     expect(s.props().getByText('19.3 tools/filters to alter parts of an image')).toBeTruthy();
