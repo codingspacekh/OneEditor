@@ -99,6 +99,37 @@ describe('G11 (M23): Export image as GIF, BMP or TIFF at a colour depth', () => 
     expect((again.getByLabelText('Colour depth') as HTMLSelectElement).value).toBe('4');
   });
 
+  it('1 bit is black and white, dithered, unless the image’s own two colours are chosen', async () => {
+    const s = await exportDialog(false);
+    s.g.setImage({ background: '#ffffff' });
+    s.g.addShape('ellipse', { x: 50, y: 20, width: 100, height: 60 });
+    s.g.setProperties({ fill: { kind: 'solid', colour: '#e8302c' } });
+    s.g.select([]);
+    await tick();
+    const d = await s.open();
+    await fireEvent.click(d.getByRole('radio', { name: /BMP/ }));
+    await fireEvent.change(d.getByLabelText('Colour depth'), { target: { value: '1' } });
+    const colours = d.getByLabelText('Colours') as HTMLSelectElement;
+    expect(colours.value).toBe('greys');
+    expect(colours.selectedOptions[0]!.textContent).toMatch(/Black and white/);
+    // The 8-bit choice of the image's own colours is kept for 4 and 8 bits.
+    await fireEvent.change(d.getByLabelText('Colour depth'), { target: { value: '8' } });
+    expect((d.getByLabelText('Colours') as HTMLSelectElement).value).toBe('colours');
+    await fireEvent.change(d.getByLabelText('Colour depth'), { target: { value: '1' } });
+    s.stageRenderer.renderPixels.mockResolvedValueOnce({
+      width: 4,
+      height: 1,
+      data: new Uint8ClampedArray([
+        232, 48, 44, 255, 255, 255, 255, 255, 0, 0, 0, 255, 20, 20, 20, 255,
+      ]),
+    });
+    const back = await s.exported(d, '/work/Mono.bmp');
+    const seen = new Set<string>();
+    for (let i = 0; i < back.data.length; i += 4) seen.add(back.data.subarray(i, i + 3).join());
+    expect([...seen].every((c) => c === '0,0,0' || c === '255,255,255')).toBe(true);
+    expect(back.data.subarray(4, 7).join()).toBe('255,255,255');
+  });
+
   it('BMP: 24 bits on a background, its size exactly; 32 keeps see-through parts', async () => {
     const s = await exportDialog();
     const d = await s.open();

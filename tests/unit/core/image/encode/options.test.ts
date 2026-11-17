@@ -24,6 +24,15 @@ describe('encodeOptions (G11, M23)', () => {
     });
   });
 
+  it('1 bit is black and white unless the image’s own two colours are asked for', () => {
+    expect(encodeOptions({ format: 'bmp', depth: 1 }, 96)).toMatchObject({ palette: 'greys' });
+    expect(encodeOptions({ format: 'gif', depth: 1 }, 96)).toMatchObject({ palette: 'greys' });
+    expect(encodeOptions({ format: 'gif', depth: 4 }, 96)).toMatchObject({ palette: 'colours' });
+    expect(encodeOptions({ format: 'tiff', depth: 1, palette: 'colours' }, 96)).toMatchObject({
+      palette: 'colours',
+    });
+  });
+
   it('keeps what is chosen', () => {
     expect(
       encodeOptions(

@@ -43,6 +43,8 @@ export const animUi = $state({
    */
   graphicDepths: {} as Partial<Record<GraphicFormat, ColourDepth>>,
   graphicPalette: 'colours' as 'colours' | 'greys',
+  /** At 1 bit: black and white (greys), unless the image's own two colours are chosen. */
+  graphicPalette1: 'greys' as 'colours' | 'greys',
   graphicDither: true,
   graphicTransparent: true,
   graphicTiff: 'lzw' as TiffCompression,

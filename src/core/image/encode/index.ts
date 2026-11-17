@@ -55,7 +55,9 @@ export function encodeOptions(
     throw new EditError(`The background must be a colour like #ffffff, not “${background}”.`);
   return {
     depth,
-    palette: options.palette ?? 'colours',
+    // 1 bit is black and white (as Paint, Photoshop and GIMP make it): the image's own two
+    // colours, median cut, lose most pictures to one flat shape.
+    palette: options.palette ?? (depth === 1 ? 'greys' : 'colours'),
     dither: options.dither ?? true,
     transparent: keepsTransparency(options),
     background: background.toLowerCase(),

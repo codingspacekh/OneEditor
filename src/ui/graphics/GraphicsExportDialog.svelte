@@ -53,12 +53,14 @@
   // M23: the bitmap choices, as last made.
   let depths: Partial<Record<GraphicFormat, ColourDepth>> = $state({ ...animUi.graphicDepths });
   let palette: 'colours' | 'greys' = $state(animUi.graphicPalette);
+  // 1 bit has its own choice: black and white unless the image's own two colours are chosen.
+  let palette1: 'colours' | 'greys' = $state(animUi.graphicPalette1);
   let dither = $state(animUi.graphicDither);
   let transparent = $state(animUi.graphicTransparent);
   let tiff: TiffCompression = $state(animUi.graphicTiff);
 
   const DEPTH_NAMES: Record<ColourDepth, string> = {
-    1: '1 bit a pixel: 2 colours',
+    1: '1 bit a pixel: 2 colours (black and white)',
     4: '4 bits a pixel: 16 colours',
     8: '8 bits a pixel: 256 colours',
     24: '24 bits a pixel: 16.7 million colours (RGB)',
@@ -135,7 +137,8 @@
     animUi.graphicFormat = format;
     if (isBitmap) {
       animUi.graphicDepths = { ...depths, [format]: depth };
-      animUi.graphicPalette = palette;
+      if (depth === 1) animUi.graphicPalette1 = palette1;
+      else animUi.graphicPalette = palette;
       animUi.graphicDither = dither;
       animUi.graphicTransparent = transparent;
       animUi.graphicTiff = tiff;
@@ -150,7 +153,7 @@
         ? {
             depth,
             background,
-            ...(depth <= 8 ? { palette, dither } : {}),
+            ...(depth <= 8 ? { palette: depth === 1 ? palette1 : palette, dither } : {}),
             ...(choosesTransparency ? { transparent } : {}),
             ...(format === 'tiff' ? { tiff } : {}),
           }
@@ -260,10 +263,17 @@
       <div class="field">
         <label for="export-palette">Colours</label>
         <div class="row">
-          <select id="export-palette" bind:value={palette}>
-            <option value="colours">The image’s own {2 ** depth} colours (median cut)</option>
-            <option value="greys">{2 ** depth} greys</option>
-          </select>
+          {#if depth === 1}
+            <select id="export-palette" bind:value={palette1}>
+              <option value="greys">Black and white</option>
+              <option value="colours">The image’s own 2 colours (median cut)</option>
+            </select>
+          {:else}
+            <select id="export-palette" bind:value={palette}>
+              <option value="colours">The image’s own {2 ** depth} colours (median cut)</option>
+              <option value="greys">{2 ** depth} greys</option>
+            </select>
+          {/if}
           <label class="check"><input type="checkbox" bind:checked={dither} /> Dither</label>
         </div>
       </div>
