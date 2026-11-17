@@ -2,16 +2,43 @@
 // another one, and the whole image or only the objects chosen, each in a file of its own if
 // asked (9626/04 J/19: "save the grouped objects separately as Casing, MetalInsert and Grid";
 // J/20: each part "in both .svg and a transparent bitmap format"). PDF (M19) is the SVG printed
-// on a page of the image's printed size (pdf.ts). BMP, GIF and TIFF come in M23.
+// on a page of the image's printed size (pdf.ts). M23: GIF, BMP and TIFF — the seven formats of
+// syllabus 19.1 — each at a colour depth it can hold (1, 4, 8, 24 or 32 bits), made by our own
+// encoders (D5, core/image/encode/).
 import { EditError } from '../model/errors.ts';
 import { TRANSPARENT } from '../animation/rules.ts';
 import type { AnimationDoc, AnimObject, Id } from '../animation/types.ts';
 import { canvasAround, drawingBounds, graphicOf } from './document.ts';
 import { roundIn, toPx, type Unit } from './units.ts';
 
-export type GraphicFormat = 'png' | 'jpg' | 'svg' | 'pdf';
+export type GraphicFormat = 'png' | 'jpg' | 'gif' | 'bmp' | 'tiff' | 'svg' | 'pdf';
 
-export const GRAPHIC_FORMATS: readonly GraphicFormat[] = ['png', 'jpg', 'svg', 'pdf'];
+export const GRAPHIC_FORMATS: readonly GraphicFormat[] = [
+  'png',
+  'jpg',
+  'gif',
+  'bmp',
+  'tiff',
+  'svg',
+  'pdf',
+];
+
+/** G11 (M23): bits a pixel. 1, 4 and 8 are a palette (or greys); 24 is RGB; 32 RGB and alpha. */
+export type ColourDepth = 1 | 4 | 8 | 24 | 32;
+
+/** M23: the depths each format can hold, the first its default; none for a vector format. */
+export const COLOUR_DEPTHS: Readonly<Record<GraphicFormat, readonly ColourDepth[]>> = {
+  png: [32, 24, 8, 4, 1],
+  jpg: [24],
+  gif: [8, 4, 1],
+  bmp: [24, 32, 8, 4, 1],
+  tiff: [24, 32, 8, 1],
+  svg: [],
+  pdf: [],
+};
+
+/** M23: a TIFF's compression (D5): none, or LZW (lossless). */
+export type TiffCompression = 'none' | 'lzw';
 
 export interface FormatInfo {
   label: string;
@@ -51,6 +78,34 @@ export const FORMAT_INFO: Readonly<Record<GraphicFormat, FormatInfo>> = {
     about:
       'Pixels, compressed by losing detail you hardly see: small files for photographs. No transparency (see-through parts become the background colour); edges and text can blur.',
   },
+  // M23: the other three bitmap formats syllabus 19.1 names.
+  gif: {
+    label: 'GIF (Graphics Interchange Format)',
+    extension: 'gif',
+    kind: 'bitmap',
+    compression: 'lossless',
+    transparency: true,
+    about:
+      'Pixels in at most 256 colours, compressed without losing any: small for logos, icons and simple drawings, a pixel fully see-through or not at all, and it can animate. Photographs lose colours (banding or speckles).',
+  },
+  bmp: {
+    label: 'BMP (Bitmap)',
+    extension: 'bmp',
+    kind: 'bitmap',
+    compression: 'none',
+    transparency: false,
+    about:
+      'Pixels stored one by one, not compressed: exact, opens in any Windows program, but very large files. Not for the web; see-through parts become the background colour (32-bit keeps them, though not every program shows it).',
+  },
+  tiff: {
+    label: 'TIFF (Tagged Image File Format)',
+    extension: 'tif',
+    kind: 'bitmap',
+    compression: 'lossless',
+    transparency: true,
+    about:
+      'Pixels kept exactly (not compressed, or LZW without losing any), with the resolution for print: for print shops, scans and archives. Large files; browsers do not show it.',
+  },
   // G11 (M19): the workbook's "save as PDF".
   pdf: {
     label: 'PDF (Portable Document Format)',
@@ -85,9 +140,66 @@ export interface GraphicExportOptions {
   size?: ExportSize;
   /** JPG quality, 1–100 (default 90). */
   quality?: number;
-  /** JPG only: the colour see-through parts become (default white). */
+  /** The colour see-through parts become when the file cannot keep them (default white). */
   background?: string;
   what?: ExportWhat;
+  /** M23: bits a pixel (COLOUR_DEPTHS; default the format's first). */
+  depth?: ColourDepth;
+  /** M23: 1, 4 or 8 bits: the image's own colours (median cut) or greys (default colours). */
+  palette?: 'colours' | 'greys';
+  /** M23: 1, 4 or 8 bits: dithered (default) or the nearest colour only. */
+  dither?: boolean;
+  /** M23: GIF and palette PNG: see-through pixels kept (default true). */
+  transparent?: boolean;
+  /** M23: TIFF only (default LZW). */
+  tiff?: TiffCompression;
+}
+
+const DEPTH_WORDS: Readonly<Record<GraphicFormat, string>> = {
+  png: 'A PNG',
+  jpg: 'A JPG',
+  gif: 'A GIF',
+  bmp: 'A BMP',
+  tiff: 'A TIFF',
+  svg: 'An SVG',
+  pdf: 'A PDF',
+};
+
+const orList = (ns: readonly number[]): string =>
+  ns.length === 1 ? `${ns[0]}` : `${ns.slice(0, -1).join(', ')} or ${ns[ns.length - 1]}`;
+
+/** M23: the colour depth an export is made at, checked against what its format can hold. */
+export function colourDepth(options: Pick<GraphicExportOptions, 'format' | 'depth'>): ColourDepth {
+  const can = COLOUR_DEPTHS[options.format];
+  if (can.length === 0) {
+    if (options.depth === undefined) return 24;
+    throw new EditError(
+      `${DEPTH_WORDS[options.format]} is vector: it has no colour depth to choose.`,
+    );
+  }
+  if (options.depth === undefined) return can[0]!;
+  if (!can.includes(options.depth))
+    throw new EditError(
+      `${DEPTH_WORDS[options.format]} holds ${orList([...can].sort((a, b) => a - b))} bits a pixel, not ${options.depth}.`,
+    );
+  return options.depth;
+}
+
+/**
+ * M23: whether see-through parts stay see-through in the file, or go on the background colour:
+ * 32 bits keep alpha; a GIF or a palette PNG keeps fully see-through pixels unless asked not to;
+ * JPG, BMP and TIFF below 32 bits cannot.
+ */
+export function keepsTransparency(
+  options: Pick<GraphicExportOptions, 'format' | 'depth' | 'transparent'>,
+): boolean {
+  const { format } = options;
+  if (format === 'svg') return true;
+  if (format === 'pdf' || format === 'jpg') return false;
+  const depth = colourDepth(options);
+  if (depth === 32) return true;
+  if (format === 'gif' || (format === 'png' && depth <= 8)) return options.transparent !== false;
+  return false;
 }
 
 export const MIN_EXPORT_SIDE = 1;

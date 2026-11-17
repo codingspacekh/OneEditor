@@ -42,6 +42,10 @@ const MEDIA_EXTENSIONS = [
 const GRAPHIC_EXPORTS: Record<GraphicExportFormat, { label: string; extension: string }> = {
   png: { label: 'PNG picture', extension: 'png' },
   jpg: { label: 'JPG picture', extension: 'jpg' },
+  // M23: the other bitmap formats of syllabus 19.1.
+  gif: { label: 'GIF picture', extension: 'gif' },
+  bmp: { label: 'BMP picture', extension: 'bmp' },
+  tiff: { label: 'TIFF picture', extension: 'tif' },
   svg: { label: 'SVG vector picture', extension: 'svg' },
   pdf: { label: 'PDF document', extension: 'pdf' },
 };
@@ -236,7 +240,17 @@ export function electronDialogs(window: () => BrowserWindow | undefined): Dialog
       const r = await dialog.showSaveDialog(win(), {
         title: 'Export image',
         defaultPath: `${name}.${extension}`,
-        filters: [{ name: label, extensions: extension === 'jpg' ? ['jpg', 'jpeg'] : [extension] }],
+        filters: [
+          {
+            name: label,
+            extensions:
+              extension === 'jpg'
+                ? ['jpg', 'jpeg']
+                : extension === 'tif'
+                  ? ['tif', 'tiff']
+                  : [extension],
+          },
+        ],
       });
       return r.canceled ? null : (r.filePath ?? null);
     },

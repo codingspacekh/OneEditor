@@ -253,7 +253,7 @@ export interface Dialogs {
 }
 
 /** G11 (M18): the formats an image is exported in (M19: PDF; BMP, GIF and TIFF come in M23). */
-export type GraphicExportFormat = 'png' | 'jpg' | 'svg' | 'pdf';
+export type GraphicExportFormat = 'png' | 'jpg' | 'gif' | 'bmp' | 'tiff' | 'svg' | 'pdf';
 
 /** AN15: the animation export formats (M13: a picture of the stage; M14: mp4, gif, a PNG sequence; M16 html). */
 export type AnimationExportFormat =

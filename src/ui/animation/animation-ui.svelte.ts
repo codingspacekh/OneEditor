@@ -1,5 +1,6 @@
 // UI-only state of Animation mode shared by its panels (not part of the animation, not undoable).
 import type { AnimationFormat } from '../../core/animation/export.ts';
+import type { GraphicFormat } from '../../core/graphics/export.ts';
 
 export type AnimDialog =
   | 'stage'
@@ -35,7 +36,7 @@ export const animUi = $state({
   /** AN15: the format last chosen in the export dialog (MP4 at first). */
   exportFormat: 'mp4' as AnimationFormat,
   /** G11 (M18): the format last chosen in Graphics mode's export dialog (PNG at first). */
-  graphicFormat: 'png' as 'png' | 'jpg' | 'svg' | 'pdf',
+  graphicFormat: 'png' as GraphicFormat,
   /** The Properties panel's W / H lock. */
   lockRatio: false,
   /** A text object was just made: the Properties panel focuses its words. */

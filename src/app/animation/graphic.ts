@@ -97,6 +97,8 @@ export function graphicActions(
       });
       return { bytes: jpegWithDpi(jpeg, size.dpi), size, missing: [] };
     }
+    if (options.format !== 'png')
+      throw new EditError(`Saving as ${options.format.toUpperCase()} is not ready yet.`);
     const png = await (scaled ? renderer.renderPng(doc, 0, scaled) : renderer.renderPng(doc, 0));
     return { bytes: pngWithDpi(png, size.dpi), size, missing: [] };
   }

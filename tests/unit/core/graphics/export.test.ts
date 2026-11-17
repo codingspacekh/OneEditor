@@ -6,8 +6,12 @@ import { createBitmap } from '../../../../src/core/graphics/pixels/raster.ts';
 import { addObject, groupObjects } from '../../../../src/core/animation/layers.ts';
 import { createGraphic, defaultGraphic } from '../../../../src/core/graphics/document.ts';
 import {
+  COLOUR_DEPTHS,
+  colourDepth,
   exportPixels,
   FORMAT_INFO,
+  GRAPHIC_FORMATS,
+  keepsTransparency,
   imageOfObjects,
   imagesOfEach,
   imagesOfLayers,
@@ -187,5 +191,57 @@ describe('M21 G11: each layer in a file of its own (O/N/23)', () => {
     };
     doc = addObject(doc, doc.layers[1]!.id, shape);
     expect(imageOfObjects(doc, [shape.id]).layers.map((l) => l.name)).toEqual(['Logo']);
+  });
+});
+
+// M23: G11 the seven formats the syllabus names, each with the colour depths it can hold.
+describe('formats and colour depth (G11, M23)', () => {
+  it('names the seven formats of syllabus 19.1', () => {
+    expect([...GRAPHIC_FORMATS].sort()).toEqual(['bmp', 'gif', 'jpg', 'pdf', 'png', 'svg', 'tiff']);
+    expect(FORMAT_INFO.gif).toMatchObject({
+      kind: 'bitmap',
+      compression: 'lossless',
+      transparency: true,
+    });
+    expect(FORMAT_INFO.bmp).toMatchObject({
+      kind: 'bitmap',
+      compression: 'none',
+      transparency: false,
+    });
+    expect(FORMAT_INFO.tiff).toMatchObject({
+      kind: 'bitmap',
+      compression: 'lossless',
+      extension: 'tif',
+    });
+  });
+
+  it('gives each bitmap format the depths it can hold, the first its default', () => {
+    expect(COLOUR_DEPTHS.png).toEqual([32, 24, 8, 4, 1]);
+    expect(COLOUR_DEPTHS.gif).toEqual([8, 4, 1]);
+    expect(COLOUR_DEPTHS.bmp).toEqual([24, 32, 8, 4, 1]);
+    expect(COLOUR_DEPTHS.tiff).toEqual([24, 32, 8, 1]);
+    expect(COLOUR_DEPTHS.jpg).toEqual([24]);
+    expect(COLOUR_DEPTHS.svg).toEqual([]);
+    expect(colourDepth({ format: 'gif' })).toBe(8);
+    expect(colourDepth({ format: 'bmp', depth: 4 })).toBe(4);
+  });
+
+  it('refuses a depth the format cannot hold, in words', () => {
+    expect(() => colourDepth({ format: 'gif', depth: 24 })).toThrow(/A GIF holds 1, 4 or 8 bits/);
+    expect(() => colourDepth({ format: 'jpg', depth: 8 })).toThrow(EditError);
+    expect(() => colourDepth({ format: 'svg', depth: 8 })).toThrow(/has no colour depth/);
+  });
+
+  it('says when see-through parts are kept and when they go on the background', () => {
+    expect(keepsTransparency({ format: 'png' })).toBe(true);
+    expect(keepsTransparency({ format: 'png', depth: 24 })).toBe(false);
+    expect(keepsTransparency({ format: 'png', depth: 8 })).toBe(true);
+    expect(keepsTransparency({ format: 'gif' })).toBe(true);
+    expect(keepsTransparency({ format: 'gif', transparent: false })).toBe(false);
+    expect(keepsTransparency({ format: 'bmp', depth: 32 })).toBe(true);
+    expect(keepsTransparency({ format: 'bmp' })).toBe(false);
+    expect(keepsTransparency({ format: 'tiff', depth: 32 })).toBe(true);
+    expect(keepsTransparency({ format: 'jpg' })).toBe(false);
+    expect(keepsTransparency({ format: 'svg' })).toBe(true);
   });
 });
