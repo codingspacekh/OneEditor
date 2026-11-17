@@ -1,4 +1,14 @@
 {
+  "1.6.0": [
+    "Graphics mode is complete for syllabus 19: vector drawing, text, photos and pixels, retouching and every file format the syllabus names",
+    "Drawing: arcs, spirals and lines of many points; Convert to curves; the node tool (smooth, sharp and symmetrical points, join, break, simplify); Join, Cut out, Intersect and Exclude keeping curves; envelopes and perspective; pattern fills; step and repeat; mirror copies",
+    "Text: letter spacing, kerning and line spacing; sizes and outlines in points; text along any shape's outline or inside a shape; text converted to curves",
+    "Photos and pixels: pixel layers with opacity, blend modes, clipping and masks; selections (marquee, lassos, magnetic lasso, magic wand, colour range, from a shape), feathered; move, scale, turn, flip and skew pixels; paint, fill, erase",
+    "Retouching: clone stamp, heal brush, blur, sharpen, smudge and red eye; adjustments (levels, brightness and contrast, hue and saturation, colour balance, greyscale and more) and filters (blurs, sharpen, twirl, glow, shadow, bevel, stroke) with a live preview",
+    "Export as PNG, JPG, GIF, BMP, TIFF, SVG or PDF at the colour depth you choose (1, 4, 8, 24 or 32 bits), see-through or on a background, with the estimated file size; Image size warns when the resolution is too low to print",
+    "Learn ▸ Graphics: bitmap and vector, resolution and print size, colour systems, choosing a format, compression on your own picture; the task checker reads a picture's size, resolution, depth and format",
+    "A tidier screen: the tools grouped into families (hold or right-click a tool for the others), the selection options on one bar, a neater Layers panel, and the Properties of every mode lined up in even columns"
+  ],
   "1.5.3": [
     "The first update to arrive inside OneEditor: on 1.5.2 or later, a new version is announced when OneEditor opens (or with Help ▸ Check for Updates…); Download, and it is put in when you quit, with nothing to install from the website"
   ],
