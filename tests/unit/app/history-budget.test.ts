@@ -81,7 +81,16 @@ describe('GN1 (M23): the editor keeps its history within the budget', () => {
     const t = testApp();
     const g = createAnimationApp({
       dialogs: t.dialogs,
-      files: t.files,
+      files: {
+        read: async () => '',
+        write: async () => {},
+        remove: async () => {},
+        copy: async () => {},
+        saveImage: async () => '',
+        saveSound: async () => '',
+        writeBytes: async () => {},
+        readBytes: async () => new Uint8Array(),
+      },
       paths: { proxies: '/c', recovery: '/c/r.mve', snapshots: '/c', learn: '/c' },
       engine: t.engine,
       kind: GRAPHIC_KIND,
