@@ -101,6 +101,7 @@ export const FILTER_LABELS: Readonly<Record<FilterKind, string>> = {
   innerShadow: 'Inner shadow',
   glow: 'Glow',
   bevel: 'Bevel',
+  stroke: 'Stroke',
   blur: 'Blur',
 };
 
@@ -125,6 +126,8 @@ export function newFilter(kind: FilterKind): ObjectFilter {
         shadow: '#000000',
         opacity: 70,
       };
+    case 'stroke':
+      return { kind, colour: '#000000', width: 3, opacity: 100, position: 'outside' };
     case 'blur':
       return { kind, radius: 4 };
   }

@@ -127,7 +127,7 @@ _Made by `npm run guides` from `src/core/teaching/syllabus.ts` and the app's too
 | the need for different image resolutions, including the impact of having too low/high resolution for an image on screen or in print | Graphics ▸ File ▸ New Image… and the canvas chip at the top (size in px, cm, mm or in at a resolution; screen and print presets); Learn ▸ Graphics ▸ Resolution and print size, and Bitmap and vector (a zoom that pixelates the bitmap beside the vector) | Image size and resolution |
 | different bitmap and vector file formats, including their suitability and selection for use in a given scenario | Learn ▸ Graphics ▸ File formats (the seven formats side by side; choose a scenario — the web, print, a logo, transparency, animation — for the formats to use and to avoid, and why) | — |
 | exporting an image in different file formats | Graphics ▸ Export on the toolbar (PNG, JPG or SVG at a size, of the selection, or each object in its own file; the resolution is written into the file) | Export image |
-| changing solid and gradient fills; changing the opacity of all or part of an image | Graphics (and Animation) ▸ Properties ▸ Fill (solid, linear, radial or Pattern), Fill opacity and Outline opacity; Properties ▸ Filters for shadow, glow, bevel and blur | Pattern fill and opacity, Filters, Paint bucket and gradient |
+| changing solid and gradient fills; changing the opacity of all or part of an image | Graphics (and Animation) ▸ Properties ▸ Fill (solid, linear, radial or Pattern), Fill opacity and Outline opacity; Properties ▸ Filters for shadow, glow, bevel, stroke and blur | Pattern fill and opacity, Filters, Paint bucket and gradient |
 
 ## 19.2 Vector graphics
 

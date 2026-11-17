@@ -4,19 +4,21 @@
 // (a bite out of an apple, O/N/25), Intersect keeps only where they all overlap. The result keeps
 // the backmost shape's name, colours, outline and opacity; keyframes are not kept (it is a new
 // shape). Holes are kept as the path's holes (filled even-odd).
+// G1, B3 (Graphics benchmark, 2026-11-17): the result keeps the shapes' curves (three circles
+// joined are a few Bézier curves, boolean-curves.ts), and looks exactly as the back shape did: no
+// outline if it had none, its effects and fill opacity too.
 // G4 (M19): Exclude keeps where an odd number of them overlap; Combine makes one path of all
 // their outlines, curves kept, filled even-odd (where two overlap is a hole); Join meets two open
 // lines at their nearest ends (closed when their other ends meet too).
-import polygonClipping, { type MultiPolygon, type Polygon, type Ring } from 'polygon-clipping';
 import { EditError } from '../model/errors.ts';
 import type { Id } from '../model/types.ts';
+import { combineCurves, type BooleanHow } from '../graphics/boolean-curves.ts';
 import { pathOfShape } from '../graphics/curves.ts';
 import { createPath } from './factory.ts';
-import { flattenPath, flipObject, isClosed, isShape, localOutline, toStage } from './geometry.ts';
+import { flattenPath, flipObject, isClosed, isShape, toStage } from './geometry.ts';
 import { replaceObjects } from './layers.ts';
 import { anchorsOnStage } from './pen.ts';
 import type { AnimationDoc, AnimObject, PathObject, PathPoint } from './types.ts';
-import { applyEnvelope } from '../graphics/warp.ts';
 
 export { flipObject };
 
@@ -33,35 +35,12 @@ export const COMBINE_LABELS: Record<CombineHow, string> = {
 };
 const LABELS = COMBINE_LABELS;
 
-/** A shape's outline (and holes) on the stage, as rings for the clipping. */
-function polygonOf(shape: AnimObject): Polygon {
-  // GV4: a bent shape is combined as it is drawn, its envelope applied.
-  const o = shape.envelope ? applyEnvelope(shape) : shape;
-  const ring = (pts: { x: number; y: number }[]): Ring => pts.map((p) => [p.x, p.y]);
-  const outer = ring(localOutline(o).map((p) => toStage(o, p)));
-  const holes = o.kind === 'path' ? (o.holes ?? []) : [];
-  return [outer, ...holes.map((h) => ring(flattenPath(h, true).map((p) => toStage(o, p))))];
-}
-
-/** One clipped polygon as a pen shape with holes; its closing point (the first again) dropped. */
-function pathOf(polygon: Polygon, like: AnimObject): PathObject {
-  const open = (r: Ring) => {
-    const pts = r.map(([x, y]) => ({ x, y }));
-    const [a, b] = [pts[0]!, pts.at(-1)!];
-    return a.x === b.x && a.y === b.y ? pts.slice(0, -1) : pts;
-  };
-  const [outer, ...holes] = polygon.map(open);
-  const shape = createPath(outer!, true, like.name);
-  const local = (pts: { x: number; y: number }[]) =>
-    pts.map((p) => ({ x: p.x - shape.x, y: p.y - shape.y }));
-  return {
-    ...shape,
-    fill: like.fill,
-    opacity: like.opacity,
-    ...(like.stroke ? { stroke: like.stroke } : {}),
-    ...(holes.length ? { holes: holes.map(local) } : {}),
-  };
-}
+const CLIPPING: Record<'union' | 'cutOut' | 'intersect' | 'exclude', BooleanHow> = {
+  union: 'union',
+  cutOut: 'difference',
+  intersect: 'intersection',
+  exclude: 'xor',
+};
 
 /** The shapes, back to front, combined: one or more new pen shapes. */
 export function combineShapes(objects: readonly AnimObject[], how: CombineHow): PathObject[] {
@@ -73,15 +52,8 @@ export function combineShapes(objects: readonly AnimObject[], how: CombineHow): 
       'Only shapes can be combined: not text, pictures, buttons, groups or open lines.',
     );
   if (how === 'combine') return [compoundOf(objects)];
-  const [back, ...front] = objects.map(polygonOf) as [Polygon, ...Polygon[]];
-  const result: MultiPolygon =
-    how === 'union'
-      ? polygonClipping.union(back, ...front)
-      : how === 'cutOut'
-        ? polygonClipping.difference(back, ...front)
-        : how === 'exclude'
-          ? polygonClipping.xor(back, ...front)
-          : polygonClipping.intersection(back, ...front);
+  // The outlines as the stage shows them (turned, flipped, bent), their curves kept.
+  const result = combineCurves(objects.map(ringsOf), CLIPPING[how]);
   if (result.length === 0)
     throw new EditError(
       how === 'intersect'
@@ -90,7 +62,7 @@ export function combineShapes(objects: readonly AnimObject[], how: CombineHow): 
           ? 'The shapes cover each other exactly, so nothing would be left.'
           : 'Nothing would be left of the shape at the back.',
     );
-  return result.map((polygon) => pathOf(polygon, objects[0]!));
+  return result.map((rings) => penPath(rings, true, objects[0]!));
 }
 
 const mapAnchor = (p: PathPoint, f: (q: { x: number; y: number }) => { x: number; y: number }) => ({
@@ -120,9 +92,11 @@ function penPath(rings: PathPoint[][], closed: boolean, like: AnimObject): PathO
     opacity: like.opacity,
     ...(holes.length ? { holes } : {}),
   };
-  // Its outline as the back one's: none if it had none.
+  // B3: its outline as the back one's (none if it had none), its effects and fill opacity too.
   if (like.stroke) made.stroke = like.stroke;
   else delete made.stroke;
+  if (like.filters?.length) made.filters = like.filters;
+  if (like.fillOpacity !== undefined) made.fillOpacity = like.fillOpacity;
   return made;
 }
 

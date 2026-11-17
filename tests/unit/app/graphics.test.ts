@@ -31,7 +31,12 @@ describe('a new image (G1)', () => {
     const a4 = IMAGE_PRESETS.find((p) => p.name === 'A4 portrait')!;
     expect(await s.g.newImage({ name: 'TTS10', size: a4, background: 'none' })).toBeNull();
     expect(s.doc().stage).toMatchObject({ width: 2480, height: 3508, background: 'none' });
-    expect(s.doc().graphic).toEqual({ dpi: 300, units: 'cm' });
+    // G6 (benchmark): the printed size typed is kept too.
+    expect(s.doc().graphic).toEqual({
+      dpi: 300,
+      units: 'cm',
+      size: { width: 21, height: 29.7, units: 'cm' },
+    });
   });
 
   it('says why a size cannot be made, and keeps the image there was', async () => {
@@ -73,7 +78,8 @@ describe('the image file (G1)', () => {
     await s.g.newAnimation();
     s.dialogs.openGraphic.mockResolvedValueOnce('/work/HeronV10cm.mveg');
     await s.g.open();
-    expect(s.doc().graphic).toEqual({ dpi: 300, units: 'cm' });
+    expect(s.doc().graphic).toMatchObject({ dpi: 300, units: 'cm' });
+    expect(s.doc().graphic?.size).toEqual({ width: 10, height: 10, units: 'cm' });
     expect(s.objects()).toHaveLength(1);
   });
 
@@ -103,11 +109,12 @@ describe('the canvas (G1, G8)', () => {
     s.g.addShape('ellipse', { x: 300, y: 200, width: 60, height: 60 });
     s.g.select([]);
     s.g.cropCanvas('drawing');
-    expect(s.doc().stage).toMatchObject({ width: 260, height: 180 });
-    expect(s.objects()[0]).toMatchObject({ x: 0, y: 0 });
+    // B7: the shapes' 2 px outlines are inside too (their outer half, 1 px round each).
+    expect(s.doc().stage).toMatchObject({ width: 262, height: 182 });
+    expect(s.objects()[0]).toMatchObject({ x: 1, y: 1 });
     s.g.select([first]);
     s.g.cropCanvas('selection');
-    expect(s.doc().stage).toMatchObject({ width: 50, height: 40 });
+    expect(s.doc().stage).toMatchObject({ width: 52, height: 42 });
   });
 
   it('says when there is nothing to crop to', () => {
@@ -217,7 +224,8 @@ describe('export (G10, G11)', () => {
     await s.g.exportImage({ format: 'png', what: 'selection' });
     expect(s.dialogs.exportGraphic).toHaveBeenCalledWith('Rectangle', 'png');
     const [drawn] = s.stageRenderer.renderPng.mock.calls.at(-1)!;
-    expect(drawn.stage).toMatchObject({ width: 300, height: 200, background: 'none' });
+    // B7: with its 2 px outline's outer half.
+    expect(drawn.stage).toMatchObject({ width: 302, height: 202, background: 'none' });
     expect(drawn.layers[0]!.objects).toHaveLength(1);
   });
 
@@ -238,7 +246,8 @@ describe('export (G10, G11)', () => {
       '/work/parts/Surround_ZZ999_9999.svg',
       '/work/parts/Needle_ZZ999_9999.svg',
     ]);
-    expect(s.disk.get('/work/parts/Needle_ZZ999_9999.svg')).toMatch(/width="60" height="60"/);
+    // B7: with its 2 px outline's outer half.
+    expect(s.disk.get('/work/parts/Needle_ZZ999_9999.svg')).toMatch(/width="62" height="62"/);
     expect(s.message()).toBe('Saved Surround_ZZ999_9999.svg, Needle_ZZ999_9999.svg.');
   });
 

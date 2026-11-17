@@ -5,18 +5,22 @@
 // given them. A pure function; the command makes it one undo step.
 import { validateFilters } from '../../animation/rules.ts';
 import type { AnimationDoc, Id, ObjectFilter } from '../../animation/types.ts';
-import { pixelLayerOf } from './layers.ts';
+import { EditError } from '../../model/errors.ts';
 
 /**
- * The pixel layer's effects, drawn in order (none: an empty list or undefined, kept off the
- * layer). Refused on a vector layer, or with numbers out of range (as an object's).
+ * The layer's effects, drawn in order (none: an empty list or undefined, kept off the layer).
+ * G10 (M23): a vector layer has them too, made from all its objects together (a clipping base's
+ * from the whole group: M/21's globe outlined round the map clipped into it). Refused on a mask
+ * layer (not drawn), or with numbers out of range (as an object's).
  */
 export function setLayerEffects(
   doc: AnimationDoc,
   id: Id,
   effects: readonly ObjectFilter[] | undefined,
 ): AnimationDoc {
-  const layer = pixelLayerOf(doc, id);
+  const layer = doc.layers.find((l) => l.id === id);
+  if (!layer) throw new EditError('Choose a layer first.');
+  if (layer.mask) throw new EditError('A mask layer is not drawn, so it has no effects.');
   const list = effects ?? [];
   validateFilters(list, 'A layer');
   if (!list.length && !layer.effects) return doc;

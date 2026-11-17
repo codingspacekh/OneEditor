@@ -313,7 +313,7 @@ describe('G14 effects on the canvas', () => {
 
   it('G14: every kind of effect starts with numbers that are allowed, and has a name', () => {
     const rect = createRect({ x: 0, y: 0, width: 10, height: 10 });
-    expect(FILTER_KINDS).toEqual(['dropShadow', 'innerShadow', 'glow', 'bevel', 'blur']);
+    expect(FILTER_KINDS).toEqual(['dropShadow', 'innerShadow', 'glow', 'bevel', 'stroke', 'blur']);
     for (const kind of FILTER_KINDS) {
       expect(FILTER_LABELS[kind]).toBeTruthy();
       expect(newFilter(kind).kind).toBe(kind);
@@ -334,6 +334,13 @@ describe('G14 effects on the canvas', () => {
     expect(bad({ ...newFilter('bevel'), shadow: '#12' })).toThrow(/colour/);
     expect(bad({ kind: 'blur', radius: 1000 })).toThrow(/blur/);
     expect(bad({ kind: 'sparkle' })).toThrow(/Choose one of the filters/);
+    // G10 (M23): a stroke's width and where it lies.
+    expect(bad({ ...newFilter('stroke'), width: 0 })).toThrow(/stroke effect's width/);
+    expect(bad({ ...newFilter('stroke'), width: 300 })).toThrow(/stroke effect's width/);
+    expect(bad({ ...newFilter('stroke'), position: 'around' })).toThrow(
+      /outside, centred or inside/,
+    );
+    expect(bad({ ...newFilter('stroke'), colour: 'red' })).toThrow(/filter's colour/);
     expect(() =>
       validateObject({ ...rect, filters: Array.from({ length: 11 }, () => shadow) }),
     ).toThrow(/up to 10 filters/);
@@ -354,5 +361,18 @@ describe('G14 effects on the canvas', () => {
     expect(shadowDeviation(8)).toBe(4);
     expect(rgba('#ff8000', 50)).toBe('rgba(255, 128, 0, 0.5)');
     expect(rgba('#000000', 140)).toBe('rgba(0, 0, 0, 1)');
+  });
+});
+
+describe('G10 (M23, Graphics benchmark M/21): a stroke effect round what is drawn', () => {
+  it('G10 a new stroke: 3 px black, outside, wholly opaque; named Stroke', () => {
+    expect(newFilter('stroke')).toEqual({
+      kind: 'stroke',
+      colour: '#000000',
+      width: 3,
+      opacity: 100,
+      position: 'outside',
+    });
+    expect(FILTER_LABELS.stroke).toBe('Stroke');
   });
 });

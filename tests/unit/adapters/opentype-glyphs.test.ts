@@ -10,6 +10,7 @@ import {
   fontGlyphs,
 } from '../../../src/adapters/fonts/opentype-glyphs.ts';
 import { readGlyphVariations, scalarOf } from '../../../src/adapters/fonts/gvar.ts';
+import { parse as parseFont } from 'opentype.js/dist/opentype.mjs';
 import { createText } from '../../../src/core/animation/factory.ts';
 import type { PathObject } from '../../../src/core/animation/types.ts';
 import type { FontGlyphs } from '../../../src/core/graphics/glyphs.ts';
@@ -248,5 +249,55 @@ describe('fonts handed over as data: URLs', () => {
   it('base64 or plain', () => {
     expect([...dataUrlBytes('data:font/ttf;base64,AAEC')]).toEqual([0, 1, 2]);
     expect(new TextDecoder().decode(dataUrlBytes('data:text/plain,a%20b'))).toBe('a b');
+  });
+});
+
+describe('G4 (benchmark 2026-11-17): only the letters used go inside an SVG', () => {
+  /** The letter's outline in px from a font file: y down from the baseline, as outline() gives it. */
+  const outlineIn = (bytes: Uint8Array, char: string, size: number) => {
+    const font = parseFont(new Uint8Array(bytes).buffer);
+    const glyph = font.charToGlyph(char)!;
+    return { font, glyph, path: glyph.getPath(0, 0, size).commands };
+  };
+  const box = (cmds: readonly object[]) => {
+    const at = cmds as { x?: number; y?: number }[];
+    const xs = at.flatMap((c) => (c.x === undefined ? [] : [c.x]));
+    const ys = at.flatMap((c) => (c.y === undefined ? [] : [c.y]));
+    return [Math.min(...xs), Math.max(...xs), Math.min(...ys), Math.max(...ys)];
+  };
+
+  it('Inter at a size: a small font of just those letters, the same outlines and advances', async () => {
+    const inter = (await source().glyphs.load('Inter', false, false))!;
+    const bytes = inter.subset!('OE Inter 400 48', 'Villa Villa', 48);
+    // The whole variable font is 880 KB; five letters are a few.
+    expect(bytes.length).toBeLessThan(12_000);
+    const { font, glyph, path } = outlineIn(bytes, 'V', 48);
+    expect(font.charToGlyph('b')?.index ?? 0).toBe(0);
+    near(box(path), box(inter.outline('V', 48)), 0.05);
+    expect(((glyph.advanceWidth ?? 0) * 48) / font.unitsPerEm).toBeCloseTo(
+      inter.advance('V', 48),
+      1,
+    );
+    // A space keeps its width.
+    const space = font.charToGlyph(' ')!;
+    expect(((space.advanceWidth ?? 0) * 48) / font.unitsPerEm).toBeCloseTo(
+      inter.advance(' ', 48),
+      1,
+    );
+  });
+
+  it('bold at weight 700 and a slanted font without an italic file keep their own letters', async () => {
+    const bold = (await source().glyphs.load('Inter', true, false))!;
+    near(
+      box(outlineIn(bold.subset!('b', 'H', 64), 'H', 64).path),
+      box(bold.outline('H', 64)),
+      0.05,
+    );
+    const slanted = (await source().glyphs.load('Anton', false, true))!;
+    near(
+      box(outlineIn(slanted.subset!('s', 'H', 64), 'H', 64).path),
+      box(slanted.outline('H', 64)),
+      0.05,
+    );
   });
 });

@@ -24,6 +24,12 @@ export interface FontGlyphs {
   outline(char: string, size: number): GlyphCommand[];
   /** How far the letter moves the pen on, in px at `size`. */
   advance(char: string, size: number): number;
+  /**
+   * G4 (benchmark 2026-11-17): a font file (OpenType) of just the letters of `text`, as this font
+   * draws them at `size` (its weight, slant and optical size), named `family`: what an SVG carries
+   * instead of the whole font file (1 MB for Inter).
+   */
+  subset?(family: string, text: string, size: number): Uint8Array;
 }
 
 /** GT4 (D10): where the letters' outlines come from. */

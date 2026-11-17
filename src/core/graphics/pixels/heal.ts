@@ -180,6 +180,98 @@ export function solveMembrane(
   sweep(w, h, state, values, n, inside, inside.length > BIG_LEVEL ? BIG_SWEEPS : SWEEPS);
 }
 
+/** A border difference this far (levels) from the rest's plane is a stray; never less. */
+const STRAY = 60;
+/** …and at least this many times the border's usual spread (its median distance). */
+const STRAY_SPREAD = 4 * 1.4826;
+/** Strays are left out only while they are fewer than this share of the border. */
+const STRAYS_AT_MOST = 0.4;
+
+const medianOf = (xs: Float32Array): number => {
+  if (xs.length === 0) return 0;
+  const sorted = Float32Array.from(xs).sort();
+  return sorted[sorted.length >> 1]!;
+};
+
+/**
+ * B5: border points whose difference between destination and copy is far out of line with the
+ * rest of the border's (a plane through them: the light changes evenly across a sky) have no say.
+ * There the copy or the destination is something else — the source's border on the object being
+ * removed (a big brush with the source near it), a lamp post beside the stroke — and spread
+ * inside, that difference is a glare or a smear. Fitted robustly: first round the medians, then a
+ * plane through the points kept, twice. Nothing is left out if the strays would be too many.
+ */
+export function leaveOutStrays(w: number, state: Uint8Array, values: Float32Array, n: number) {
+  const known: number[] = [];
+  for (let p = 0; p < state.length; p++) if (state[p] === KNOWN) known.push(p);
+  if (known.length < 16) return;
+  const m = known.length;
+  // The fit, a channel: v ≈ a + b x + c y (b = c = 0 at first: the medians).
+  const fit = Array.from({ length: n }, (_, c) => {
+    const vs = new Float32Array(m);
+    for (let j = 0; j < m; j++) vs[j] = values[known[j]! * n + c]!;
+    return [medianOf(vs), 0, 0];
+  });
+  const residual = new Float32Array(m);
+  const keep = new Uint8Array(m).fill(1);
+  const measure = () => {
+    for (let j = 0; j < m; j++) {
+      const p = known[j]!;
+      const [x, y] = [p % w, Math.floor(p / w)];
+      let r = 0;
+      for (let c = 0; c < n; c++) {
+        const [a, b, cc] = fit[c]!;
+        r = Math.max(r, Math.abs(values[p * n + c]! - (a! + b! * x + cc! * y)));
+      }
+      residual[j] = r;
+    }
+    const kept = residual.filter((_, j) => keep[j] === 1);
+    const limit = Math.max(STRAY, STRAY_SPREAD * medianOf(kept));
+    for (let j = 0; j < m; j++) keep[j] = residual[j]! <= limit ? 1 : 0;
+  };
+  const refit = () => {
+    for (let c = 0; c < n; c++) {
+      // Least squares over the points kept: the normal equations, 3 × 3.
+      let [s1, sx, sy, sxx, sxy, syy, sv, sxv, syv] = [0, 0, 0, 0, 0, 0, 0, 0, 0];
+      for (let j = 0; j < m; j++) {
+        if (!keep[j]) continue;
+        const p = known[j]!;
+        const [x, y, v] = [p % w, Math.floor(p / w), values[p * n + c]!];
+        s1++;
+        sx += x;
+        sy += y;
+        sxx += x * x;
+        sxy += x * y;
+        syy += y * y;
+        sv += v;
+        sxv += x * v;
+        syv += y * v;
+      }
+      const det = (a: number[]) =>
+        a[0]! * (a[4]! * a[8]! - a[5]! * a[7]!) -
+        a[1]! * (a[3]! * a[8]! - a[5]! * a[6]!) +
+        a[2]! * (a[3]! * a[7]! - a[4]! * a[6]!);
+      const A = [s1, sx, sy, sx, sxx, sxy, sy, sxy, syy];
+      const d = det(A);
+      if (s1 < 3 || Math.abs(d) < 1e-6) continue; // a line of points: keep the medians
+      fit[c] = [
+        det([sv, sx, sy, sxv, sxx, sxy, syv, sxy, syy]) / d,
+        det([s1, sv, sy, sx, sxv, sxy, sy, syv, syy]) / d,
+        det([s1, sx, sv, sx, sxx, sxv, sy, sxy, syv]) / d,
+      ];
+    }
+  };
+  measure();
+  for (let round = 0; round < 2; round++) {
+    refit();
+    measure();
+  }
+  let strays = 0;
+  for (let j = 0; j < m; j++) if (!keep[j]) strays++;
+  if (strays === 0 || strays > STRAYS_AT_MOST * m) return;
+  for (let j = 0; j < m; j++) if (!keep[j]) state[known[j]!] = VOID;
+}
+
 /** The healed pixels over a box of the target, to be laid as a clone's are. */
 export interface Healed {
   x: number;
@@ -235,15 +327,23 @@ export function healStroke(
       const gx = x0 + x - weights.x;
       const gy = y0 + y - weights.y;
       const inBox = gx >= 0 && gy >= 0 && gx < weights.width && gy < weights.height;
-      if (inBox && weights.values[gy * weights.width + gx]! > 0) {
-        state[p] = INSIDE;
-        continue;
-      }
       if (sel && sel[p] === 0) continue; // VOID
+      if (inBox && weights.values[gy * weights.width + gx]! > 0) {
+        // B4: under the stroke, a pixel on a feathered selection's soft edge (less than half
+        // selected) is mostly kept as it was, so the heal is matched to it there, as round the
+        // stroke: without it, strokes that cover the whole feathered selection have no border
+        // inside it, and the copy shows (a lighter disc, a rim). A hard edge stays a wall: a
+        // selection drawn tight round the rubbish does not borrow the rubbish.
+        if (!sel || sel[p]! >= 128) {
+          state[p] = INSIDE;
+          continue;
+        }
+      }
       if (c === 4 && (dest[p * 4 + 3] === 0 || copy[p * 4 + 3] === 0)) continue; // VOID
       state[p] = KNOWN;
       for (let ch = 0; ch < n; ch++) values[p * n + ch] = dest[p * c + ch]! - copy[p * c + ch]!;
     }
+  leaveOutStrays(w, state, values, n);
   smoothKnown(w, h, state, values, n, BORDER_MEAN);
   solveMembrane(w, h, state, values, n);
 

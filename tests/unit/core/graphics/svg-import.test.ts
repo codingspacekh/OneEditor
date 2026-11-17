@@ -399,17 +399,17 @@ describe('GV6: gradients', () => {
     expect(flat.stroke?.colour).toBe('#ff0000');
   });
 
-  it('see-through stops are made solid, and an outline gradient one colour, with notes', () => {
-    const { notes } = readSvg(
+  it('G8 (M23): see-through stops keep their opacity (#rrggbbaa); an outline gradient becomes one colour, noted', () => {
+    const { objects, notes } = readSvg(
       svg(
         '<linearGradient id="g"><stop stop-color="red" stop-opacity="0.5"/><stop offset="1" stop-color="#00f8"/></linearGradient>' +
           '<rect width="5" height="5" fill="url(#g)" stroke="url(#g)"/>',
       ),
     );
-    expect(notes).toEqual([
-      'A gradient outline became one colour.',
-      'See-through colours in a gradient became solid.',
-    ]);
+    expect(objects[0]!.fill).toMatchObject({ kind: 'linear', from: '#ff000080', to: '#0000ff88' });
+    // The outline is one colour, without the see-through (it has its own opacity).
+    expect(objects[0]!.stroke?.colour).toBe('#ff0000');
+    expect(notes).toEqual(['A gradient outline became one colour.']);
   });
 
   it('a pattern fill becomes the colour of its part on top, noted', () => {

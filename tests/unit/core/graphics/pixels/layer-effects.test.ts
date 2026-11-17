@@ -127,9 +127,11 @@ describe('M22 G14: a pixel layer’s effects set on it', () => {
     expect(setLayerEffects(doc, 'Moon', [GLOW]).layers[0]!.effects).toEqual([GLOW]);
   });
 
-  it('refuses a vector layer and numbers out of range, as an object’s', () => {
-    const doc = image([rects('Logo'), photo('Moon')]);
-    expect(() => setLayerEffects(doc, doc.layers[0]!.id, [GLOW])).toThrow(/pixel layer/);
+  it('G10 (M23, M/21 globe): a vector layer has them too; a mask layer does not; numbers out of range are refused, as an object’s', () => {
+    const doc = image([rects('Logo'), photo('Moon'), rects('Mask', { mask: true })]);
+    const stroke = newFilter('stroke');
+    expect(setLayerEffects(doc, doc.layers[0]!.id, [stroke]).layers[0]!.effects).toEqual([stroke]);
+    expect(() => setLayerEffects(doc, doc.layers[2]!.id, [GLOW])).toThrow(/mask layer/);
     expect(() => setLayerEffects(doc, 'Moon', [{ ...GLOW, opacity: 140 }])).toThrow(/opacity/);
     expect(() => setLayerEffects(doc, 'Moon', [{ ...GLOW, blur: -1 }])).toThrow(/blur/);
     expect(() =>
@@ -220,10 +222,28 @@ describe('M22 G14: a pixel layer drawn with its effects', () => {
     expect(bare.calls).toEqual(['{ effects glow', 'bitmap Moon at 1,2 alpha 1 source-over', '}']);
   });
 
-  it('leaves a vector layer’s effects (not allowed in a file) undrawn', () => {
+  it('G10 (M23): draws a vector layer’s effects from all its objects together', () => {
     const { ctx, calls } = recorder();
     drawStage(ctx, image([rects('Logo', { effects: [GLOW] })]));
-    expect(calls).toEqual(['fill alpha 1']);
+    expect(calls).toEqual(['{ effects glow', 'fill alpha 1', '}']);
+  });
+
+  it('G10 (M23, M/21 globe): a vector base’s stroke goes round the whole clipping group', () => {
+    const { ctx, calls } = recorder();
+    const stroke = newFilter('stroke');
+    drawStage(ctx, image([rects('Globe', { effects: [stroke] }), photo('Map', { clip: true })]));
+    expect(calls).toEqual([
+      '[ layer 1',
+      '{ effects stroke',
+      '[ layer 1',
+      'fill alpha 1',
+      '[ layer 1 clip',
+      'bitmap Map at 1,2 alpha 1 source-over',
+      ']',
+      ']',
+      '}',
+      ']',
+    ]);
   });
 });
 
@@ -267,13 +287,14 @@ describe('M22 G14: a pixel layer’s effects in the file', () => {
     expect(read(doc, text).layers[0]!.effects).toEqual(doc.layers[0]!.effects);
   });
 
-  it('refuses damaged ones, and effects on a vector layer', () => {
+  it('refuses damaged ones; G10 (M23): keeps a vector layer’s', () => {
     const doc = image([photo('Moon', { effects: [GLOW] })]);
     const damaged = serializeAnimation(doc).replace('"glow"', '"sparkle"');
     expect(() => read(doc, damaged)).toThrow(/damaged/);
-    const text = JSON.parse(serializeAnimation(image([rects('Logo')])));
-    text.layers[0].effects = [GLOW];
-    expect(() => deserializeAnimation(JSON.stringify(text))).toThrow(/damaged/);
+    const logo = image([rects('Logo', { effects: [newFilter('stroke')] })]);
+    expect(deserializeAnimation(serializeAnimation(logo)).layers[0]!.effects).toEqual([
+      newFilter('stroke'),
+    ]);
     const notList = JSON.parse(serializeAnimation(doc));
     notList.layers[0].effects = GLOW;
     expect(() => read(doc, JSON.stringify(notList))).toThrow(/damaged/);
@@ -286,6 +307,23 @@ describe('M22 G14: a layer with effects merged into pixels', () => {
   const blue = solid(2, 2, [0, 0, 255, 255]);
   /** What the renderer drew: the canvas (8 × 6) in one colour. */
   const drawn = (rgba: number[]) => solid(8, 6, rgba);
+
+  it('G10 (M23): a vector base with effects is drawn with the layers clipped to it, once', () => {
+    const doc = image([
+      rects('Globe', { effects: [newFilter('stroke')] }),
+      photo('Map', { clip: true }),
+    ]);
+    const globe = doc.layers[0]!.id;
+    expect(mergePlan(doc, 'flatten', 'Map')).toEqual({
+      ids: [globe, 'Map'],
+      vector: [globe],
+      effects: [],
+    });
+    expect(layerAlone(doc, globe, [globe, 'Map']).layers.map((l) => l.name)).toEqual([
+      'Globe',
+      'Map',
+    ]);
+  });
 
   it('asks for it to be drawn with its effects by the renderer, on the canvas', () => {
     const moon = photo('Moon', { pixels: at(3, 3, red), effects: [GLOW], opacity: 0.5 });

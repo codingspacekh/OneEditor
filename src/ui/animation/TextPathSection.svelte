@@ -23,8 +23,9 @@
   const anim = $derived(editor.anim);
 
   const SIDES: [TextSide, string][] = [
-    ['outside', 'Outside: standing on it'],
-    ['inside', 'Inside: hanging under it'],
+    // G12: outside or inside a shape (above or under a line as drawn), flipped or not.
+    ['outside', 'Outside the shape (above a line)'],
+    ['inside', 'Inside the shape (under a line)'],
     ['centred', 'Centred: through the letters'],
   ];
 

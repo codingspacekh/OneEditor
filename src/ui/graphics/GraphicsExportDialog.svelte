@@ -16,6 +16,7 @@
     GRAPHIC_FORMATS,
     imageOfObjects,
     keepsTransparency,
+    rememberedDepths,
     type ColourDepth,
     type ExportSize,
     type ExportWhat,
@@ -51,7 +52,10 @@
   let background = $state(doc.stage.background === TRANSPARENT ? '#ffffff' : doc.stage.background);
   let busy = $state(false);
   // M23: the bitmap choices, as last made.
-  let depths: Partial<Record<GraphicFormat, ColourDepth>> = $state({ ...animUi.graphicDepths });
+  // Not a depth that would lose see-through parts the image has (benchmark G11).
+  let depths: Partial<Record<GraphicFormat, ColourDepth>> = $state(
+    rememberedDepths(animUi.graphicDepths, doc.stage.background === TRANSPARENT),
+  );
   let palette: 'colours' | 'greys' = $state(animUi.graphicPalette);
   // 1 bit has its own choice: black and white unless the image's own two colours are chosen.
   let palette1: 'colours' | 'greys' = $state(animUi.graphicPalette1);

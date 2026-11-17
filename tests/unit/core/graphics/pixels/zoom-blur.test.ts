@@ -8,7 +8,7 @@
 // picture the edge facing it differs the most (the whole is moved in from past the edge). (The
 // time on 12 megapixels is measured in tests/e2e/pixels-performance.spec.ts: 5.3 s before, 2.5 s
 // now in Node.)
-import { describe, expect, it } from 'vitest';
+import { describe, expect, it, vi } from 'vitest';
 import type { Point } from '../../../../../src/core/animation/geometry.ts';
 import { zoomBlur } from '../../../../../src/core/graphics/pixels/filters.ts';
 import {
@@ -17,6 +17,9 @@ import {
   readRegion,
   type Raster,
 } from '../../../../../src/core/graphics/pixels/raster.ts';
+
+// The reference streaks are slow on a busy computer running every file at once (coverage).
+vi.setConfig({ testTimeout: 90_000 });
 
 const W = 160;
 const H = 100;
@@ -66,15 +69,22 @@ function direct(r: Raster, centre: Point, amount: number): Float64Array {
         const y0 = Math.floor(v);
         const fx = u - x0;
         const fy = v - y0;
-        const xs = [clamp(x0, W - 1), clamp(x0 + 1, W - 1)];
-        const ys = [clamp(y0, H - 1), clamp(y0 + 1, H - 1)];
+        // (No arrays made per sample: 16 million samples, slow under coverage otherwise.)
+        const xa = clamp(x0, W - 1);
+        const xb = clamp(x0 + 1, W - 1);
+        const ya = clamp(y0, H - 1) * W;
+        const yb = clamp(y0 + 1, H - 1) * W;
+        const w00 = (1 - fx) * (1 - fy);
+        const w10 = fx * (1 - fy);
+        const w01 = (1 - fx) * fy;
+        const w11 = fx * fy;
         for (let ch = 0; ch < c; ch++)
           acc[ch] =
             acc[ch]! +
-            pre[(ys[0]! * W + xs[0]!) * c + ch]! * (1 - fx) * (1 - fy) +
-            pre[(ys[0]! * W + xs[1]!) * c + ch]! * fx * (1 - fy) +
-            pre[(ys[1]! * W + xs[0]!) * c + ch]! * (1 - fx) * fy +
-            pre[(ys[1]! * W + xs[1]!) * c + ch]! * fx * fy;
+            pre[(ya + xa) * c + ch]! * w00 +
+            pre[(ya + xb) * c + ch]! * w10 +
+            pre[(yb + xa) * c + ch]! * w01 +
+            pre[(yb + xb) * c + ch]! * w11;
       }
       const o = (y * W + x) * c;
       const alpha = c === 4 ? acc[3]! / N : 255;

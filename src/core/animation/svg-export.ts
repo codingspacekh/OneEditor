@@ -8,7 +8,7 @@ import { drawStage, type CanvasGradientLike, type LayerHow, type StageCanvas } f
 import type { Bitmap } from '../graphics/pixels/raster.ts';
 import type { AnimationDoc, Id, ObjectFilter } from './types.ts';
 import { bevelShadows, shadowDeviation, type PatternTile } from './appearance.ts';
-import { fontFaceRule, genericFamily, type FontFile } from '../text/fonts.ts';
+import { fontFaceRule, genericFamily, subsetFaceRule, type FontFile } from '../text/fonts.ts';
 
 type Matrix = [number, number, number, number, number, number];
 
@@ -64,7 +64,12 @@ class Gradient implements CanvasGradientLike {
     this.base = base;
   }
   addColorStop(offset: number, colour: string): void {
-    this.stops.push(`<stop offset="${n(offset)}" stop-color="${escape(colour)}"/>`);
+    // G8 (M23): a colour with its own opacity as stop-opacity (not every reader takes #rrggbbaa).
+    const alpha = /^#[0-9a-f]{8}$/i.test(colour) ? parseInt(colour.slice(7), 16) / 255 : 1;
+    const own = alpha < 1 ? ` stop-opacity="${n(alpha)}"` : '';
+    this.stops.push(
+      `<stop offset="${n(offset)}" stop-color="${escape(alpha < 1 ? colour.slice(0, 7) : colour)}"${own}/>`,
+    );
   }
   /**
    * AN6: the gradient for an element placed by the transform `m` (text): an SVG reads its
@@ -186,6 +191,35 @@ function filterSvg(id: string, filters: readonly ObjectFilter[], width: number, 
         inner(r, shade);
         break;
       }
+      case 'stroke': {
+        // G10 (M23): outside: the shape grown by the width, under it; inside: the ring between
+        // its edge and the shape shrunk, over it; centred: half each way, over it.
+        const out = f.position === 'outside' ? f.width : f.position === 'centred' ? f.width / 2 : 0;
+        const inn = f.position === 'inside' ? f.width : f.position === 'centred' ? f.width / 2 : 0;
+        parts.push(flood(f.colour, f.opacity, `${r}c`));
+        if (out > 0)
+          parts.push(
+            `<feMorphology in="${input}" operator="dilate" radius="${n(out)}" result="${r}d"/>`,
+          );
+        if (inn > 0)
+          parts.push(
+            `<feMorphology in="${input}" operator="erode" radius="${n(inn)}" result="${r}e"/>`,
+          );
+        if (inn === 0) {
+          parts.push(
+            `<feComposite in="${r}c" in2="${r}d" operator="in" result="${r}s"/>`,
+            `<feMerge result="${r}"><feMergeNode in="${r}s"/><feMergeNode in="${input}"/></feMerge>`,
+          );
+        } else {
+          parts.push(
+            `<feComposite in="${r}c" in2="${out > 0 ? `${r}d` : input}" operator="in" result="${r}f"/>`,
+            `<feComposite in="${r}f" in2="${r}e" operator="out" result="${r}s"/>`,
+            `<feMerge result="${r}"><feMergeNode in="${input}"/><feMergeNode in="${r}s"/></feMerge>`,
+          );
+        }
+        input = r;
+        break;
+      }
     }
   });
   return (
@@ -216,15 +250,19 @@ class SvgCanvas implements StageCanvas {
   private readonly textTops: Readonly<Record<string, number>>;
   /** G2, GB1 (M21): each pixel layer's PNG (its mask applied) as a data URL, by layer id. */
   private readonly bitmaps: Readonly<Record<string, string>>;
+  /** G4: the small font made for each canvas font used (its letters only), by font string. */
+  private readonly subsets: Readonly<Record<string, string>>;
   /** AN26: how wide words are in a font, as the stage measures them (curved text). */
   measureText?: (text: string) => { width: number };
   constructor(
     textTops: Readonly<Record<string, number>> = {},
     measure?: (font: string, text: string) => number,
     bitmaps: Readonly<Record<string, string>> = {},
+    subsets: Readonly<Record<string, string>> = {},
   ) {
     this.textTops = textTops;
     this.bitmaps = bitmaps;
+    this.subsets = subsets;
     if (measure) this.measureText = (text) => ({ width: measure(this.font, text) });
   }
 
@@ -614,8 +652,11 @@ class SvgCanvas implements StageCanvas {
           : this.textBaseline === 'middle'
             ? 'central'
             : 'alphabetic';
+    // G4: the font made of just the letters used first, where there is one.
+    const subset = this.subsets[this.font];
+    const families = `${subset ? `'${escape(subset)}', ` : ''}'${escape(family ?? '')}'`;
     const fontAttrs = font
-      ? ` font-family="'${escape(family!)}', ${genericFamily(family!)}" font-size="${size}" font-weight="${weight}"${italic ? ' font-style="italic"' : ''}`
+      ? ` font-family="${families}, ${genericFamily(family!)}" font-size="${size}" font-weight="${weight}"${italic ? ' font-style="italic"' : ''}`
       : '';
     this.body.push(
       `<text x="${n(x)}" y="${n(y)}"${fontAttrs} text-anchor="${anchor[this.textAlign as keyof typeof anchor] ?? 'start'}" dominant-baseline="${baseline}" xml:space="preserve"${paint}${this.opacity()}${this.matrixAttr()}>${escape(text)}</text>`,
@@ -752,6 +793,9 @@ class SvgCanvas implements StageCanvas {
  * so curved text (AN26) has its letters where the stage puts them. `shown`: the width and height
  * written on the SVG, e.g. "10cm" (G11, M18: an image's printed size); absent: the stage in px.
  * `bitmaps` (G2, GB1, M21): each pixel layer's PNG, its mask applied, as a data URL by layer id.
+ * `subsets` (G4, benchmark 2026-11-17): for a canvas font its text uses ('700 48px "Inter"'), a
+ * font of just the letters used, carried instead of the whole file (`fonts` then holds only
+ * those for which none could be made).
  */
 export function stageSvg(
   doc: AnimationDoc,
@@ -762,8 +806,14 @@ export function stageSvg(
   measure?: (font: string, text: string) => number,
   shown?: { width: string; height: string },
   bitmaps: Readonly<Record<Id, string>> = {},
+  subsets: readonly { font: string; family: string; url: string }[] = [],
 ): string {
-  const canvas = new SvgCanvas(textTops, measure, bitmaps);
+  const canvas = new SvgCanvas(
+    textTops,
+    measure,
+    bitmaps,
+    Object.fromEntries(subsets.map((f) => [f.font, f.family])),
+  );
   drawStage(canvas, doc, {
     frame,
     image: (id) => (pictures[id] ? ({ href: pictures[id] } satisfies Href) : null),
@@ -771,7 +821,13 @@ export function stageSvg(
   return canvas.finish(
     doc.stage.width,
     doc.stage.height,
-    fonts.map((f) => fontFaceRule(f.face, f.url)),
+    [
+      ...fonts.map((f) => fontFaceRule(f.face, f.url)),
+      ...subsets.map((f) => {
+        const [, italic, weight] = /^(italic )?(\d+) /.exec(f.font) ?? [];
+        return subsetFaceRule(f.family, !!italic, Number(weight ?? 400), f.url);
+      }),
+    ],
     shown,
   );
 }

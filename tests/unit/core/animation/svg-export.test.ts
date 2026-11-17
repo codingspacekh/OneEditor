@@ -116,6 +116,31 @@ describe('AN22 SVG picture of a frame', () => {
     expect(svg).toContain(`font-family="'Noto Serif', serif"`);
   });
 
+  it('G4 (benchmark): a font made of just the letters used goes in instead of the whole file, its weight and style the words’', () => {
+    const doc = stageWith([
+      { ...createText('TTS is 10!', { x: 10, y: 20, size: 64 }), font: 'Pacifico' },
+      { ...createText('Villa', { x: 10, y: 120, size: 32 }), font: 'Inter', bold: true },
+    ]);
+    const subsets = [
+      {
+        font: '400 64px "Pacifico"',
+        family: 'OE Pacifico 400 64',
+        url: 'data:font/otf;base64,T1RU',
+      },
+      { font: '700 32px "Inter"', family: 'OE Inter 700 32', url: 'data:font/otf;base64,T1RV' },
+    ];
+    const svg = stageSvg(doc, 0, {}, [], {}, undefined, undefined, {}, subsets);
+    expect(svg).toContain(
+      "@font-face { font-family: 'OE Pacifico 400 64'; font-style: normal; font-weight: 400; src: url('data:font/otf;base64,T1RU') format('opentype'); }",
+    );
+    expect(svg).toContain(
+      "@font-face { font-family: 'OE Inter 700 32'; font-style: normal; font-weight: 700; src: url('data:font/otf;base64,T1RV') format('opentype'); }",
+    );
+    // The small font first, then the font's own name and its general family.
+    expect(svg).toContain(`font-family="'OE Pacifico 400 64', 'Pacifico', cursive"`);
+    expect(svg).toContain(`font-family="'OE Inter 700 32', 'Inter', sans-serif"`);
+  });
+
   it('text is put on the baseline the stage draws it on, when the app has measured the font', () => {
     const doc = stageWith([
       { ...createText('TTS is 10!', { x: 10, y: 20, size: 50 }), font: 'Pacifico' },

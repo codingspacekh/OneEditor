@@ -161,6 +161,23 @@ describe('M21 G8: crop the image to the selection', () => {
     expect(out.layers[1]!.objects[0]).toMatchObject({ x: 18, y: 17 });
   });
 
+  it('benchmark G7: deletes the cropped pixels, as every other crop does (J/22 Balloon1)', () => {
+    const base = createGraphic({
+      name: 'Scene1',
+      size: { width: 40, height: 30, units: 'px', dpi: 72 },
+      background: '#ffffff',
+    });
+    // The photo covers the whole canvas (opened as the image).
+    const photo = createLayer('Photo', {
+      pixels: { bitmap: createBitmap(40, 30), x: 0, y: 0 },
+    });
+    const doc: AnimationDoc = { ...base, layers: [photo] };
+    const out = cropToSelection(doc, rectMask(40, 30, { x: 2, y: 3, width: 30, height: 20 }));
+    // Only what is on the new canvas is kept: Image size afterwards scales 30 × 20 px, not 40 × 30.
+    expect(out.layers[0]!.pixels).toMatchObject({ x: 0, y: 0 });
+    expect(out.layers[0]!.pixels!.bitmap).toMatchObject({ width: 30, height: 20 });
+  });
+
   it('refuses with nothing selected', () => {
     const doc = createAnimation({ name: 'A' });
     expect(() => cropToSelection(doc, createMask(1280, 720))).toThrow('Select');

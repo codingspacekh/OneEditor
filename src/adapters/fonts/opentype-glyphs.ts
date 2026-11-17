@@ -5,7 +5,14 @@
 // font's typographic ascender and descender (as Chromium's textBaseline 'top'). A font with no
 // italic file is slanted as the browser slants it (a quarter of the height); one with no bold
 // file is not made heavier (the browser thickens its letters a little: 1/32 of the size).
-import { parse, type Font, type Glyph } from 'opentype.js/dist/opentype.mjs';
+import {
+  Font as NewFont,
+  Glyph as NewGlyph,
+  parse,
+  Path,
+  type Font,
+  type Glyph,
+} from 'opentype.js/dist/opentype.mjs';
 import { fontOf } from '../../core/animation/draw.ts';
 import type { TextObject } from '../../core/animation/types.ts';
 import type {
@@ -153,7 +160,71 @@ export function fontGlyphs(
       }
       return (units * size) / font.unitsPerEm;
     },
+    subset(family, text, size) {
+      return subsetFont(this, family, text, size, font);
+    },
   };
+}
+
+/**
+ * G4 (benchmark 2026-11-17): a font of just these letters as `glyphs` draws them at `size` — the
+ * weight, slant and optical size already in their outlines, so the browser draws the SVG's words
+ * exactly as the stage does without the whole file (Inter is 880 KB). Written by opentype.js as
+ * an OpenType (CFF) font, in the original's units per em.
+ */
+function subsetFont(
+  glyphs: Pick<FontGlyphs, 'outline' | 'advance'>,
+  family: string,
+  text: string,
+  size: number,
+  original: Font,
+): Uint8Array {
+  const em = original.unitsPerEm;
+  const k = em / size;
+  const letters = [...new Set(text.replace(/[\n\r]/g, ''))];
+  const made = letters.map((char) => {
+    const path = new Path();
+    // outline(): px, y down from the baseline; a font: units, y up.
+    const at = (x: number, y: number): [number, number] => [x * k, -y * k];
+    for (const c of glyphs.outline(char, size))
+      switch (c.type) {
+        case 'Z':
+          path.close();
+          break;
+        case 'M':
+          path.moveTo(...at(c.x, c.y));
+          break;
+        case 'L':
+          path.lineTo(...at(c.x, c.y));
+          break;
+        case 'Q':
+          path.quadraticCurveTo(...at(c.x1, c.y1), ...at(c.x, c.y));
+          break;
+        case 'C':
+          path.bezierCurveTo(...at(c.x1, c.y1), ...at(c.x2, c.y2), ...at(c.x, c.y));
+      }
+    const code = char.codePointAt(0)!;
+    return new NewGlyph({
+      name: `u${code.toString(16).toUpperCase()}`,
+      unicode: code,
+      advanceWidth: Math.round(glyphs.advance(char, size) * k),
+      path,
+    });
+  });
+  const notdef = new NewGlyph({
+    name: '.notdef',
+    advanceWidth: Math.round(em / 2),
+    path: new Path(),
+  });
+  const font = new NewFont({
+    familyName: family,
+    styleName: 'Regular',
+    unitsPerEm: em,
+    ascender: original.ascender,
+    descender: original.descender,
+    glyphs: [notdef, ...made],
+  });
+  return new Uint8Array(font.toArrayBuffer());
 }
 
 /** An exact copy of the bytes in an ArrayBuffer of their own (what opentype.js parses). */

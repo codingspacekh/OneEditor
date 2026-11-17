@@ -1,7 +1,7 @@
 // M22 step 5 (G14 on pixel layers) on screen: Properties ▸ "Effects on <layer>" for the current
 // pixel layer when no object is selected (Graphics mode) — the glow (the NightScene's halo, the
 // Lens's light blooms), a drop shadow and a bevel one click away, their numbers and colours typed
-// as an object's filters, removed; not shown for a vector layer or with an object selected.
+// as an object's filters, removed; not shown with an object selected (G10, M23: a vector layer has them too).
 import { describe, expect, it } from 'vitest';
 import { fireEvent, render, screen, within } from '@testing-library/svelte';
 import { tick } from 'svelte';
@@ -43,7 +43,13 @@ describe('M22 G14: Properties ▸ Effects on the current pixel layer', () => {
   it('M22 G14: a glow, a shadow and a bevel added in one click each, typed and removed', async () => {
     const s = await withMoon();
     const section = s.section()!;
-    expect(within(section).getByText('shadow, glow, bevel, blur')).toBeTruthy();
+    expect(within(section).getByText('shadow, glow, bevel, stroke, blur')).toBeTruthy();
+    // G10 (M23): a stroke round the layer's pixels is one click too.
+    expect(
+      within(within(section).getByRole('group', { name: 'Add quickly' })).getByRole('button', {
+        name: '+ Stroke',
+      }),
+    ).toBeTruthy();
     const quick = within(section).getByRole('group', { name: 'Add quickly' });
     await fireEvent.click(within(quick).getByRole('button', { name: '+ Glow' }));
     expect(s.layer().effects).toEqual([newFilter('glow')]);
@@ -72,14 +78,23 @@ describe('M22 G14: Properties ▸ Effects on the current pixel layer', () => {
     expect(s.layer().effects).toEqual([newFilter('blur')]);
   });
 
-  it('M22 G14: is not shown for a vector layer, or when an object is selected', async () => {
+  it('G10 (M23, M/21 globe): a vector layer has effects too; not shown when an object is selected', async () => {
     const s = await withMoon();
     expect(s.section()).toBeTruthy();
     s.g.addLayer();
     await tick();
-    expect(s.section()).toBeFalsy();
+    const name = s.layer().name;
+    const vector = screen.getByRole('heading', {
+      name: new RegExp(`^Effects on ${name}`),
+    }).parentElement!;
+    await fireEvent.click(
+      within(within(vector).getByRole('group', { name: 'Add quickly' })).getByRole('button', {
+        name: '+ Stroke',
+      }),
+    );
+    expect(s.layer().effects).toEqual([newFilter('stroke')]);
     s.g.addShape('rect', { x: 0, y: 0, width: 10, height: 10 });
     await tick();
-    expect(s.section()).toBeFalsy();
+    expect(screen.queryByRole('heading', { name: /^Effects on/ })).toBeNull();
   });
 });

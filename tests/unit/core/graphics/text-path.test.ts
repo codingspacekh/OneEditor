@@ -82,13 +82,18 @@ describe('GT2: text along a line', () => {
     expect(pathLetters(on(line({ start: -20 })), widthOf)[0]!.x).toBe(5);
   });
 
-  it('flips: from the other end, the letters on the other side, upside down', () => {
+  it('flips: from the other end, upside down, still on the side asked for (G12)', () => {
+    // Outside (above a line drawn left to right) stays above it: the turned letters hang there,
+    // their tops on the line.
     const flipped = pathLetters(on(line({ flip: true })), widthOf);
     expect(spots(flipped)).toEqual([
-      [195, 104, 180],
-      [185, 104, 180],
-      [175, 104, 180],
+      [195, 100 - capTopAboveMiddle, 180],
+      [185, 100 - capTopAboveMiddle, 180],
+      [175, 100 - capTopAboveMiddle, 180],
     ]);
+    // Inside (under it) stays under it: the letters stand on the line from below.
+    const under = pathLetters(on(line({ flip: true, side: 'inside' })), widthOf);
+    expect(under.map((l) => l.y)).toEqual([1, 2, 3].map(() => 100 + baselineBelowMiddle));
   });
 
   it('keeps letter spacing and kerning along the path', () => {
@@ -167,9 +172,26 @@ describe('GT2: text round a closed shape', () => {
       on(circle({ flip: true, side: 'inside' }), { text: 'ROCK', align: 'centre' }),
       widthOf,
     );
-    expect(letters.every((l) => l.y > 190)).toBe(true);
+    expect(letters.every((l) => l.y > 160 && l.y < 200)).toBe(true);
     expect(letters[0]!.x).toBeLessThan(letters.at(-1)!.x);
     expect(Math.abs(letters[1]!.angle)).toBeLessThan(10);
+  });
+
+  it('G12: inside is inside a closed shape and outside outside it, flipped or not, whichever way it was drawn', () => {
+    const dist = (path: TextPath) =>
+      pathLetters(on(path, { text: 'ROCK', align: 'centre' }), widthOf).map((l) =>
+        Math.hypot(l.x - 100, l.y - 100),
+      );
+    // The same circle drawn the other way (each point's handles swapped round).
+    const anticlockwise = {
+      ...circle(),
+      points: [...circle().points].reverse().map((p) => ({ ...p, in: p.out, out: p.in })),
+    };
+    for (const shape of [circle(), anticlockwise])
+      for (const flip of [false, true]) {
+        expect(dist({ ...shape, flip, side: 'inside' }).every((d) => d < 100)).toBe(true);
+        expect(dist({ ...shape, flip, side: 'outside' }).every((d) => d > 100)).toBe(true);
+      }
   });
 
   it('a flipped closed outline starts at the same point and runs the other way', () => {

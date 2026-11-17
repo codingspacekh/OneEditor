@@ -108,10 +108,19 @@ export function createCanvasStageRenderer({
     await loadFonts(fontsUsed(doc.layers.flatMap((l) => l.objects)));
     // GT5 (M20): bent text is drawn as its letters' outlines.
     await loadGlyphsFor(doc.layers.flatMap((l) => l.objects));
-    return (ctx: StageCanvas, frame: number, size?: { width: number; height: number }) => {
+    return (
+      ctx: StageCanvas,
+      frame: number,
+      size?: { width: number; height: number },
+      background?: string,
+    ) => {
       const stage = withLayers(ctx);
       if (size) stage.scale(size.width / doc.stage.width, size.height / doc.stage.height);
-      drawStage(stage, doc, { image: (id) => images.get(id) ?? null, frame });
+      drawStage(stage, doc, {
+        image: (id) => images.get(id) ?? null,
+        frame,
+        ...(background ? { background } : {}),
+      });
     };
   }
 
@@ -151,10 +160,9 @@ export function createCanvasStageRenderer({
       const ctx = canvas.getContext('2d', { willReadFrequently: true });
       if (!ctx) throw new Error('No canvas is available to draw the stage.');
       const draw = await readyToDraw(doc);
-      // G11: a JPEG cannot be see-through: what is transparent is drawn on the background.
-      ctx.fillStyle = background;
-      ctx.fillRect(0, 0, size?.width ?? doc.stage.width, size?.height ?? doc.stage.height);
-      draw(ctx, 0, size);
+      // G11: a JPEG cannot be see-through: what is transparent is drawn on the background (B1:
+      // painted by drawStage itself, which would otherwise clear a transparent stage over it).
+      draw(ctx, 0, size, background);
       const blob = await canvas.convertToBlob({ type: 'image/jpeg', quality: quality / 100 });
       return new Uint8Array(await blob.arrayBuffer());
     },

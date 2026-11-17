@@ -4,7 +4,7 @@
 // width asked for — with no margins, so an A4 image at 300 dpi is an A4 page (8.27 × 11.69 in).
 import { EditError } from '../model/errors.ts';
 import type { AnimationDoc } from '../animation/types.ts';
-import { graphicOf } from './document.ts';
+import { graphicOf, printedSize } from './document.ts';
 import { exportPixels, type ExportSize } from './export.ts';
 import { roundIn, type Unit } from './units.ts';
 
@@ -35,7 +35,13 @@ export function pdfPageSize(doc: AnimationDoc, size: ExportSize = { by: 'canvas'
           width: size.unit === 'px' ? size.width / size.dpi : size.width / PER_INCH[size.unit],
           height: 0,
         }
-      : { width: px.width / px.dpi, height: px.height / px.dpi };
+      : // G6 (benchmark): the size typed (80 mm), not its whole pixels (79.9 mm).
+        {
+          ...((size.by === 'canvas' && printedSize(doc)) || {
+            width: px.width / px.dpi,
+            height: px.height / px.dpi,
+          }),
+        };
   if (size.by === 'print') page.height = (page.width * doc.stage.height) / doc.stage.width;
   if (page.width > MAX_PDF_INCHES || page.height > MAX_PDF_INCHES)
     throw new EditError(

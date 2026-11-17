@@ -1,6 +1,6 @@
 // M17a, from the 2017–2021 animation benchmark: AN13 a group made smaller keeps its look — the
-// outlines of its parts get thinner with it (9626/04 M/J/20: the meter redrawn smaller), by the
-// smaller of the two scales when it is stretched, as its text does.
+// outlines of its parts get thinner with it (9626/04 M/J/20: the meter redrawn smaller), by
+// √(sx·sy) when it is stretched (B2, Graphics benchmark), as its text does.
 import { describe, expect, it } from 'vitest';
 import {
   createGroup,
@@ -43,7 +43,7 @@ describe('AN13 outline widths scale with a resized group', () => {
     expect(setSize(meter, meter.width * 2, meter.height * 2).children[0]!.stroke!.width).toBe(12);
   });
 
-  it('stretched one way, by the smaller of the two scales; letters’ outlines and groups inside too', () => {
+  it('stretched one way, by √(sx·sy) (B2: the same whatever order W and H are typed in); letters’ outlines and groups inside too', () => {
     const words = {
       ...createText('kPa', { x: 0, y: 0, size: 40 }),
       stroke: { colour: '#000000', width: 2, dash: 'solid' as const },
@@ -51,9 +51,10 @@ describe('AN13 outline widths scale with a resized group', () => {
     const inner = createGroup([outlined(8)]);
     const group = createGroup([outlined(6), words, inner]);
     const stretched = setSize(group, group.width / 2, group.height);
-    expect(stretched.children[0]!.stroke!.width).toBe(3);
-    expect(stretched.children[1]!.stroke!.width).toBe(1);
-    expect((stretched.children[2] as GroupObject).children[0]!.stroke!.width).toBe(4);
+    const k = Math.SQRT1_2;
+    expect(stretched.children[0]!.stroke!.width).toBeCloseTo(6 * k, 9);
+    expect(stretched.children[1]!.stroke!.width).toBeCloseTo(2 * k, 9);
+    expect((stretched.children[2] as GroupObject).children[0]!.stroke!.width).toBeCloseTo(8 * k, 9);
   });
 
   it('a shape resized on its own keeps its outline width', () => {

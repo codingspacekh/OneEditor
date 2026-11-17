@@ -101,6 +101,19 @@ describe('M21 GB6: Image size…', () => {
     expect(s.doc().stage.width).toBe(200);
   });
 
+  it('benchmark G6: a size typed in cm is kept exactly (M/26: 10 × 6 cm, not 6.01)', async () => {
+    const s = await graphicsMode();
+    await fireEvent.click(props().getByRole('button', { name: 'Image size…' }));
+    const d = dialog('Image size');
+    await fireEvent.click(d.getByLabelText('Keep proportions'));
+    await fireEvent.change(d.getByLabelText('Units'), { target: { value: 'cm' } });
+    await type(d, 'Width', '10');
+    await type(d, 'Height', '6');
+    await fireEvent.click(d.getByRole('button', { name: 'Apply' }));
+    expect(s.doc().stage).toMatchObject({ width: 378, height: 227 });
+    expect(s.doc().graphic?.size).toEqual({ width: 10, height: 6, units: 'cm' });
+  });
+
   it('M21 GB6: proportions kept from the height in px; a web picture far bigger than a screen', async () => {
     await graphicsMode();
     await fireEvent.click(props().getByRole('button', { name: 'Image size…' }));

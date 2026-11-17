@@ -60,6 +60,9 @@ export function presetSize(
 
 const HEX = /^#[0-9a-f]{6}$/i;
 export const isColour = (c: unknown): c is string => typeof c === 'string' && HEX.test(c);
+/** G8 (M23): a gradient's colour may have its own opacity: #rrggbb or #rrggbbaa. */
+export const isGradientColour = (c: unknown): c is string =>
+  typeof c === 'string' && /^#[0-9a-f]{6}([0-9a-f]{2})?$/i.test(c);
 /** AN21: a stage with no background (transparent PNG, GIF and web page; white in an MP4). */
 export const TRANSPARENT = 'none';
 export const isStageBackground = (c: unknown): c is string => c === TRANSPARENT || isColour(c);
@@ -122,14 +125,14 @@ function validatePaint(paint: Paint, what: string): void {
       throw new EditError('Choose the picture to tile.');
     return;
   }
-  if (!isColour(paint.from) || !isColour(paint.to))
+  if (!isGradientColour(paint.from) || !isGradientColour(paint.to))
     throw new EditError(colourMessage(`Each ${what} colour`));
   if (paint.kind === 'linear' && !Number.isFinite(paint.angle))
     throw new EditError('The gradient angle must be a number of degrees.');
   // AN6: the colours between, and a radial gradient's centre, are in % of the way or the box.
   const percent = (n: unknown) => typeof n === 'number' && n >= 0 && n <= 100;
   for (const stop of paint.stops ?? []) {
-    if (!isColour(stop.colour)) throw new EditError(colourMessage(`Each ${what} colour`));
+    if (!isGradientColour(stop.colour)) throw new EditError(colourMessage(`Each ${what} colour`));
     if (!percent(stop.at))
       throw new EditError('Each colour of a gradient is placed from 0 to 100 %.');
   }
@@ -146,6 +149,9 @@ export const MAX_FILTERS = 10;
 export const MAX_FILTER_OFFSET = 1000;
 export const MAX_FILTER_BLUR = 250;
 export const MAX_BEVEL_DEPTH = 100;
+/** G10 (M23): the widest stroke effect, in px. */
+export const MAX_STROKE_EFFECT = 250;
+export const STROKE_POSITIONS = ['outside', 'centred', 'inside'] as const;
 
 const percentage = (n: unknown): boolean =>
   typeof n === 'number' && Number.isFinite(n) && n >= 0 && n <= 100;
@@ -203,11 +209,21 @@ export function validateFilters(filters: readonly ObjectFilter[], owner: string)
         blur(f.blur);
         opacity(f.opacity);
         break;
+      case 'stroke':
+        if (!(Number.isFinite(f.width) && f.width > 0 && f.width < MAX_STROKE_EFFECT))
+          throw new EditError(
+            `A stroke effect's width must be more than 0 and less than ${MAX_STROKE_EFFECT} px.`,
+          );
+        if (!STROKE_POSITIONS.includes(f.position))
+          throw new EditError('A stroke effect lies outside, centred or inside the edge.');
+        colour(f.colour);
+        opacity(f.opacity);
+        break;
       case 'blur':
         blur(f.radius);
         break;
       default:
-        throw new EditError('Choose one of the filters: shadow, glow, bevel or blur.');
+        throw new EditError('Choose one of the filters: shadow, glow, bevel, stroke or blur.');
     }
 }
 

@@ -133,9 +133,10 @@ describe('M21 G8: crop and trim in Graphics mode', () => {
     s.g.addShape('rect', { x: 10, y: 10, width: 20, height: 20 });
     s.g.select([]);
     s.g.cropCanvas('drawing');
-    expect(s.doc().stage).toMatchObject({ width: 20, height: 20 });
+    // B7: the rectangle with its 2 px outline: 9 to 31.
+    expect(s.doc().stage).toMatchObject({ width: 22, height: 22 });
     const p = s.doc().layers[0]!.pixels!;
-    expect([p.x, p.y, p.bitmap.width, p.bitmap.height]).toEqual([0, 0, 20, 20]);
+    expect([p.x, p.y, p.bitmap.width, p.bitmap.height]).toEqual([0, 0, 22, 22]);
   });
 });
 

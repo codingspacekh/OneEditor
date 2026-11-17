@@ -97,16 +97,17 @@ describe('exporting the chosen objects (G11)', () => {
   it('crops the canvas to them and leaves the rest out, see-through around them', () => {
     const { doc, casing, grid } = monitor();
     const part = imageOfObjects(doc, [casing.id, grid.id]);
-    expect(part.stage).toMatchObject({ width: 300, height: 200, background: 'none' });
+    // B7: with the 2 px outlines' outer half round them.
+    expect(part.stage).toMatchObject({ width: 302, height: 202, background: 'none' });
     expect(part.layers[0]!.objects.map((o) => o.name)).toEqual(['Casing', 'Grid']);
-    expect(part.layers[0]!.objects[1]).toMatchObject({ x: 20, y: 20 });
+    expect(part.layers[0]!.objects[1]).toMatchObject({ x: 21, y: 21 });
   });
 
   it('makes one image per object, named after it, names made different', () => {
     const { doc, casing, star, other } = monitor();
     const each = imagesOfEach(doc, [casing.id, star.id, other.id]);
     expect(each.map((e) => e.name)).toEqual(['Casing', 'Star', 'Star 2']);
-    expect(each[1]!.doc.stage).toMatchObject({ width: 40, height: 40 });
+    expect(each[1]!.doc.stage).toMatchObject({ width: 42, height: 42 });
   });
 
   it('keeps a group whole (9626/04 J/19: the grouped Casing)', () => {
@@ -122,7 +123,7 @@ describe('exporting the chosen objects (G11)', () => {
     };
     const [only] = imagesOfEach(withName, [group.id]);
     expect(only!.name).toBe('Casing');
-    expect(only!.doc.stage).toMatchObject({ width: 300, height: 200 });
+    expect(only!.doc.stage).toMatchObject({ width: 302, height: 202 });
   });
 
   it('asks for objects to be chosen first', () => {

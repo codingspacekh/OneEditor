@@ -187,4 +187,42 @@ describe('G11 (M23): Export image as GIF, BMP or TIFF at a colour depth', () => 
     await fireEvent.click(d.getByRole('radio', { name: /SVG/ }));
     expect(d.queryByLabelText('Colour depth')).toBeNull();
   });
+
+  /** Export… pressed (the file itself is checked by the tests above). */
+  const press = async (
+    s: Awaited<ReturnType<typeof exportDialog>>,
+    d: ReturnType<typeof within>,
+    path: string,
+  ) => {
+    s.dialogs.exportGraphic.mockResolvedValueOnce(path);
+    await fireEvent.click(d.getByRole('button', { name: 'Export…' }));
+    // A PNG is compressed in the background: until the box closes.
+    for (let i = 0; i < 100 && screen.queryByRole('dialog', { name: 'Export image' }); i++) {
+      await new Promise((r) => setTimeout(r, 20));
+      await tick();
+    }
+    expect(screen.queryByRole('dialog', { name: 'Export image' })).toBeNull();
+    expect(s.bytes.has(path)).toBe(true);
+  };
+
+  it('benchmark G11: a depth that would lose see-through parts is not reused for an image that has them', async () => {
+    const s = await exportDialog();
+    let d = await s.open();
+    await fireEvent.change(d.getByLabelText('Colour depth'), { target: { value: '24' } });
+    await press(s, d, '/work/Opaque.png');
+    expect(animUi.graphicDepths.png).toBe(24);
+    // Opened again for a see-through PNG (J/20 Scale2_): 32 bits again, see-through kept.
+    d = await s.open();
+    expect((d.getByLabelText('Colour depth') as HTMLSelectElement).value).toBe('32');
+    expect(made(d)).toMatch(/see-through where nothing is drawn/);
+  });
+
+  it('benchmark G11: on an image with nothing see-through the depth last chosen is kept', async () => {
+    const s = await exportDialog(false);
+    let d = await s.open();
+    await fireEvent.change(d.getByLabelText('Colour depth'), { target: { value: '24' } });
+    await press(s, d, '/work/Photo.png');
+    d = await s.open();
+    expect((d.getByLabelText('Colour depth') as HTMLSelectElement).value).toBe('24');
+  });
 });

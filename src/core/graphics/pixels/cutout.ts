@@ -7,7 +7,7 @@
 // first cut to the layer's own rectangle. Pure; the app makes each one undo step.
 import type { AnimationDoc, PixelContent } from '../../animation/types.ts';
 import { EditError } from '../../model/errors.ts';
-import { cropCanvas } from '../document.ts';
+import { cropImage } from '../image-size.ts';
 import {
   bitmapFromRGBA,
   contentBounds,
@@ -99,5 +99,7 @@ export function selectionFromLayer(p: PixelContent, width: number, height: numbe
 export function cropToSelection(doc: AnimationDoc, selection: Mask): AnimationDoc {
   const b = selectedBounds(selection);
   if (!b) throw new EditError('Select the part of the image to crop to first.');
-  return cropCanvas(doc, b);
+  // Benchmark G7: the cropped pixels deleted, as every other crop does (a photo kept whole off
+  // the canvas was enlarged by Image size afterwards: 112 megapixels for a 3000 × 2250 picture).
+  return cropImage(doc, b);
 }

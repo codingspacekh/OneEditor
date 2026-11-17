@@ -28,6 +28,7 @@ import { EditError } from '../model/errors.ts';
 import { newId } from '../model/factory.ts';
 import { FONTS } from '../text/fonts.ts';
 import { mixColours, parseColour, type ReadColour } from './svg-colours.ts';
+import { opaqueOf, withAlpha } from '../colour.ts';
 import {
   apply,
   arcCubics,
@@ -176,8 +177,7 @@ interface Viewport {
   height: number;
 }
 
-type NoteKind =
-  'picture' | 'clip' | 'mask' | 'filter' | 'pattern' | 'other' | 'stopOpacity' | 'strokePaint';
+type NoteKind = 'picture' | 'clip' | 'mask' | 'filter' | 'pattern' | 'other' | 'strokePaint';
 
 /** A box placed by a matrix as the app places an object: turned, mirrored, skewed in x. */
 interface Placement {
@@ -395,13 +395,26 @@ interface Ramp {
   stops: { t: number; colour: string }[];
 }
 
+/** Two gradient colours mixed, their opacity too (G8). */
+const mixAlpha = (a: string, b: string, t: number): string => {
+  const byte = (c: string) => (c.length > 7 ? parseInt(c.slice(7, 9), 16) : 255);
+  const alpha = byte(a) + (byte(b) - byte(a)) * t;
+  return withAlpha(mixColours(opaqueOf(a), opaqueOf(b), t), (alpha / 255) * 100);
+};
+
+/** A gradient's colour as a solid paint: its own opacity (G8) becomes the fill's. */
+const solidOf = (colour: string): { paint: Paint; alpha: number } => ({
+  paint: { kind: 'solid', colour: opaqueOf(colour) },
+  alpha: colour.length > 7 ? parseInt(colour.slice(7, 9), 16) / 255 : 1,
+});
+
 function colourAt(ramp: Ramp, t: number): string {
   const { stops } = ramp;
   if (t <= stops[0]!.t) return stops[0]!.colour;
   for (let i = 1; i < stops.length; i++) {
     const [a, b] = [stops[i - 1]!, stops[i]!];
     if (t <= b.t)
-      return b.t - a.t < EPS ? b.colour : mixColours(a.colour, b.colour, (t - a.t) / (b.t - a.t));
+      return b.t - a.t < EPS ? b.colour : mixAlpha(a.colour, b.colour, (t - a.t) / (b.t - a.t));
   }
   return stops.at(-1)!.colour;
 }
@@ -565,9 +578,12 @@ export function readSvg(source: string, options: SvgReadOptions = {}): SvgImage 
       const offset = opacityOf(own.offset ?? style.offset ?? '0');
       last = Math.max(last, offset);
       const c = parseColour(own['stop-color'] ?? 'black');
-      if (opacityOf(own['stop-opacity']) < 1 || (c && c !== 'none' && c.alpha < 1))
-        note('stopOpacity');
-      ramp.stops.push({ t: last, colour: c && c !== 'none' ? c.hex : '#000000' });
+      // G8 (M23): a see-through stop keeps its opacity in its colour (#rrggbbaa).
+      const alpha = opacityOf(own['stop-opacity']) * (c && c !== 'none' ? c.alpha : 1);
+      ramp.stops.push({
+        t: last,
+        colour: withAlpha(c && c !== 'none' ? c.hex : '#000000', alpha * 100),
+      });
     }
     return { attrs, kind: localName(e.name), ramp };
   }
@@ -589,8 +605,7 @@ export function readSvg(source: string, options: SvgReadOptions = {}): SvgImage 
       return { paint: { kind: 'solid', colour: spec.colour.hex }, alpha: spec.colour.alpha };
     const { attrs, kind, ramp } = gradientOf(spec.element);
     if (ramp.stops.length === 0) return { paint: { kind: 'none' }, alpha: 1 };
-    if (ramp.stops.length === 1)
-      return { paint: { kind: 'solid', colour: ramp.stops[0]!.colour }, alpha: 1 };
+    if (ramp.stops.length === 1) return solidOf(ramp.stops[0]!.colour);
     const box = attrs.gradientUnits !== 'userSpaceOnUse';
     const units: Matrix = box ? [bbox.width, 0, 0, bbox.height, bbox.x, bbox.y] : IDENTITY;
     const toStage = multiply(multiply(m, units), parseTransform(attrs.gradientTransform));
@@ -615,15 +630,13 @@ export function readSvg(source: string, options: SvgReadOptions = {}): SvgImage 
       });
       const v = sub2(p2, p1);
       const l2 = v.x * v.x + v.y * v.y;
-      if (!(l2 > EPS))
-        return { paint: { kind: 'solid', colour: ramp.stops.at(-1)!.colour }, alpha: 1 };
+      if (!(l2 > EPS)) return solidOf(ramp.stops.at(-1)!.colour);
       const angle = Math.atan2(v.y, v.x);
       const [dx, dy] = [Math.cos(angle), Math.sin(angle)];
       const half = (Math.abs(w * dx) + Math.abs(h * dy)) / 2;
       const t = (s: Pt) => ((s.x - p1.x) * v.x + (s.y - p1.y) * v.y) / l2;
       const [t0, t1] = [t({ x: -dx * half, y: -dy * half }), t({ x: dx * half, y: dy * half })];
-      if (!(Math.abs(t1 - t0) > EPS))
-        return { paint: { kind: 'solid', colour: colourAt(ramp, t0) }, alpha: 1 };
+      if (!(Math.abs(t1 - t0) > EPS)) return solidOf(colourAt(ramp, t0));
       return {
         paint: {
           kind: 'linear',
@@ -640,8 +653,7 @@ export function readSvg(source: string, options: SvgReadOptions = {}): SvgImage 
     const r =
       coord('r', '50%', Math.hypot(viewport.width, viewport.height) / Math.SQRT2) * scaleOf(g);
     const reach = Math.max(w, h) / 2;
-    if (!(r > EPS) || !(reach > EPS))
-      return { paint: { kind: 'solid', colour: ramp.stops.at(-1)!.colour }, alpha: 1 };
+    if (!(r > EPS) || !(reach > EPS)) return solidOf(ramp.stops.at(-1)!.colour);
     const pct = (v: number, size: number) =>
       clean(Math.max(0, Math.min(100, size > EPS ? (v / size + 0.5) * 100 : 50)));
     const [cx, cy] = [pct(c.x, w), pct(c.y, h)];
@@ -684,7 +696,7 @@ export function readSvg(source: string, options: SvgReadOptions = {}): SvgImage 
       if (strokeSpec.kind === 'gradient') {
         note('strokePaint');
         const { ramp } = gradientOf(strokeSpec.element);
-        colour = { hex: ramp.stops[0]?.colour ?? '#000000', alpha: 1 };
+        colour = { hex: opaqueOf(ramp.stops[0]?.colour ?? '#000000'), alpha: 1 };
       } else colour = strokeSpec.colour;
       const opacity = opacityOf(style['stroke-opacity']) * colour.alpha;
       stroke = {
@@ -1248,7 +1260,6 @@ export function readSvg(source: string, options: SvgReadOptions = {}): SvgImage 
     notes.push('Effects (shadows, glows, blurs) were left out: add them again in Properties.');
   if (n('pattern')) notes.push('A pattern fill became one colour.');
   if (n('strokePaint')) notes.push('A gradient outline became one colour.');
-  if (n('stopOpacity')) notes.push('See-through colours in a gradient became solid.');
   if (n('other'))
     notes.push(
       `${plural(n('other'), 'part')} the app cannot edit (such as text on a path) ${n('other') === 1 ? 'was' : 'were'} left out.`,

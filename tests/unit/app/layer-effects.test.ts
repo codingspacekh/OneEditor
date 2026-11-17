@@ -46,8 +46,10 @@ describe('M22 G14: effects on the current pixel layer', () => {
   it('says why not', async () => {
     const s = await withMoon();
     expect(s.g.setLayerEffects(s.current().id, [{ ...HALO, opacity: 200 }])).toMatch(/opacity/);
+    // G10 (M23): a vector layer takes them now (the globe's stroke round its clipping group).
     s.g.addLayer();
-    expect(s.g.setLayerEffects(s.current().id, [HALO])).toMatch(/pixel layer/);
+    expect(s.g.setLayerEffects(s.current().id, [HALO])).toBeNull();
+    expect(s.current().effects).toEqual([HALO]);
   });
 
   it('draws a layer with effects into pixels with them when merged, saying nothing of shapes', async () => {

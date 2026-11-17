@@ -182,3 +182,59 @@ describe('G14 effects as SVG filters', () => {
     expect(svg.match(/<filter /g)).toHaveLength(2);
   });
 });
+
+describe('G10 (M23): the stroke effect in the SVG', () => {
+  it('G10 outside: the shape’s alpha grown by the width, filled with the colour, under the shape', () => {
+    const svg = stageSvg(
+      stageWith([
+        box({
+          filters: [
+            { kind: 'stroke', colour: '#000000', width: 4, opacity: 80, position: 'outside' },
+          ],
+        }),
+      ]),
+    );
+    expect(svg).toContain(
+      '<feMorphology in="SourceGraphic" operator="dilate" radius="4" result="r1d"/>',
+    );
+    expect(svg).toContain('<feFlood flood-color="#000000" flood-opacity="0.8" result="r1c"/>');
+    expect(svg).toContain('<feComposite in="r1c" in2="r1d" operator="in" result="r1s"/>');
+    expect(svg).toContain(
+      '<feMerge result="r1"><feMergeNode in="r1s"/><feMergeNode in="SourceGraphic"/></feMerge>',
+    );
+  });
+
+  it('G10 inside: a ring inside the edge, over the shape; centred: half each way', () => {
+    const inside = stageSvg(
+      stageWith([
+        box({
+          filters: [
+            { kind: 'stroke', colour: '#ff0000', width: 6, opacity: 100, position: 'inside' },
+          ],
+        }),
+      ]),
+    );
+    expect(inside).toContain(
+      '<feMorphology in="SourceGraphic" operator="erode" radius="6" result="r1e"/>',
+    );
+    expect(inside).toContain(
+      '<feComposite in="r1c" in2="SourceGraphic" operator="in" result="r1f"/>',
+    );
+    expect(inside).toContain('<feComposite in="r1f" in2="r1e" operator="out" result="r1s"/>');
+    expect(inside).toContain(
+      '<feMerge result="r1"><feMergeNode in="SourceGraphic"/><feMergeNode in="r1s"/></feMerge>',
+    );
+    const centred = stageSvg(
+      stageWith([
+        box({
+          filters: [
+            { kind: 'stroke', colour: '#ff0000', width: 6, opacity: 100, position: 'centred' },
+          ],
+        }),
+      ]),
+    );
+    expect(centred).toContain('operator="dilate" radius="3" result="r1d"');
+    expect(centred).toContain('operator="erode" radius="3" result="r1e"');
+    expect(centred).toContain('<feComposite in="r1f" in2="r1e" operator="out" result="r1s"/>');
+  });
+});

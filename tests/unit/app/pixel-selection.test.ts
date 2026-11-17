@@ -305,7 +305,9 @@ describe('M21 GB2, G8, G13: cut-outs on the current pixel layer', () => {
     s.g.selectRect({ x: 50, y: 30, width: 20, height: 20 });
     s.g.cropToPixelSelection();
     expect(s.doc().stage).toMatchObject({ width: 20, height: 20 });
-    expect(s.pixels()).toMatchObject({ x: -40, y: -20 });
+    // Benchmark G7: the pixels off the new canvas are deleted (as every other crop does).
+    expect(s.pixels()).toMatchObject({ x: 0, y: 0 });
+    expect(s.pixels().bitmap).toMatchObject({ width: 20, height: 20 });
     expect(s.doc().layers[1]!.objects[0]).toMatchObject({ x: 0, y: 0 });
     expect(s.sel()).toBeUndefined();
     s.g.undo();

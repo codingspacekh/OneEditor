@@ -48,7 +48,7 @@ describe('GT2, GT3: resizing text with its outline', () => {
     const big = setSize(g, 250, 200) as GroupObject;
     const t = big.children[0] as TextObject;
     expect(t.path!.points[2]).toEqual({ x: 250, y: 200 });
-    // The letters scale by the smaller stretch, as text in a group does.
-    expect(t.size).toBe(40);
+    // B2: the letters scale by √(sx·sy) (2.5 × 2), as text in a stretched group does.
+    expect(t.size).toBeCloseTo(20 * Math.sqrt(2.5 * 2), 9);
   });
 });

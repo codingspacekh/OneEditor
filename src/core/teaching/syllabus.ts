@@ -328,7 +328,7 @@ export const SYLLABUS: readonly SyllabusPoint[] = [
   ),
   g(
     'changing solid and gradient fills; changing the opacity of all or part of an image',
-    'Graphics (and Animation) ▸ Properties ▸ Fill (solid, linear, radial or Pattern), Fill opacity and Outline opacity; Properties ▸ Filters for shadow, glow, bevel and blur',
+    'Graphics (and Animation) ▸ Properties ▸ Fill (solid, linear, radial or Pattern), Fill opacity and Outline opacity; Properties ▸ Filters for shadow, glow, bevel, stroke and blur',
     ['19.1 changing solid and gradient fills'],
   ),
   p(

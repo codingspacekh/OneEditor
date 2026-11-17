@@ -53,4 +53,28 @@ declare module 'opentype.js/dist/opentype.mjs' {
     };
   }
   export function parse(buffer: ArrayBuffer, options?: Record<string, unknown>): Font;
+
+  /** G4: what a new font (a subset written for an SVG) is made of. */
+  export class Path {
+    commands: PathCommand[];
+    moveTo(x: number, y: number): void;
+    lineTo(x: number, y: number): void;
+    quadraticCurveTo(x1: number, y1: number, x: number, y: number): void;
+    bezierCurveTo(x1: number, y1: number, x2: number, y2: number, x: number, y: number): void;
+    close(): void;
+  }
+  export const Glyph: new (options: {
+    name: string;
+    unicode?: number;
+    advanceWidth: number;
+    path: Path;
+  }) => Glyph;
+  export const Font: new (options: {
+    familyName: string;
+    styleName: string;
+    unitsPerEm: number;
+    ascender: number;
+    descender: number;
+    glyphs: Glyph[];
+  }) => Font & { toArrayBuffer(): ArrayBuffer };
 }

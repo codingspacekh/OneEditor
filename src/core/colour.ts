@@ -14,6 +14,28 @@ export function normaliseHex(text: string): string | null {
   return /^[0-9a-f]{6}$/.test(raw) ? `#${raw}` : null;
 }
 
+// ---- G8 (M23): a gradient's colour with its own opacity, #rrggbbaa ----
+
+/** The colour's own opacity in % (a #rrggbb colour is wholly opaque: 100). */
+export function alphaOf(colour: string): number {
+  const m = /^#[0-9a-f]{6}([0-9a-f]{2})$/i.exec(colour);
+  return m ? Math.round((parseInt(m[1]!, 16) / 255) * 100) : 100;
+}
+
+/** The colour without its opacity: #rrggbb. */
+export const opaqueOf = (colour: string): string =>
+  /^#[0-9a-f]{8}$/i.test(colour) ? colour.slice(0, 7) : colour;
+
+/** The colour at `percent` opacity: #rrggbb when wholly opaque, #rrggbbaa otherwise. */
+export function withAlpha(colour: string, percent: number): string {
+  const base = opaqueOf(colour);
+  const p = Math.max(0, Math.min(100, percent));
+  if (p >= 100) return base;
+  return `${base}${Math.round((p / 100) * 255)
+    .toString(16)
+    .padStart(2, '0')}`;
+}
+
 export function hexToHsv(hex: string): Hsv {
   const n = parseInt((normaliseHex(hex) ?? '#000000').slice(1), 16);
   const [r, g, b] = [(n >> 16) & 255, (n >> 8) & 255, n & 255].map((c) => c / 255) as [

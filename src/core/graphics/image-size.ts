@@ -7,7 +7,7 @@
 // as much white space as possible"). Pixels left off the canvas are dropped, so a big photo
 // cropped small does not keep its whole bitmap. Every function returns a new document.
 import type { Bounds } from '../animation/geometry.ts';
-import { setSize } from '../animation/geometry.ts';
+import { keepOutlines, setSize } from '../animation/geometry.ts';
 import { MIN_STAGE, TRANSPARENT } from '../animation/rules.ts';
 import type {
   AnimObject,
@@ -59,6 +59,7 @@ function scaledObjects(
   objects: readonly AnimObject[],
   from: { width: number; height: number },
   to: { width: number; height: number },
+  outlines = true,
 ): AnimObject[] {
   if (objects.length === 0) return [];
   const group: GroupObject = {
@@ -74,7 +75,9 @@ function scaledObjects(
     fill: { kind: 'none' },
     children: [...objects],
   };
-  return setSize(group, to.width, to.height).children;
+  const sized = setSize(group, to.width, to.height);
+  // G3: Scale outlines and effects off: the shapes' outlines and effects stay as typed.
+  return (outlines ? sized : keepOutlines(group, sized)).children;
 }
 
 /**
@@ -141,7 +144,7 @@ export function resizeImage(
     stage,
     layers: doc.layers.map((l) => ({
       ...l,
-      objects: scaledObjects(l.objects, from, stage),
+      objects: scaledObjects(l.objects, from, stage, doc.view.scaleOutlines !== false),
       ...(l.pixels ? { pixels: scaledPixels(l.pixels, sx, sy, method, resample) } : {}),
     })),
     guides: { x: doc.guides.x.map((g) => g * sx), y: doc.guides.y.map((g) => g * sy) },

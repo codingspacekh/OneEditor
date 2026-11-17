@@ -4,9 +4,13 @@
 // to Animation mode (GL3). The papers: J/23 BasicWheel (exact px and hex colours), J/17 HUNGRY
 // (200 × 200 px, a compressed format for a website).
 import { expect, test, type Page } from '@playwright/test';
-import { mkdtemp, readFile, rm } from 'node:fs/promises';
+import { mkdtemp, readFile, rm, writeFile } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
+import { createRect } from '../../src/core/animation/factory.ts';
+import { createGraphic } from '../../src/core/graphics/document.ts';
+import { writeGraphicFile } from '../../src/core/graphics/mveg.ts';
+import { webCompression } from '../../src/core/image/deflate.ts';
 import { jpegDpi, pngDpi } from '../../src/core/image/dpi.ts';
 import { bundledFfmpeg, run } from '../integration/helpers/ffmpeg.ts';
 import { answerDialogs, launchApp, menu } from './app.ts';
@@ -247,5 +251,78 @@ test('M20: letter-spaced text drawn by the real canvas, then turned into its let
     expect(out).not.toMatch(/<text/);
     expect(out.match(/<path/g)?.length ?? 0).toBeGreaterThanOrEqual(4);
   }).toPass({ timeout: 20_000 });
+  await app.close();
+});
+
+test('Graphics benchmark B1, G8, G10 (M23): a see-through image as a JPG on white; a stroke effect and a gradient fading out, drawn by the real canvas', async () => {
+  test.setTimeout(120_000);
+  // A see-through 200 × 100 image: a yellow square with a 6 px red stroke effect outside it
+  // (M/21: the globe's outline), and a square whose blue fades to see-through left to right
+  // (J/22: the balloon's shading).
+  const base = createGraphic({
+    name: 'Effects',
+    size: { width: 200, height: 100, units: 'px', dpi: 96 },
+    background: 'none',
+  });
+  const square = {
+    ...createRect({ x: 20, y: 20, width: 60, height: 60 }),
+    fill: { kind: 'solid' as const, colour: '#ffcc00' },
+    stroke: undefined,
+    filters: [
+      {
+        kind: 'stroke' as const,
+        colour: '#ff0000',
+        width: 6,
+        opacity: 100,
+        position: 'outside' as const,
+      },
+    ],
+  };
+  const fading = {
+    ...createRect({ x: 120, y: 20, width: 60, height: 60 }),
+    fill: { kind: 'linear' as const, from: '#0000ff', to: '#0000ff00', angle: 0 },
+    stroke: undefined,
+  };
+  const doc = { ...base, layers: [{ ...base.layers[0]!, objects: [square, fading] }] };
+  const file = join(dir, 'Effects.mveg');
+  await writeFile(file, await writeGraphicFile(doc as never, webCompression));
+
+  const { app, window: page } = await launchApp();
+  await page
+    .getByRole('navigation', { name: 'Mode' })
+    .getByRole('button', { name: 'Graphics' })
+    .click();
+  await answerDialogs(app, { open: [file] });
+  await menu(app, 'File', 'Open Image…');
+  await expect(page.getByRole('button', { name: /Image settings: 200 × 100 px/ })).toBeVisible();
+
+  const png = join(dir, 'Effects.png');
+  await answerDialogs(app, { exportTo: png });
+  await exportAs(page, /PNG/);
+  // G10: 3 px outside the square's left edge is the stroke, 10 px out is still see-through.
+  expect(await pixel(png, 17, 50, 200)).toEqual([255, 0, 0, 255]);
+  expect((await pixel(png, 10, 50, 200))[3]).toBe(0);
+  expect(await pixel(png, 50, 50, 200)).toEqual([255, 204, 0, 255]);
+  // G8: the blue fades out across the second square.
+  const [left, middle, right] = await Promise.all(
+    [122, 150, 178].map(async (x) => (await pixel(png, x, 50, 200))[3]!),
+  );
+  expect(left).toBeGreaterThan(230);
+  expect(middle).toBeGreaterThan(100);
+  expect(middle).toBeLessThan(160);
+  expect(right).toBeLessThan(25);
+
+  // B1: a JPG cannot be see-through: the see-through parts are the dialog's white, not black.
+  const jpg = join(dir, 'Effects.jpg');
+  await answerDialogs(app, { exportTo: jpg });
+  await exportAs(page, /JPG/);
+  for (const [x, y] of [
+    [2, 2],
+    [100, 50],
+    [197, 97],
+  ] as const) {
+    const [r, g, b] = await pixel(jpg, x, y, 200);
+    expect(Math.min(r!, g!, b!)).toBeGreaterThan(245);
+  }
   await app.close();
 });

@@ -3,7 +3,16 @@
 // about the point chosen for it (AN27, its pivot); "local" coordinates are inside the box before the turn, with (0, 0) at its top-left corner.
 import { ellipseAnchors } from '../graphics/bezier.ts';
 import { bendPolyline } from '../graphics/envelope.ts';
-import type { AnimObject, MotionPath, PathPoint, Track, TweenProperty } from './types.ts';
+import type {
+  AnimObject,
+  MotionPath,
+  ObjectFilter,
+  PathPoint,
+  TextObject,
+  Track,
+  TweenProperty,
+} from './types.ts';
+import { lineHeightOf } from './text-layout.ts';
 
 export interface Point {
   x: number;
@@ -262,6 +271,69 @@ export function boundsOf(o: AnimObject): Bounds {
   return { x, y, width: Math.max(...xs) - x, height: Math.max(...ys) - y };
 }
 
+/** A point of what is drawn, and how far ink reaches round it (half an outline, a shadow …). */
+interface Inked {
+  x: number;
+  y: number;
+  r: number;
+}
+
+/** A text's box, tall enough for its lines however small its box was typed. */
+function textExtent(t: TextObject): Point[] {
+  const height = Math.max(t.height, t.text.split('\n').length * lineHeightOf(t));
+  return [
+    { x: 0, y: 0 },
+    { x: t.width, y: 0 },
+    { x: t.width, y: height },
+    { x: 0, y: height },
+  ];
+}
+
+/** What an object draws, in its parent's coordinates (a group's parts through the group). */
+function inked(o: AnimObject): Inked[] {
+  let points: Inked[];
+  if (o.kind === 'group')
+    points = o.children.flatMap(inked).map((p) => ({ ...toStage(o, p), r: p.r }));
+  else {
+    const local = o.kind === 'text' ? textExtent(o) : localOutline(o);
+    // Letters on a path or in a shape stand up to a line's height off it.
+    const letters = o.kind === 'text' && (o.path || o.inShape) ? lineHeightOf(o) : 0;
+    const r = (o.stroke ? o.stroke.width / 2 : 0) + letters;
+    points = bentLocal(o, local, isClosed(o)).map((p) => ({ ...toStage(o, p), r }));
+  }
+  // Effects drawn round it: a shadow where it falls, a glow or a blur all round.
+  const extra: Inked[] = [];
+  for (const f of o.filters ?? [])
+    if (f.kind === 'dropShadow')
+      extra.push(...points.map((p) => ({ x: p.x + f.dx, y: p.y + f.dy, r: p.r + f.blur })));
+    else if (f.kind === 'glow') extra.push(...points.map((p) => ({ ...p, r: p.r + f.blur })));
+    else if (f.kind === 'blur') extra.push(...points.map((p) => ({ ...p, r: p.r + f.radius })));
+    // G10 (M23): a stroke effect outside the edge (or half of it, centred).
+    else if (f.kind === 'stroke' && f.position !== 'inside')
+      extra.push(
+        ...points.map((p) => ({
+          ...p,
+          r: p.r + (f.position === 'centred' ? f.width / 2 : f.width),
+        })),
+      );
+  return [...points, ...extra];
+}
+
+/**
+ * B7 (Graphics benchmark): the box round what an object draws — its outline's outer half, a
+ * turned text's letters, an arc's own line inside a group (not the group's box, which counts the
+ * whole ellipse), shadows and glows. For cropping the canvas to it (J/19, J/20) and exports of a
+ * part. (boundsOf is the outline itself: for picking, snapping and the handles.)
+ */
+export function drawnBounds(o: AnimObject): Bounds {
+  const pts = inked(o);
+  const x = Math.min(...pts.map((p) => p.x - p.r));
+  const y = Math.min(...pts.map((p) => p.y - p.r));
+  const right = Math.max(...pts.map((p) => p.x + p.r));
+  const bottom = Math.max(...pts.map((p) => p.y + p.r));
+  return { x, y, width: right - x, height: bottom - y };
+}
+
 function distanceToSegment(p: Point, a: Point, b: Point): number {
   const dx = b.x - a.x;
   const dy = b.y - a.y;
@@ -397,10 +469,30 @@ const scaledTrack = (tracks: Track[], property: TweenProperty, k: number): Track
       : t,
   );
 
+/** An effect's sizes (offsets, softness, depth) multiplied by k; its colours and angle kept. */
+function scaledFilter(f: ObjectFilter, k: number): ObjectFilter {
+  switch (f.kind) {
+    case 'dropShadow':
+    case 'innerShadow':
+      return { ...f, dx: f.dx * k, dy: f.dy * k, blur: f.blur * k };
+    case 'glow':
+      return { ...f, blur: f.blur * k };
+    case 'bevel':
+      return { ...f, depth: f.depth * k, blur: f.blur * k };
+    case 'stroke':
+      return { ...f, width: f.width * k };
+    case 'blur':
+      return { ...f, radius: f.radius * k };
+  }
+}
+
 /**
- * A part of a group that is resized, by the smaller of the two scales when it is stretched: text's
- * letters scale with it (O/N/22: OPEN DAY on the smaller plane) and so does every outline's width
- * (M/J/20: the meter redrawn smaller keeps thin lines), keyframes too.
+ * A part of a group that is resized: text's letters scale with it (O/N/22: OPEN DAY on the
+ * smaller plane), and so do every outline's width (M/J/20: the meter redrawn smaller keeps thin
+ * lines) and every effect's size (G3: Scale outlines and effects; keepOutlines puts them back
+ * when it is off), keyframes too. B2 (Graphics benchmark, M/17): stretched, by √(sx·sy), the one
+ * amount that is the same whether the width and height are typed together or one after the
+ * other (and in proportion, the scale itself).
  */
 function scaledWithGroup<T extends AnimObject>(o: T, k: number): T {
   if (k === 1) return o;
@@ -410,7 +502,37 @@ function scaledWithGroup<T extends AnimObject>(o: T, k: number): T {
     ...o,
     ...(o.stroke ? { stroke: { ...o.stroke, width: o.stroke.width * k } } : {}),
     ...(o.kind === 'text' ? { size: o.size * k } : {}),
+    ...(o.filters?.length ? { filters: o.filters.map((f) => scaledFilter(f, k)) } : {}),
     ...(tracks ? { tracks } : {}),
+  };
+}
+
+/** One object's outline width, effects and outline-width keyframes as they were in `before`. */
+function lookAsBefore<T extends AnimObject>(before: AnimObject, after: T): T {
+  const next: T = { ...after };
+  if (before.stroke && after.stroke) next.stroke = { ...after.stroke, width: before.stroke.width };
+  if (before.filters) next.filters = before.filters;
+  const was = before.tracks?.find((t) => t.property === 'strokeWidth');
+  if (was && after.tracks)
+    next.tracks = after.tracks.map((t) => (t.property === 'strokeWidth' ? was : t));
+  if (before.kind === 'group' && after.kind === 'group') return keepOutlines(before, after);
+  return next;
+}
+
+/**
+ * G3 (Graphics benchmark): Scale outlines and effects off — a resized group's parts keep the
+ * outline widths and effect sizes they had before (`before`: the group before it was resized;
+ * parts matched by id). The group's own look is not touched. Pure.
+ */
+export function keepOutlines<T extends AnimObject>(before: AnimObject, after: T): T {
+  if (before.kind !== 'group' || after.kind !== 'group') return after;
+  const was = new Map(before.children.map((c) => [c.id, c]));
+  return {
+    ...after,
+    children: after.children.map((c) => {
+      const b = was.get(c.id);
+      return b ? lookAsBefore(b, c) : c;
+    }),
   };
 }
 
@@ -461,7 +583,7 @@ export function setSize<T extends AnimObject>(o: T, width: number, height: numbe
       ...sized,
       children: o.children.map((c) =>
         setSize(
-          scaledWithGroup({ ...c, x: c.x * sx, y: c.y * sy }, Math.min(sx, sy)),
+          scaledWithGroup({ ...c, x: c.x * sx, y: c.y * sy }, Math.sqrt(sx * sy)),
           c.width * sx,
           c.height * sy,
         ),

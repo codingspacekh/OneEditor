@@ -9,7 +9,7 @@
 // it answers; Undo puts the selection back as it was (GB2).
 import type { AnimCommand } from '../animation-commands.ts';
 import type { Bounds } from '../../core/animation/geometry.ts';
-import type { AnimationDoc } from '../../core/animation/types.ts';
+import type { AnimationDoc, PrintedSize } from '../../core/animation/types.ts';
 import { setImage } from '../../core/graphics/document.ts';
 import {
   canvasOffset,
@@ -157,11 +157,18 @@ export function pixelImageActions(ctx: AnimationContext) {
       height: number;
       method: ResampleMethod;
       dpi?: number;
+      /** G6 (benchmark): the size as typed in cm, mm or in (kept exactly for SVG and PDF). */
+      printed?: PrintedSize;
     }): string | null {
-      const { width, height, method, dpi } = size;
+      const { width, height, method, dpi, printed } = size;
       const change = (doc: AnimationDoc, resample?: Resampler) => {
         const resized = resizeImage(doc, { width, height, method }, resample);
-        return dpi === undefined ? resized : setImage(resized, { dpi });
+        return dpi === undefined && !printed
+          ? resized
+          : setImage(resized, {
+              ...(dpi !== undefined ? { dpi } : {}),
+              ...(printed ? { size: printed } : {}),
+            });
       };
       // A selection's soft edge stays soft: only nearest keeps it hard.
       const selectionMethod = method === 'nearest' ? 'nearest' : 'bilinear';

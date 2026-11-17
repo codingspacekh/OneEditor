@@ -6,7 +6,7 @@ import { isRaster, type Raster } from '../graphics/pixels/raster.ts';
 import { ProjectFileError } from '../model/errors.ts';
 import { migrate, type Migration, type ProjectDocument } from '../project/migrate.ts';
 import { fromProjectPath, toProjectPath } from '../project/paths.ts';
-import { isColour, isStageBackground } from './rules.ts';
+import { isColour, isGradientColour, isStageBackground } from './rules.ts';
 import { BLEND_MODES, type AnimationDoc, type Layer, type ObjectKind } from './types.ts';
 
 export const ANIMATION_SCHEMA = 5;
@@ -184,6 +184,12 @@ function isFilter(f: Obj): boolean {
         isColour(f.light) &&
         isColour(f.shadow)
       );
+    case 'stroke':
+      return (
+        isColour(f.colour) &&
+        has(f, ['width', 'opacity'], isNumber) &&
+        ['outside', 'centred', 'inside'].includes(f.position as string)
+      );
     case 'blur':
       return isNumber(f.radius);
     default:
@@ -232,7 +238,7 @@ function isEnvelope(e: unknown): boolean {
 
 /** AN6: a gradient's colours between from and to, each at a % of the way. */
 const isStops = (v: unknown) =>
-  v === undefined || listOf(v, (s) => isNumber(s.at) && isColour(s.colour));
+  v === undefined || listOf(v, (s) => isNumber(s.at) && isGradientColour(s.colour));
 
 function isPaint(p: unknown): boolean {
   if (!isObject(p)) return false;
@@ -242,11 +248,13 @@ function isPaint(p: unknown): boolean {
     case 'solid':
       return isColour(p.colour);
     case 'linear':
-      return isColour(p.from) && isColour(p.to) && isNumber(p.angle) && isStops(p.stops);
+      return (
+        isGradientColour(p.from) && isGradientColour(p.to) && isNumber(p.angle) && isStops(p.stops)
+      );
     case 'radial':
       return (
-        isColour(p.from) &&
-        isColour(p.to) &&
+        isGradientColour(p.from) &&
+        isGradientColour(p.to) &&
         isStops(p.stops) &&
         // AN6: its centre, in % of the box.
         ['cx', 'cy'].every((k) => p[k] === undefined || isNumber(p[k]))
@@ -435,8 +443,8 @@ function isAnimation(doc: ProjectDocument): doc is ProjectDocument & AnimationDo
         optional(l.clip, isBoolean) &&
         optional(l.pixels, isPixels) &&
         (l.pixels === undefined || (Array.isArray(l.objects) && l.objects.length === 0)) &&
-        // G14 (M22): a pixel layer's effects, as an object's filters (none on a vector layer).
-        optional(l.effects, (v) => l.pixels !== undefined && listOf(v, isFilter)) &&
+        // G14 (M22): a layer's effects, as an object's filters (G10, M23: a vector layer's too).
+        optional(l.effects, (v) => listOf(v, isFilter)) &&
         (l.drawings === undefined ||
           (Array.isArray(l.drawings) && l.drawings.length > 0 && l.drawings.every(isNumber))) &&
         listOf(l.objects, isAnimObject),
@@ -451,7 +459,15 @@ function isAnimation(doc: ProjectDocument): doc is ProjectDocument & AnimationDo
     (doc.graphic === undefined ||
       (isObject(doc.graphic) &&
         isNumber(doc.graphic.dpi) &&
-        ['px', 'cm', 'mm', 'in', 'pt'].includes(doc.graphic.units as string))) &&
+        ['px', 'cm', 'mm', 'in', 'pt'].includes(doc.graphic.units as string) &&
+        // G6 (benchmark): the printed size as typed.
+        optional(
+          doc.graphic.size,
+          (v) =>
+            isObject(v) &&
+            has(v, ['width', 'height'], isNumber) &&
+            ['cm', 'mm', 'in', 'pt'].includes((v as { units?: string }).units as string),
+        ))) &&
     isObject(guides) &&
     Array.isArray(guides.x) &&
     Array.isArray(guides.y) &&
@@ -459,6 +475,8 @@ function isAnimation(doc: ProjectDocument): doc is ProjectDocument & AnimationDo
     isObject(view.grid) &&
     isObject(view.snap) &&
     // GV7 (M19): the outline view.
-    optional(view.wireframe, isBoolean)
+    optional(view.wireframe, isBoolean) &&
+    // G3: Scale outlines and effects.
+    optional(view.scaleOutlines, isBoolean)
   );
 }

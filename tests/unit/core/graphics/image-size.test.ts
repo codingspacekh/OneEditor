@@ -191,7 +191,8 @@ describe('M21 G8: crop and trim', () => {
   it('M21 G8: crop to content: the bounds of the pixels and the objects together', () => {
     const rect = createRect({ x: 60, y: 50, width: 10, height: 5 });
     const doc = image([photo(), createLayer('Shapes', { objects: [rect] })]);
-    expect(contentBox(doc)).toEqual({ x: 10, y: 10, width: 60, height: 45 });
+    // B7: the rectangle's 2 px outline reaches 1 px further (to 71, 56).
+    expect(contentBox(doc)).toEqual({ x: 10, y: 10, width: 61, height: 46 });
     // A hidden layer does not count; nothing drawn: null.
     const hidden = image([{ ...photo(), visible: false }]);
     expect(contentBox(hidden)).toBeNull();
@@ -219,7 +220,8 @@ describe('M21 G8: crop and trim', () => {
   it('M21 G8: trim plain edges on a white canvas with only shapes on it uses the shapes', () => {
     const rect = createRect({ x: 20, y: 25, width: 30, height: 20 });
     const doc = image([createLayer('Shapes', { objects: [rect] })], 100, 80, '#ffffff');
-    expect(contentBox(doc, { plain: true })).toEqual({ x: 20, y: 25, width: 30, height: 20 });
+    // B7: with its 2 px outline's outer half.
+    expect(contentBox(doc, { plain: true })).toEqual({ x: 19, y: 24, width: 32, height: 22 });
   });
 
   it('M21 G8: a hidden part of a layer mask is not content; content is kept to the canvas', () => {

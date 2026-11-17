@@ -12,6 +12,7 @@
   import { isClosed, isShape } from '../../core/animation/geometry.ts';
   import type { CombineHow } from '../../core/animation/combine.ts';
   import { addStop, changeStop, removeStop } from '../../core/animation/gradient.ts';
+  import { alphaOf, opaqueOf, withAlpha } from '../../core/colour.ts';
   import { findObject } from '../../core/animation/layers.ts';
   import { stateAt } from '../../core/animation/state.ts';
   import { aspectOf, MAX_CURVE } from '../../core/animation/rules.ts';
@@ -69,8 +70,11 @@
   );
   const first = $derived(found[0]?.object ?? null);
   /** G14 (M22): the current layer when it is a pixel layer (Graphics mode), for its effects. */
-  const pixelLayer = $derived(
-    editor.still ? doc.layers.find((l) => l.id === $store.layerId && l.pixels) : undefined,
+  /** G14 (M22): the current layer's effects; G10 (M23): a vector layer's too (not a mask's). */
+  const effectsLayer = $derived(
+    editor.still
+      ? doc.layers.find((l) => l.id === $store.layerId && !l.mask && !l.template)
+      : undefined,
   );
   /** G1, G6 (M18): Graphics mode shows lengths in the image's units (px in Animation mode). */
   const image = $derived(editor.still ? graphicOf(doc) : { units: 'px' as const, dpi: 96 });
@@ -189,6 +193,10 @@
     if (!first || first.fill.kind === 'none') return null;
     return set({ fill: { ...first.fill, ...change } as Paint });
   };
+  /** G8 (M23): a gradient colour's own opacity, 0–100 %, kept in it as #rrggbbaa. */
+  const opacityOf = (colour: string, percent: number): string | null =>
+    percent < 0 || percent > 100 ? null : withAlpha(colour, percent);
+  const OPACITY_RANGE = 'From 0 to 100 %.';
   /** AN4: words, font, size and style change the box with them (one undo step). */
   const textPatch = (change: Partial<TextObject>): string | null => {
     if (!first || first.kind !== 'text') return null;
@@ -278,14 +286,15 @@
       <p class="hint">
         Click an object on the stage, or draw one with a tool from the strip on the left.
       </p>
-      {#if pixelLayer}
-        <!-- G14 (M22): the current pixel layer's effects (the halo, light blooms, a bevel). -->
+      {#if effectsLayer}
+        <!-- G14 (M22): the current layer's effects (the halo, light blooms, a bevel); G10 (M23):
+             a stroke round a clipping group (M/21's globe), on a vector layer too. -->
         <FiltersSection
-          heading="Effects on {pixelLayer.name}"
+          heading="Effects on {effectsLayer.name}"
           owner="the layer"
           quick
-          filters={pixelLayer.effects ?? []}
-          commit={(effects) => anim.setLayerEffects(pixelLayer.id, effects)}
+          filters={effectsLayer.effects ?? []}
+          commit={(effects) => anim.setLayerEffects(effectsLayer.id, effects)}
         />
       {/if}
       {#if editor.still}
@@ -426,6 +435,20 @@
         <label class="check">
           <input type="checkbox" bind:checked={animUi.lockRatio} /> Lock proportions
         </label>
+        {#if many || first.kind === 'group'}
+          <!-- G3 (Graphics benchmark): Illustrator's Scale Strokes & Effects, for the image. -->
+          <label
+            class="check"
+            title="On: a resized group's outlines and shadows grow and shrink with it. Off: they stay as typed (a 1 pt outline stays 1 pt), here and in Image size."
+          >
+            <input
+              type="checkbox"
+              checked={$store.history.present.view.scaleOutlines !== false}
+              onchange={(e) =>
+                anim.setView({ scaleOutlines: (e.currentTarget as HTMLInputElement).checked })}
+            /> Scale outlines and effects
+          </label>
+        {/if}
         <div class="two">
           <NumField
             label="Rotation"
@@ -527,14 +550,38 @@
             />
           {:else if first.fill.kind === 'linear' || first.fill.kind === 'radial'}
             {@const fill = first.fill}
-            <ColourField label="From" value={fill.from} commit={(c) => fillPatch({ from: c })} />
+            <!-- G8 (M23): each colour with its own opacity (J/22: dark fading to see-through). -->
+            <ColourField
+              label="From"
+              value={opaqueOf(fill.from)}
+              commit={(c) => fillPatch({ from: withAlpha(c, alphaOf(fill.from)) })}
+            />
+            <NumField
+              label="From opacity"
+              value={alphaOf(fill.from)}
+              unit="%"
+              commit={(v) => {
+                const from = opacityOf(fill.from, v);
+                return from ? fillPatch({ from }) : OPACITY_RANGE;
+              }}
+            />
             <!-- AN6: the colours between From and To (M/J/20: a red, yellow and green meter). -->
             {#each fill.stops ?? [] as stop, i (i)}
               <div class="stop" role="group" aria-label="Colour {i + 2}">
                 <ColourField
                   label="Colour {i + 2}"
-                  value={stop.colour}
-                  commit={(c) => setFill(changeStop(fill, i, { colour: c }))}
+                  value={opaqueOf(stop.colour)}
+                  commit={(c) =>
+                    setFill(changeStop(fill, i, { colour: withAlpha(c, alphaOf(stop.colour)) }))}
+                />
+                <NumField
+                  label="Opacity"
+                  value={alphaOf(stop.colour)}
+                  unit="%"
+                  commit={(v) => {
+                    const colour = opacityOf(stop.colour, v);
+                    return colour ? setFill(changeStop(fill, i, { colour })) : OPACITY_RANGE;
+                  }}
                 />
                 <div class="stop-at">
                   <NumField
@@ -553,7 +600,20 @@
                 </div>
               </div>
             {/each}
-            <ColourField label="To" value={fill.to} commit={(c) => fillPatch({ to: c })} />
+            <ColourField
+              label="To"
+              value={opaqueOf(fill.to)}
+              commit={(c) => fillPatch({ to: withAlpha(c, alphaOf(fill.to)) })}
+            />
+            <NumField
+              label="To opacity"
+              value={alphaOf(fill.to)}
+              unit="%"
+              commit={(v) => {
+                const to = opacityOf(fill.to, v);
+                return to ? fillPatch({ to }) : OPACITY_RANGE;
+              }}
+            />
             <div class="row">
               <button
                 class="sm"

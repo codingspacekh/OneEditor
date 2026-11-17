@@ -8,14 +8,15 @@
 // - `start` % of the way along is where the words are anchored: their start (left aligned), their
 //   middle (centred) or their end (right aligned). A closed outline wraps round; on an open one,
 //   letters past an end carry on straight along the end's direction, so no words are lost.
-// - `side`: `outside` stands the letters on the outline, on the left of the way it runs (above a
-//   line drawn left to right, outside a shape drawn clockwise, as the app's shapes are);
-//   `inside` hangs them on the other side, their tops on the outline; `centred` runs the outline
-//   through the middle of the letters (9626/04 M/22 Heron: "each letter halfway through the
-//   outline").
-// - `flip` runs the letters the other way round, from the outline's other end (so they are on
-//   its other side and the start is counted from that end): words along the bottom of a circle
-//   then read left to right.
+// - `side`: `outside` puts the letters outside a closed shape (however it was drawn), or above an
+//   open line as drawn (on the left of the way it was drawn: above a line drawn left to right);
+//   `inside` puts them inside the shape, or under the line; `centred` runs the outline through
+//   the middle of the letters (9626/04 M/22 Heron: "each letter halfway through the outline").
+//   The letters stand on the outline where their feet face it, and hang from it by their tops
+//   where their tops face it.
+// - `flip` runs the letters the other way round, from the outline's other end (the start is
+//   counted from that end), on the same side (G12): words inside the bottom of a circle then read
+//   left to right (O/N/17 RockICT: "curved to fit the bottom of the guitar").
 // - More lines stack away from the outline: on the outside the first line is the farthest out,
 //   inside the first line is nearest the outline, centred the block's middle is on it.
 //
@@ -84,6 +85,31 @@ function offsetOf(side: TextPath['side'], line: number, lines: number, size: num
   }
 }
 
+/** Twice the area the outline encloses, positive when it runs clockwise on the screen (y down). */
+function clockwiseArea(line: Polyline): number {
+  const p = line.points;
+  let sum = 0;
+  for (let i = 0; i < p.length; i++) {
+    const a = p[i]!;
+    const b = p[(i + 1) % p.length]!;
+    sum += a.x * b.y - b.x * a.y;
+  }
+  return sum;
+}
+
+/**
+ * G12: the side as the letters' own up sees it. A letter's up is on the left of the way the
+ * letters run, which is outside a closed outline run clockwise (on the screen) and above an open
+ * one run the way it was drawn; run the other way (flipped, or a shape drawn anticlockwise), the
+ * letters' up faces the other side, so outside and inside swap places for them.
+ */
+function sideFor(path: TextPath, line: Polyline): TextPath['side'] {
+  if (path.side === 'centred') return 'centred';
+  const reversed = path.closed ? clockwiseArea(line) < 0 : path.flip === true;
+  if (!reversed) return path.side;
+  return path.side === 'outside' ? 'inside' : 'outside';
+}
+
 /**
  * GT2: the letters of a text on its path (spaces left out), each the middle of its line-high
  * cell in the text's box and its turn in degrees, clockwise, following the outline.
@@ -91,6 +117,7 @@ function offsetOf(side: TextPath['side'], line: number, lines: number, size: num
 export function pathLetters(t: OnPath, widthOf: WidthOf): PlacedLetter[] {
   const layout = layoutText(t, widthOf);
   const line = travelOf(t.path);
+  const side = sideFor(t.path, line);
   const total = pathLength(line);
   const lines = layout.lineWidths.length;
   const start = t.path.closed ? t.path.start : Math.max(0, Math.min(100, t.path.start));
@@ -114,7 +141,7 @@ export function pathLetters(t: OnPath, widthOf: WidthOf): PlacedLetter[] {
             : 0
           : (Math.atan2(b.y - a.y, b.x - a.x) * 180) / Math.PI;
       const r = (angle * Math.PI) / 180;
-      const off = offsetOf(t.path.side, c.line, lines, t.size, layout.lineHeight);
+      const off = offsetOf(side, c.line, lines, t.size, layout.lineHeight);
       // The left of the way it runs: up for a line drawn left to right (the screen's y is down).
       return {
         char: c.char,

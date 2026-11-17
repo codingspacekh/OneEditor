@@ -6,6 +6,8 @@ import { roughTextWidth } from './factory.ts';
 import { placeLetters } from './letters-placed.ts';
 import { hasLetterSpacing, layoutText, lineHeightOf } from './text-layout.ts';
 import { bentForDrawing } from '../graphics/warp.ts';
+import { glyphsOf } from '../graphics/glyphs.ts';
+import { BASELINE, CAP_TOP } from '../graphics/text-path.ts';
 import { flattenPath, isClosed, localOutline, outlineOf, pivotInBox, skewOf } from './geometry.ts';
 import { arcSweep } from '../graphics/bezier.ts';
 import { colourStops, radialCentre } from './gradient.ts';
@@ -180,6 +182,19 @@ export interface DrawOptions {
    * never use it.
    */
   wireframe?: { lineWidth: number };
+  /**
+   * G2, G5 (benchmark 2026-11-17): text painted as Illustrator and Inkscape paint it — its
+   * outline over the letters (centred on their edge, so it shows as wide as typed) and a gradient
+   * over each line's (or, along a path or a curve, each letter's) ink. drawStage sets it for an
+   * image (Graphics mode); an animation keeps the outline behind the letters, for words over video.
+   */
+  graphicText?: boolean;
+  /**
+   * G11 (M23 B1): what a transparent stage is drawn on, for a file that cannot be see-through (a
+   * JPG): painted first instead of clearing, so the objects are put down on it. A stage with its
+   * own colour keeps it.
+   */
+  background?: string;
 }
 
 /** AN14: how strongly the onion skin's neighbouring drawings are drawn. */
@@ -234,6 +249,8 @@ function styleOf(
   h: number,
   spot?: Spot,
   options: DrawOptions = {},
+  /** G5: where the middle of the w × h box is (its own frame's origin when absent). */
+  centre: { x: number; y: number } = { x: 0, y: 0 },
 ): string | object | null {
   const at = (x: number, y: number) => {
     if (!spot) return { x, y };
@@ -254,14 +271,17 @@ function styleOf(
       const dx = Math.cos(a);
       const dy = Math.sin(a);
       const half = (Math.abs(w * dx) + Math.abs(h * dy)) / 2;
-      const [p, q] = [at(-dx * half, -dy * half), at(dx * half, dy * half)];
+      const [p, q] = [
+        at(centre.x - dx * half, centre.y - dy * half),
+        at(centre.x + dx * half, centre.y + dy * half),
+      ];
       g = ctx.createLinearGradient(p.x, p.y, q.x, q.y);
       break;
     }
     case 'radial': {
       // AN6: from its centre (the middle of the box unless moved), as far as half the box.
-      const centre = radialCentre(paint);
-      const c = at(((centre.x - 50) / 100) * w, ((centre.y - 50) / 100) * h);
+      const from = radialCentre(paint);
+      const c = at(centre.x + ((from.x - 50) / 100) * w, centre.y + ((from.y - 50) / 100) * h);
       g = ctx.createRadialGradient(c.x, c.y, 0, c.x, c.y, Math.max(w, h) / 2);
       break;
     }
@@ -407,6 +427,69 @@ function traceHoles(ctx: StageCanvas, o: PathObject): void {
 }
 
 /**
+ * G5 (benchmark): where some letters' ink is, in px below the top of the em square the stage draws
+ * them from: from the capitals' and ascenders' tops to the baseline, or down to the descenders'
+ * feet. Read from the font's own outlines once loaded (glyphs.ts); before that, from the usual
+ * proportions (the capitals' top and the baseline text-path.ts places letters by).
+ */
+function inkBand(t: TextObject, text: string): { top: number; bottom: number } {
+  const glyphs = glyphsOf(t);
+  if (glyphs) {
+    let up = 0;
+    let down = 0;
+    for (const char of text)
+      for (const c of glyphs.outline(char, t.size)) {
+        if (c.type === 'Z') continue;
+        const ys = c.type === 'Q' ? [c.y, c.y1] : c.type === 'C' ? [c.y, c.y1, c.y2] : [c.y];
+        for (const y of ys) {
+          up = Math.max(up, -y);
+          down = Math.max(down, y);
+        }
+      }
+    const base = glyphs.top * t.size;
+    if (up > 0) return { top: base - up, bottom: base + down };
+  }
+  const descends = /[gjpqyQ,;]/.test(text);
+  return { top: CAP_TOP * t.size, bottom: (BASELINE + (descends ? 0.2 : 0)) * t.size };
+}
+
+const isGradient = (paint: Paint): boolean => paint.kind === 'linear' || paint.kind === 'radial';
+
+/**
+ * G5: the style for a run of letters drawn from (0, top) in an image: a gradient over their ink,
+ * `width` wide about x = `middle`; any other paint as the whole words' (`whole`).
+ */
+function inkStyle(
+  ctx: StageCanvas,
+  t: TextObject,
+  text: string,
+  top: number,
+  width: number,
+  middle: number,
+  options: DrawOptions,
+  whole: () => string | object | null,
+): string | object | null {
+  if (!options.graphicText || !isGradient(t.fill)) return whole();
+  const band = inkBand(t, text);
+  const centre = { x: middle, y: top + (band.top + band.bottom) / 2 };
+  return styleOf(ctx, t.fill, width, band.bottom - band.top, undefined, options, centre);
+}
+
+/**
+ * G2 (benchmark): letters' outline and fill in the order they are painted: in an image the
+ * outline over the letters (centred on their edge, as wide as typed); in an animation behind them.
+ */
+function inOrder(options: DrawOptions, outline: () => void, fill: () => void): void {
+  if (options.graphicText) {
+    fill();
+    outline();
+  } else {
+    outline();
+    fill();
+  }
+}
+
+/**
  * AN26: curved text, letter by letter: each from the middle of its line-high cell on the arc,
  * turned to follow it; the bent words in the middle of the box (their bounds are the box).
  */
@@ -425,17 +508,26 @@ function drawCurvedText(ctx: StageCanvas, t: TextObject, shown: number, options:
     ctx.translate(spot.x, spot.y);
     if (spot.angle !== 0) ctx.rotate((spot.angle * Math.PI) / 180);
     const stroke = t.stroke;
-    if (stroke && stroke.width > 0)
-      faded(ctx, shown, stroke.opacity, () => {
-        applyStroke(ctx, stroke);
-        ctx.strokeText(l.char, 0, -half);
-      });
-    const fill = styleOf(ctx, t.fill, t.width, t.height, spot, options);
-    if (fill !== null)
-      faded(ctx, shown, t.fillOpacity, () => {
-        ctx.fillStyle = fill;
-        ctx.fillText(l.char, 0, -half);
-      });
+    const fill = inkStyle(ctx, t, t.text, -half, widthOf(l.char), 0, options, () =>
+      styleOf(ctx, t.fill, t.width, t.height, spot, options),
+    );
+    inOrder(
+      options,
+      () => {
+        if (stroke && stroke.width > 0)
+          faded(ctx, shown, stroke.opacity, () => {
+            applyStroke(ctx, stroke);
+            ctx.strokeText(l.char, 0, -half);
+          });
+      },
+      () => {
+        if (fill !== null)
+          faded(ctx, shown, t.fillOpacity, () => {
+            ctx.fillStyle = fill;
+            ctx.fillText(l.char, 0, -half);
+          });
+      },
+    );
     ctx.restore();
   };
   for (const l of bent.letters) if (l.char.trim() !== '') letter(l);
@@ -468,17 +560,26 @@ function drawTextAlong(ctx: StageCanvas, t: TextObject, shown: number, options: 
     ctx.translate(spot.x, spot.y);
     if (spot.angle !== 0) ctx.rotate((spot.angle * Math.PI) / 180);
     const stroke = t.stroke;
-    if (stroke && stroke.width > 0)
-      faded(ctx, shown, stroke.opacity, () => {
-        applyStroke(ctx, stroke);
-        ctx.strokeText(l.char, 0, -half);
-      });
-    const fill = styleOf(ctx, t.fill, t.width, t.height, spot, options);
-    if (fill !== null)
-      faded(ctx, shown, t.fillOpacity, () => {
-        ctx.fillStyle = fill;
-        ctx.fillText(l.char, 0, -half);
-      });
+    const fill = inkStyle(ctx, t, t.text, -half, l.width, 0, options, () =>
+      styleOf(ctx, t.fill, t.width, t.height, spot, options),
+    );
+    inOrder(
+      options,
+      () => {
+        if (stroke && stroke.width > 0)
+          faded(ctx, shown, stroke.opacity, () => {
+            applyStroke(ctx, stroke);
+            ctx.strokeText(l.char, 0, -half);
+          });
+      },
+      () => {
+        if (fill !== null)
+          faded(ctx, shown, t.fillOpacity, () => {
+            ctx.fillStyle = fill;
+            ctx.fillText(l.char, 0, -half);
+          });
+      },
+    );
     ctx.restore();
   }
 }
@@ -486,12 +587,16 @@ function drawTextAlong(ctx: StageCanvas, t: TextObject, shown: number, options: 
 function drawText(ctx: StageCanvas, t: TextObject, shown = 1, options: DrawOptions = {}): void {
   if (t.path || t.inShape) return drawTextAlong(ctx, t, shown, options);
   if (curveOf(t) !== 0) return drawCurvedText(ctx, t, shown, options);
-  const fill = styleOf(ctx, t.fill, t.width, t.height, undefined, options);
+  // G5: in an image a gradient is made over each line's ink instead (inkStyle).
+  const fill =
+    options.graphicText && isGradient(t.fill)
+      ? null
+      : styleOf(ctx, t.fill, t.width, t.height, undefined, options);
   ctx.font = fontOf(t);
   const spaced = hasLetterSpacing(t);
   ctx.textAlign = spaced ? 'left' : t.align === 'centre' ? 'center' : t.align;
   ctx.textBaseline = 'top';
-  if (spaced) return drawSpacedText(ctx, t, shown, fill);
+  if (spaced) return drawSpacedText(ctx, t, shown, fill, options);
   const x = t.align === 'left' ? 0 : t.align === 'centre' ? t.width / 2 : t.width;
   const ox = -t.width / 2;
   const oy = -t.height / 2;
@@ -500,16 +605,25 @@ function drawText(ctx: StageCanvas, t: TextObject, shown = 1, options: DrawOptio
   t.text.split('\n').forEach((line, i) => {
     const y = i * lineHeight;
     const stroke = t.stroke;
-    if (stroke && stroke.width > 0)
-      faded(ctx, shown, stroke.opacity, () => {
-        applyStroke(ctx, stroke);
-        ctx.strokeText(line, ox + x, oy + y);
-      });
-    if (fill !== null)
-      faded(ctx, shown, t.fillOpacity, () => {
-        ctx.fillStyle = fill;
-        ctx.fillText(line, ox + x, oy + y);
-      });
+    // G5: in an image, a gradient over this line's ink.
+    const paint = inkStyle(ctx, t, line, oy + y, t.width, 0, options, () => fill);
+    inOrder(
+      options,
+      () => {
+        if (stroke && stroke.width > 0)
+          faded(ctx, shown, stroke.opacity, () => {
+            applyStroke(ctx, stroke);
+            ctx.strokeText(line, ox + x, oy + y);
+          });
+      },
+      () => {
+        if (paint !== null)
+          faded(ctx, shown, t.fillOpacity, () => {
+            ctx.fillStyle = paint;
+            ctx.fillText(line, ox + x, oy + y);
+          });
+      },
+    );
   });
 }
 
@@ -524,6 +638,7 @@ function drawSpacedText(
   t: TextObject,
   shown: number,
   fill: string | object | null,
+  options: DrawOptions = {},
 ): void {
   const widthOf = (s: string) =>
     ctx.measureText ? ctx.measureText(s).width : roughTextWidth(s, t.size);
@@ -534,16 +649,27 @@ function drawSpacedText(
   layout.lineWidths.forEach((_, row) => {
     const letters = layout.cells.filter((c) => c.line === row && c.char.trim() !== '');
     const stroke = t.stroke;
-    if (stroke && stroke.width > 0)
-      faded(ctx, shown, stroke.opacity, () => {
-        applyStroke(ctx, stroke);
-        for (const c of letters) ctx.strokeText(c.char, ox + c.x, oy + c.y);
-      });
-    if (fill !== null)
-      faded(ctx, shown, t.fillOpacity, () => {
-        ctx.fillStyle = fill;
-        for (const c of letters) ctx.fillText(c.char, ox + c.x, oy + c.y);
-      });
+    // G5: in an image, a gradient over this line's ink.
+    const top = oy + row * layout.lineHeight;
+    const text = letters.map((c) => c.char).join('');
+    const paint = inkStyle(ctx, t, text, top, t.width, 0, options, () => fill);
+    inOrder(
+      options,
+      () => {
+        if (stroke && stroke.width > 0)
+          faded(ctx, shown, stroke.opacity, () => {
+            applyStroke(ctx, stroke);
+            for (const c of letters) ctx.strokeText(c.char, ox + c.x, oy + c.y);
+          });
+      },
+      () => {
+        if (paint !== null)
+          faded(ctx, shown, t.fillOpacity, () => {
+            ctx.fillStyle = paint;
+            for (const c of letters) ctx.fillText(c.char, ox + c.x, oy + c.y);
+          });
+      },
+    );
   });
 }
 
@@ -763,13 +889,19 @@ export function drawStage(ctx: StageCanvas, doc: AnimationDoc, given: DrawOption
     ...given,
     // GV7 (M19): the outline view is only for editing; an export never draws it.
     wireframe: given.editing ? given.wireframe : undefined,
+    graphicText: given.graphicText ?? doc.graphic !== undefined,
   };
-  // AN21: a transparent stage is cleared (a canvas used again keeps no earlier frame).
-  if (doc.stage.background === TRANSPARENT && !options.wireframe)
+  // AN21: a transparent stage is cleared (a canvas used again keeps no earlier frame), unless it
+  // is drawn on a background (B1: a JPG).
+  if (doc.stage.background === TRANSPARENT && !options.wireframe && !options.background)
     ctx.clearRect(0, 0, doc.stage.width, doc.stage.height);
   else {
     // GV7: the outline view's lines are on white, as Illustrator's.
-    ctx.fillStyle = options.wireframe ? '#ffffff' : doc.stage.background;
+    ctx.fillStyle = options.wireframe
+      ? '#ffffff'
+      : doc.stage.background === TRANSPARENT
+        ? options.background!
+        : doc.stage.background;
     ctx.fillRect(0, 0, doc.stage.width, doc.stage.height);
   }
   options.afterBackground?.(ctx);
@@ -806,10 +938,9 @@ export function drawStage(ctx: StageCanvas, doc: AnimationDoc, given: DrawOption
    * G14 (M22): a pixel layer's effects (none in the outline view, or on a canvas that cannot
    * draw them).
    */
+  // G10 (M23): a vector layer's effects too, made from all its objects together.
   const effectsOf = (layer: Layer): readonly ObjectFilter[] =>
-    layer.pixels && layer.effects?.length && ctx.withFilters && !options.wireframe
-      ? layer.effects
-      : [];
+    layer.effects?.length && ctx.withFilters && !options.wireframe ? layer.effects : [];
   /**
    * A layer at full strength, inside a picture of its own; a pixel layer with its effects (G14),
    * made from its pixels as its mask shows them, unless `bare`.
@@ -817,7 +948,9 @@ export function drawStage(ctx: StageCanvas, doc: AnimationDoc, given: DrawOption
   const drawPlain = (target: StageCanvas, layer: Layer, i: number, bare = false): void => {
     const effects = bare ? [] : effectsOf(layer);
     if (effects.length && target.withFilters)
-      return target.withFilters(effects, (inner) => drawPixels(inner, layer, true));
+      return target.withFilters(effects, (inner) =>
+        layer.pixels ? drawPixels(inner, layer, true) : drawVectors(inner, layer, i),
+      );
     return layer.pixels ? drawPixels(target, layer, true) : drawVectors(target, layer, i);
   };
   layers.forEach((layer, i) => {
@@ -859,6 +992,12 @@ export function drawStage(ctx: StageCanvas, doc: AnimationDoc, given: DrawOption
       // G14 (M22): the effects belong to the layer's own picture, faded and blended with it.
       const effects = effectsOf(layer);
       if (!effects.length) return drawPixels(ctx, layer);
+      if ((opacity < 1 || layer.blend) && ctx.withLayer)
+        return ctx.withLayer(opacity, (one) => drawPlain(one, layer, i), howOf(layer));
+      return drawPlain(ctx, layer, i);
+    }
+    // G10 (M23): a vector layer's effects, from its objects together, faded and blended with it.
+    if (effectsOf(layer).length) {
       if ((opacity < 1 || layer.blend) && ctx.withLayer)
         return ctx.withLayer(opacity, (one) => drawPlain(one, layer, i), howOf(layer));
       return drawPlain(ctx, layer, i);

@@ -3,6 +3,7 @@
 import { EditError } from '../core/model/errors.ts';
 import {
   CENTRE_PIVOT,
+  keepOutlines,
   pivotOf,
   resizeFrom,
   rotated,
@@ -139,7 +140,8 @@ export function setProperties(
   patch: Partial<AnimObject>,
   frame = 0,
 ): AnimCommand {
-  return changeAt(ids, frame, `Change ${Object.keys(patch).join(', ')}`, (o) => {
+  const sizing = patch.width !== undefined || patch.height !== undefined;
+  const change = changeAt(ids, frame, `Change ${Object.keys(patch).join(', ')}`, (o) => {
     // A new width or height keeps the top-left corner and scales a path's points.
     const sized =
       patch.width !== undefined || patch.height !== undefined
@@ -150,6 +152,25 @@ export function setProperties(
     // the workbook give x, y and the size, in any order (WB Task 1.1 keys the size at 193, 73).
     return next;
   });
+  return sizing ? keepingOutlines(change, ids) : change;
+}
+
+/**
+ * G3: with Scale outlines and effects off (the image's choice), a resize leaves the outline
+ * widths and effect sizes inside the resized groups as they were.
+ */
+function keepingOutlines(c: AnimCommand, ids: readonly Id[]): AnimCommand {
+  return {
+    ...c,
+    apply: (doc) => {
+      const next = c.apply(doc);
+      if (doc.view.scaleOutlines !== false) return next;
+      return ids.reduce((d, id) => {
+        const before = layers.findObject(doc, id)?.object;
+        return before ? layers.updateObject(d, id, (o) => keepOutlines(before, o)) : d;
+      }, next);
+    },
+  };
 }
 
 export function moveObjects(ids: readonly Id[], dx: number, dy: number, frame = 0): AnimCommand {
@@ -163,7 +184,10 @@ export function resizeObject(
   lockRatio: boolean,
   frame = 0,
 ): AnimCommand {
-  return changeAt([id], frame, 'Resize', (o) => resizeFrom(o, handle, pointer, { lockRatio }));
+  return keepingOutlines(
+    changeAt([id], frame, 'Resize', (o) => resizeFrom(o, handle, pointer, { lockRatio })),
+    [id],
+  );
 }
 
 export function rotateObject(id: Id, degrees: number, frame = 0): AnimCommand {

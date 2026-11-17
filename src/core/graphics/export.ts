@@ -8,7 +8,7 @@
 import { EditError } from '../model/errors.ts';
 import { TRANSPARENT } from '../animation/rules.ts';
 import type { AnimationDoc, AnimObject, Id } from '../animation/types.ts';
-import { canvasAround, drawingBounds, graphicOf } from './document.ts';
+import { canvasAround, drawingBounds, graphicOf, printedSize } from './document.ts';
 import { roundIn, toPx, type Unit } from './units.ts';
 
 export type GraphicFormat = 'png' | 'jpg' | 'gif' | 'bmp' | 'tiff' | 'svg' | 'pdf';
@@ -202,6 +202,24 @@ export function keepsTransparency(
   return false;
 }
 
+/**
+ * Benchmark G11: the depths remembered from the last exports, as the next export starts with
+ * them: for an image with see-through parts, a depth that would lose them is not reused (the
+ * format's default then: 32-bit PNG), so a see-through PNG never silently comes out on white
+ * because the one before had to be opaque (J/20: Meter1_ at 24 bits, then Scale2_).
+ */
+export function rememberedDepths(
+  depths: Partial<Record<GraphicFormat, ColourDepth>>,
+  seeThrough: boolean,
+): Partial<Record<GraphicFormat, ColourDepth>> {
+  if (!seeThrough) return { ...depths };
+  const kept: Partial<Record<GraphicFormat, ColourDepth>> = {};
+  // (Whether a GIF or palette PNG keeps them is its own tick box, shown and remembered.)
+  for (const [format, depth] of Object.entries(depths) as [GraphicFormat, ColourDepth][])
+    if (keepsTransparency({ format, depth, transparent: true })) kept[format] = depth;
+  return kept;
+}
+
 export const MIN_EXPORT_SIDE = 1;
 export const MAX_EXPORT_SIDE = 16384;
 
@@ -277,9 +295,10 @@ export function svgDimensions(
   const px = exportPixels(doc.stage, dpi, size);
   if (units === 'px' || size.by !== 'canvas')
     return { width: `${px.width}`, height: `${px.height}` };
-  const inUnit = (n: number) =>
-    roundIn((n / dpi) * { cm: 2.54, mm: 25.4, in: 1, pt: 72 }[units], units);
-  return { width: `${inUnit(px.width)}${units}`, height: `${inUnit(px.height)}${units}` };
+  // G6 (benchmark): the size typed (80 mm), not the whole pixels it came to (79.9 mm).
+  const inches = printedSize(doc) ?? { width: px.width / dpi, height: px.height / dpi };
+  const inUnit = (n: number) => roundIn(n * { cm: 2.54, mm: 25.4, in: 1, pt: 72 }[units], units);
+  return { width: `${inUnit(inches.width)}${units}`, height: `${inUnit(inches.height)}${units}` };
 }
 
 /** The objects on the canvas that `ids` names (top-level), in drawing order. */

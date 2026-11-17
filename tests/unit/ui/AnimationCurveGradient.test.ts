@@ -117,4 +117,35 @@ describe('AN6 more colours in a gradient, and a radial centre (Properties ▸ Fi
     });
     expect(screen.queryByLabelText('Angle', { exact: true })).toBeNull();
   });
+
+  it('G8 (M23, J/22 Balloon2) each gradient colour has its own opacity: typed in %, kept with its colour', async () => {
+    const s = await mode();
+    s.anim.addShape('ellipse', { x: 0, y: 0, width: 100, height: 100 });
+    await tick();
+    await fireEvent.change(screen.getByLabelText('Fill', { exact: true }), {
+      target: { value: 'radial' },
+    });
+    await typeIn('From', '#000000');
+    await typeIn('To', '#000000');
+    await typeIn('To opacity', '0');
+    await typeIn('From opacity', '60');
+    expect(s.objects()[0]!.fill).toMatchObject({ from: '#00000099', to: '#00000000' });
+    // The colour changed keeps its opacity; the hex box shows the colour alone.
+    await typeIn('From', '#FF0000');
+    expect((s.objects()[0]!.fill as { from: string }).from).toMatch(/^#ff000099$/i);
+    expect((screen.getByLabelText('From', { exact: true }) as HTMLInputElement).value).toMatch(
+      /^#?ff0000$/i,
+    );
+    await fireEvent.click(screen.getByRole('button', { name: 'Add a colour' }));
+    const stop = screen.getByRole('group', { name: 'Colour 2' });
+    await typeIn('Opacity', '25', stop);
+    expect((s.objects()[0]!.fill as { stops: { colour: string }[] }).stops[0]!.colour).toMatch(
+      /^#[0-9a-f]{6}40$/,
+    );
+    // Back to 100 %: an ordinary colour again.
+    await typeIn('From opacity', '100');
+    expect((s.objects()[0]!.fill as { from: string }).from).toMatch(/^#ff0000$/i);
+    await typeIn('To opacity', '150');
+    expect(screen.getByText('From 0 to 100 %.')).toBeTruthy();
+  });
 });

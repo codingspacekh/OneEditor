@@ -41,6 +41,8 @@ const patterned: AnimObject = {
       shadow: '#000000',
       opacity: 75,
     },
+    // G10 (M23): a stroke effect round what is drawn.
+    { kind: 'stroke', colour: '#000000', width: 3, opacity: 100, position: 'outside' },
     { kind: 'blur', radius: 5 },
   ],
   envelope: { kind: 'preset', preset: 'arch', bend: 40 },
@@ -124,6 +126,8 @@ describe('the M19 file format', () => {
     ['an unknown arc close', '"close": "pie"', '"close": "cake"'],
     ['an unknown node type', '"type": "symmetrical"', '"type": "wobbly"'],
     ['a perspective of 3 corners', '"x": 0.1,\n', '"z": 0.1,\n'],
+    ['G10 a stroke effect lying nowhere', '"position": "outside"', '"position": "around"'],
+    ['G10 a stroke effect without its width', '"width": 3,\n', '"wide": 3,\n'],
   ])('refuses %s', (_what, from, to) => {
     const text = serializeAnimation(docOf(patterned, arc, nodes));
     expect(text).toContain(from);

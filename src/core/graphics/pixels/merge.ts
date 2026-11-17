@@ -142,8 +142,8 @@ export interface MergePlan {
   effects: Id[];
 }
 
-/** G14 (M22): a pixel layer whose effects are drawn with it. */
-const hasEffects = (l: Layer): boolean => l.pixels !== undefined && (l.effects?.length ?? 0) > 0;
+/** G14 (M22): a layer whose effects are drawn with it (G10, M23: a vector layer's too). */
+const hasEffects = (l: Layer): boolean => (l.effects?.length ?? 0) > 0;
 
 const layerOf = (doc: AnimationDoc, id: Id): Layer => {
   const layer = doc.layers.find((l) => l.id === id);
@@ -182,7 +182,8 @@ export function mergePlan(doc: AnimationDoc, how: MergeHow, layerId: Id): MergeP
   return {
     ids: layers.map((l) => l.id),
     vector: layers.filter((l) => !l.pixels).map((l) => l.id),
-    effects: layers.filter(hasEffects).map((l) => l.id),
+    // A vector layer is drawn by the renderer anyway (with its effects): listed once.
+    effects: layers.filter((l) => l.pixels && hasEffects(l)).map((l) => l.id),
   };
 }
 

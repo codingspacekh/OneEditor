@@ -90,8 +90,23 @@ export type ObjectFilter =
       shadow: string;
       opacity: number;
     }
+  /**
+   * G10 (M23): an outline round what is drawn (Photoshop's Layer Style ▸ Stroke): `width` px of
+   * `colour` outside its edge, inside it, or centred on it — round a shape, a group, a pixel layer
+   * or a clipping group as a whole (M/21: the globe's outline over the map clipped to it).
+   */
+  | {
+      kind: 'stroke';
+      colour: string;
+      width: number;
+      opacity: number;
+      position: StrokePosition;
+    }
   /** A soft-edged shape. */
   | { kind: 'blur'; radius: number };
+
+/** G10 (M23): where a stroke effect lies against the edge. */
+export type StrokePosition = 'outside' | 'centred' | 'inside';
 
 export type FilterKind = ObjectFilter['kind'];
 
@@ -568,6 +583,11 @@ export interface ViewSettings {
   snap: { grid: boolean; guides: boolean; objects: boolean; pixels: boolean };
   /** GV7 (M19): View ▸ Outline: every shape as a thin line, no fills. Absent: off. */
   wireframe?: boolean;
+  /**
+   * G3 (Graphics benchmark): Scale outlines and effects — false: a resized group's (or Image
+   * size's) outline widths and effect sizes stay as typed. Absent: on (they scale with it).
+   */
+  scaleOutlines?: boolean;
 }
 
 /** G1, G6 (Graphics mode, M18): the units sizes are typed and shown in. */
@@ -581,6 +601,19 @@ export type Unit = 'px' | 'cm' | 'mm' | 'in' | 'pt';
 export interface GraphicSettings {
   dpi: number;
   units: Unit;
+  /**
+   * Graphics benchmark G6: the printed size as typed (80 mm, not the 79.9 mm its whole pixels
+   * come to), for the SVG's width and height and the PDF's page; used only while it still comes
+   * to the canvas's pixels at `dpi`.
+   */
+  size?: PrintedSize;
+}
+
+/** G6: a width and height in a printed unit, exactly as typed. */
+export interface PrintedSize {
+  width: number;
+  height: number;
+  units: 'cm' | 'mm' | 'in' | 'pt';
 }
 
 export interface AnimationDoc {

@@ -110,7 +110,14 @@
   function apply(): void {
     if (problem) return;
     error = resample
-      ? app.graphics.resizeImage({ width: after.width, height: after.height, method, dpi })
+      ? app.graphics.resizeImage({
+          width: after.width,
+          height: after.height,
+          method,
+          dpi,
+          // G6 (benchmark): a size typed in cm, mm or in is kept exactly as typed.
+          ...(units !== 'px' && units !== '%' ? { printed: { width, height, units } } : {}),
+        })
       : app.graphics.setResolution(dpi);
     if (!error) onclose();
   }

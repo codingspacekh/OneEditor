@@ -26,6 +26,11 @@ import {
   type Mask,
   type Raster,
 } from '../../../../../src/core/graphics/pixels/raster.ts';
+import {
+  ellipsePoints,
+  featherMask,
+  polygonMask,
+} from '../../../../../src/core/graphics/pixels/selection.ts';
 
 /** Left half grey 100 with a ±10 texture, right half flat 160 (a brightness step), opaque. */
 function step(width = 200, height = 120): Bitmap {
@@ -152,9 +157,10 @@ describe('M22 GB5: the heal brush', () => {
     ];
     const kept = heal(b, { dx: 0, dy: 75 }, line, 20, selection).healed;
     expect(Math.abs(grey(kept, 113, 45) - 160)).toBeLessThan(6);
-    // Without the selection the dark bar is borrowed.
-    const borrowed = heal(b, { dx: 0, dy: 75 }, line, 20).healed;
-    expect(grey(borrowed, 111, 45)).toBeLessThan(140);
+    // B5 (benchmark): without the selection the dark bar's border is a stray (far out of line
+    // with the rest of the border) and is not borrowed either.
+    const unselected = heal(b, { dx: 0, dy: 75 }, line, 20).healed;
+    expect(Math.abs(grey(unselected, 113, 45) - 160)).toBeLessThan(6);
   });
 
   it('a transparent destination round the stroke has no say', () => {
@@ -224,5 +230,84 @@ describe('M22 GB5: the heal brush', () => {
     const values = new Float32Array([0, 10, 20, 0, 100]);
     smoothKnown(5, 1, state, values, 1, 1);
     expect([...values]).toEqual([5, 10, 15, 0, 100]);
+  });
+});
+
+/**
+ * A sky: brighter to the right and lower down (the clone source, 150 px right, is lighter than
+ * the destination), with a dark balloon (a disc, r 40) at (200, 150) and a white cloud edge
+ * (x ≥ 330, y < 120) where a big brush's border can reach it.
+ */
+const skyAt = (x: number, y: number) => 110 + 0.2 * y + 0.12 * x;
+function skyWithBalloon(cloud = false): Bitmap {
+  const w = 600;
+  const h = 300;
+  const data = new Uint8ClampedArray(w * h * 4);
+  for (let y = 0; y < h; y++)
+    for (let x = 0; x < w; x++) {
+      const inBalloon = (x - 200) ** 2 + (y - 150) ** 2 < 40 ** 2;
+      const v = inBalloon ? 40 : cloud && x >= 330 && y < 120 ? 250 : skyAt(x, y);
+      data.set([v, v * 0.95, v * 1.05, 255], (y * w + x) * 4);
+    }
+  return bitmapFromRGBA(w, h, data);
+}
+
+/** Back and forth over a box, half a brush apart. */
+function zig(x: number, y: number, w: number, h: number, size: number) {
+  const out: { x: number; y: number }[] = [];
+  for (let row = 0, yy = y; yy <= y + h; row++, yy += size / 2)
+    out.push(
+      ...(row % 2
+        ? [
+            { x: x + w, y: yy },
+            { x, y: yy },
+          ]
+        : [
+            { x, y: yy },
+            { x: x + w, y: yy },
+          ]),
+    );
+  return out;
+}
+
+describe('benchmark J/22 Scene2: the heal over a balloon on a sky', () => {
+  it('B4: inside a feathered selection that the strokes cover wholly, no lighter disc and no rim', () => {
+    const b = skyWithBalloon();
+    // An ellipse well round the balloon, feathered 12 px (as the paper's student would select).
+    const selection = featherMask(
+      polygonMask(600, 300, [ellipsePoints({ x: 130, y: 80, width: 140, height: 140 })]),
+      12,
+    );
+    // The strokes scrub over the whole selection and beyond; the source 150 px to the right.
+    const { healed } = heal(b, { dx: 150, dy: 0 }, zig(110, 60, 180, 180, 60), 60, selection);
+    // Where the balloon was: the sky that would be there, within a few levels (not lighter).
+    for (const [x, y] of [
+      [200, 150],
+      [180, 130],
+      [220, 170],
+    ])
+      expect(Math.abs(grey(healed, x!, y!) - skyAt(x!, y!))).toBeLessThan(5);
+    // Round the selection's soft edge (r 60–90 from the middle): no step from the sky.
+    let worst = 0;
+    for (let a = 0; a < 360; a += 10)
+      for (let r = 60; r <= 90; r += 3) {
+        const x = Math.round(200 + r * Math.cos((a * Math.PI) / 180));
+        const y = Math.round(150 + r * Math.sin((a * Math.PI) / 180));
+        worst = Math.max(worst, Math.abs(grey(healed, x, y) - skyAt(x, y)));
+      }
+    expect(worst).toBeLessThan(5);
+  });
+
+  it('B5: a 250 px brush whose source border lies on the balloon does not glare', () => {
+    const b = skyWithBalloon();
+    // The strokes cover the balloon with a big brush; the source is 150 px right, so the copy at
+    // the stroke's left border is the dark balloon itself (as on Scene1 with the source 660 px
+    // right and a 250 px brush): that border's difference is a stray.
+    const { healed } = heal(b, { dx: 150, dy: 0 }, zig(150, 110, 100, 80, 250), 250);
+    let worst = 0;
+    for (let y = 100; y < 200; y += 4)
+      for (let x = 40; x < 160; x += 4) worst = Math.max(worst, grey(healed, x, y) - skyAt(x, y));
+    // No glare: nowhere more than a little lighter than the sky that belongs there.
+    expect(worst).toBeLessThan(25);
   });
 });

@@ -49,7 +49,12 @@ describe('Graphics mode (M18)', () => {
     expect(d.getByText(/2480 × 3508 pixels/)).toBeTruthy();
     await fireEvent.click(d.getByRole('button', { name: 'Create' }));
     expect(s.doc().stage).toMatchObject({ width: 2480, height: 3508 });
-    expect(s.doc().graphic).toEqual({ dpi: 300, units: 'cm' });
+    // G6 (benchmark): the size is kept as typed, so the SVG says 21 × 29.7 cm exactly.
+    expect(s.doc().graphic).toEqual({
+      dpi: 300,
+      units: 'cm',
+      size: { width: 21, height: 29.7, units: 'cm' },
+    });
     expect(
       screen.getByRole('button', { name: /2480 × 3508 px · 21 × 29.7 cm · 300 dpi/ }),
     ).toBeTruthy();
@@ -349,7 +354,11 @@ describe('Image settings (G1, G10)', () => {
     await fireEvent.click(d.getByRole('checkbox', { name: /Transparent/ }));
     await fireEvent.click(d.getByRole('button', { name: 'Apply' }));
     expect(screen.queryByRole('dialog', { name: 'Image settings' })).toBeNull();
-    expect(s.doc().graphic).toEqual({ dpi: 200, units: 'in' });
+    expect(s.doc().graphic).toEqual({
+      dpi: 200,
+      units: 'in',
+      size: { width: 6.4, height: 3.6, units: 'in' },
+    });
     expect(s.doc().stage).toMatchObject({ width: 1280, height: 720, background: 'none' });
 
     // Opened again it shows the transparent canvas in inches; a size too big is refused.
@@ -416,7 +425,8 @@ describe('Export image sizes and parts (G11)', () => {
       s.g.addShape('rect', { x: 200, y: 0, width: 30, height: 30 });
     });
     await fireEvent.change(d.getByLabelText('Export'), { target: { value: 'selection' } });
-    expect(d.getByText('30 × 30 px')).toBeTruthy();
+    // B7: with its 2 px outline's outer half.
+    expect(d.getByText('32 × 32 px')).toBeTruthy();
     expect(d.getByText(/see-through where nothing is drawn/)).toBeTruthy();
     await fireEvent.change(d.getByLabelText('Export'), { target: { value: 'each' } });
     expect(d.getByText(/Each file/)).toBeTruthy();

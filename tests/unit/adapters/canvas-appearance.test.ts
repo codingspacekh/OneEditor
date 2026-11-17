@@ -188,6 +188,35 @@ describe('G14 effects on a browser canvas', () => {
     expect(log).toContain('stage.drawImage(canvas2,0,0)');
   });
 
+  it('G10 (M23, M/21 globe): an outside stroke is the shape’s silhouette in the colour, grown by the width (× zoom) under it', () => {
+    run([{ kind: 'stroke', colour: '#ff0000', width: 3, opacity: 50, position: 'outside' }], 2);
+    expect(log).toContain('canvas2.globalCompositeOperation=source-in');
+    expect(log).toContain('canvas2.fillStyle=#ff0000');
+    // Stamped round a circle 6 px (3 px × 2) out, and nearer in, so thin parts are filled too.
+    expect(log).toContain('canvas3.drawImage(canvas2,6,0)');
+    expect(log).toContain('canvas3.drawImage(canvas2,0,0)');
+    const out = log.findLastIndex((l) => l.endsWith('globalAlpha=0.5'));
+    expect(log.slice(out + 1, out + 4)).toEqual([
+      expect.stringMatching(/drawImage\(canvas3,0,0\)$/),
+      expect.stringMatching(/globalAlpha=1$/),
+      // The shape on top of its stroke.
+      expect.stringMatching(/drawImage\(canvas1,0,0\)$/),
+    ]);
+  });
+
+  it('G10: an inside stroke is a ring inside the edge, over the shape; centred is half of each', () => {
+    run([{ kind: 'stroke', colour: '#0000ff', width: 4, opacity: 100, position: 'inside' }]);
+    // What is outside the shape, grown inwards, keeps the ring inside the shape's edge.
+    expect(log.some((l) => l.endsWith('globalCompositeOperation=destination-out'))).toBe(true);
+    expect(log.some((l) => l.endsWith('globalCompositeOperation=destination-in'))).toBe(true);
+    const last = log.filter((l) => /^canvas\d+\.drawImage/.test(l)).slice(-2);
+    expect(last[0]).toMatch(/drawImage\(canvas1,0,0\)$/);
+    log.length = 0;
+    run([{ kind: 'stroke', colour: '#0000ff', width: 4, opacity: 100, position: 'centred' }]);
+    expect(log.some((l) => /drawImage\(canvas\d+,2,0\)$/.test(l))).toBe(true);
+    expect(log.some((l) => /drawImage\(canvas\d+,4,0\)$/.test(l))).toBe(false);
+  });
+
   it('G14 (O/N/24 halo): a glow is a shadow that is not moved; blur is the blur filter', () => {
     run([newFilter('glow'), { kind: 'blur', radius: 3 }], 2);
     expect(log).toContain('canvas2.shadowOffsetX=0');

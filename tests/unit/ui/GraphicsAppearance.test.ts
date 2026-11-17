@@ -117,7 +117,7 @@ describe('G14 Properties ▸ Filters', () => {
     async (mode) => {
       const s = await open(mode);
       const section = () => screen.getByRole('heading', { name: /^Filters/ }).parentElement!;
-      expect(within(section()).getByText('shadow, glow, bevel, blur')).toBeTruthy();
+      expect(within(section()).getByText('shadow, glow, bevel, stroke, blur')).toBeTruthy();
       await fireEvent.click(within(section()).getByRole('button', { name: 'Add filter' }));
       expect(s.shape().filters).toEqual([newFilter('dropShadow')]);
       const shadow = screen.getByRole('group', { name: 'Drop shadow' });
@@ -170,6 +170,23 @@ describe('G14 Properties ▸ Filters', () => {
       { kind: 'blur', radius: 2 },
     ]);
     expect(screen.getByRole('group', { name: 'Blur 1' })).toBeTruthy();
+  });
+
+  it('G10 (M23, M/21 globe): a stroke effect: its colour, width, opacity and where it lies', async () => {
+    const s = await open('Graphics');
+    await choose('Add', 'stroke');
+    await fireEvent.click(screen.getByRole('button', { name: 'Add filter' }));
+    const stroke = screen.getByRole('group', { name: 'Stroke' });
+    await typeIn('Width', '5', stroke);
+    await typeIn('Colour', '#222222', stroke);
+    await fireEvent.change(within(stroke).getByLabelText('Lies', { exact: true }), {
+      target: { value: 'centred' },
+    });
+    expect(s.shape().filters).toEqual([
+      { kind: 'stroke', colour: '#222222', width: 5, opacity: 100, position: 'centred' },
+    ]);
+    await typeIn('Width', '0', stroke);
+    expect(within(stroke).getByRole('alert').textContent).toMatch(/stroke effect's width/);
   });
 
   it('G14: a group has filters too (the whole group’s look)', async () => {

@@ -102,6 +102,56 @@ export function drawFiltered(
     current = out.canvas;
   };
 
+  // G10 (M23): a stroke effect. The canvas has no morphology: the shape's silhouette in the
+  // colour is stamped round circles out to the width (and nearer in, so thin parts fill) to grow
+  // it. Outside: grown, under the shape; inside: what is outside the shape grown inwards keeps a
+  // ring inside the edge, over the shape; centred: half of each.
+  const silhouette = (from: OffscreenCanvas, colour: string): OffscreenCanvas => {
+    const s = fresh('silhouette');
+    s.drawImage(from, 0, 0);
+    s.globalCompositeOperation = 'source-in';
+    s.fillStyle = colour;
+    s.fillRect(0, 0, width, height);
+    return s.canvas;
+  };
+  const grown = (from: OffscreenCanvas, radius: number, key: string): OffscreenCanvas => {
+    const g = fresh(key);
+    for (const [dx, dy] of discOffsets(radius)) g.drawImage(from, dx, dy);
+    return g.canvas;
+  };
+  const strokeEffect = (f: Extract<ObjectFilter, { kind: 'stroke' }>) => {
+    const out =
+      (f.position === 'outside' ? f.width : f.position === 'centred' ? f.width / 2 : 0) * zoom;
+    const inn =
+      (f.position === 'inside' ? f.width : f.position === 'centred' ? f.width / 2 : 0) * zoom;
+    const under = out > 0 ? grown(silhouette(current, f.colour), out, 'grown') : null;
+    let ring: OffscreenCanvas | null = null;
+    if (inn > 0) {
+      const outside = fresh('outside');
+      outside.fillRect(0, 0, width, height);
+      outside.globalCompositeOperation = 'destination-out';
+      outside.drawImage(current, 0, 0);
+      const edge = grown(outside.canvas, inn, 'edge');
+      const r = fresh('ring');
+      r.drawImage(silhouette(current, f.colour), 0, 0);
+      r.globalCompositeOperation = 'destination-in';
+      r.drawImage(edge, 0, 0);
+      ring = r.canvas;
+    }
+    const result = next();
+    if (under) {
+      result.globalAlpha = f.opacity / 100;
+      result.drawImage(under, 0, 0);
+      result.globalAlpha = 1;
+    }
+    result.drawImage(current, 0, 0);
+    if (ring) {
+      result.globalAlpha = f.opacity / 100;
+      result.drawImage(ring, 0, 0);
+    }
+    current = result.canvas;
+  };
+
   for (const f of filters)
     switch (f.kind) {
       case 'blur': {
@@ -124,6 +174,9 @@ export function drawFiltered(
       case 'bevel':
         for (const side of bevelShadows(f)) inner(side);
         break;
+      case 'stroke':
+        strokeEffect(f);
+        break;
     }
   // The layer is already faded as the object is (drawObject passes its groups' opacity on).
   ctx.save();
@@ -131,4 +184,24 @@ export function drawFiltered(
   ctx.globalAlpha = 1;
   ctx.drawImage(current, 0, 0);
   ctx.restore();
+}
+
+/**
+ * G10 (M23): where to stamp a silhouette to grow it by `radius` px: its own place, then rings out
+ * to the radius (at most 8, so a big stroke stays quick), each with enough stamps to close up.
+ */
+export function discOffsets(radius: number): [number, number][] {
+  const out: [number, number][] = [[0, 0]];
+  if (!(radius > 0)) return out;
+  const rings = Math.min(8, Math.ceil(radius));
+  const round = (v: number) => Math.round(v * 1000) / 1000 || 0;
+  for (let k = 1; k <= rings; k++) {
+    const r = (radius * k) / rings;
+    const n = Math.max(8, Math.min(48, Math.ceil(2 * Math.PI * r)));
+    for (let i = 0; i < n; i++) {
+      const a = (2 * Math.PI * i) / n;
+      out.push([round(r * Math.cos(a)), round(r * Math.sin(a))]);
+    }
+  }
+  return out;
 }

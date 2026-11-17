@@ -33,6 +33,12 @@
     { kind: 'glow', label: 'Glow', tip: 'A soft colour all round: a halo, a light bloom' },
     { kind: 'dropShadow', label: 'Shadow', tip: 'A drop shadow, below and to the right' },
     { kind: 'bevel', label: 'Bevel', tip: 'Raised edges, lit from the top left: depth, metal' },
+    // G10 (M23): M/21's globe outline round the map clipped into it.
+    {
+      kind: 'stroke',
+      label: 'Stroke',
+      tip: 'An outline round what is drawn: outside, centred or inside',
+    },
   ];
 
   let adding: FilterKind = $state('dropShadow');
@@ -57,7 +63,7 @@
 </script>
 
 <div class="sec filters">
-  <h4>{heading} <span class="syl">shadow, glow, bevel, blur</span></h4>
+  <h4>{heading} <span class="syl">shadow, glow, bevel, stroke, blur</span></h4>
   {#each filters as f, i (i)}
     {@const name = nameOf(i)}
     <div class="filter" role="group" aria-label={name}>
@@ -162,6 +168,39 @@
         <ColourField label="Light" value={f.light} commit={(c) => set({ light: c })} />
         <ColourField label="Shade" value={f.shadow} commit={(c) => set({ shadow: c })} />
         <p class="hint">Light from 90° is from above, 135° from the top left.</p>
+      {:else if f.kind === 'stroke'}
+        {@const set = edit<typeof f>(i)}
+        <ColourField label="Colour" value={f.colour} commit={(c) => set({ colour: c })} />
+        <div class="two">
+          <NumField
+            label="Width"
+            value={f.width}
+            unit="px"
+            decimals={1}
+            commit={(v) => set({ width: v })}
+          />
+          <NumField
+            label="Opacity"
+            value={f.opacity}
+            unit="%"
+            commit={(v) => set({ opacity: v })}
+          />
+        </div>
+        <div class="field">
+          <label for="stroke-lies-{i}">Lies</label>
+          <select
+            id="stroke-lies-{i}"
+            value={f.position}
+            onchange={(e) =>
+              (error = set({
+                position: (e.currentTarget as HTMLSelectElement).value as typeof f.position,
+              }))}
+          >
+            <option value="outside">Outside the edge</option>
+            <option value="centred">Centred on the edge</option>
+            <option value="inside">Inside the edge</option>
+          </select>
+        </div>
       {:else}
         {@const set = edit<typeof f>(i)}
         <NumField
