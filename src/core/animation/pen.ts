@@ -4,6 +4,7 @@
 // to its new outline, so its handles and rulers stay right.
 import { EditError } from '../model/errors.ts';
 import { toLocal, toStage, type Point } from './geometry.ts';
+import { createPath } from './factory.ts';
 import { flattenCurves } from './path.ts';
 import type { PathObject, PathPoint } from './types.ts';
 
@@ -168,4 +169,95 @@ export function removePoint(path: PathObject, i: number): PathObject {
     throw new EditError('A closed shape needs at least three points.');
   if (path.points.length <= 2) throw new EditError('A path needs at least two points.');
   return withAnchors(path, anchorsOnStage(path).toSpliced(i, 1));
+}
+
+// ---- pilot feedback 2026-11-18: curves while drawing, and a segment bent by dragging it ----
+
+/**
+ * A pen path from its anchors in stage coordinates, each with the handles pulled out of it as it
+ * was clicked (a click and drag); its box fits the curves. Straight anchors make the path
+ * `createPath` makes.
+ */
+export function createPenPath(anchors: readonly PathPoint[], closed: boolean): PathObject {
+  const path = createPath([...anchors], closed);
+  return anchors.some((a) => a.in || a.out) ? withAnchors(path, [...anchors]) : path;
+}
+
+const num = (n: number): string => String(Math.round(n * 100) / 100);
+const xy = (p: Point): string => `${num(p.x)} ${num(p.y)}`;
+
+/** The SVG outline of the path being drawn, with its curves, then a line to the pointer. */
+export function penPathData(points: readonly PathPoint[], now: Point | null): string {
+  const first = points[0];
+  if (!first) return '';
+  let d = `M ${xy(first)}`;
+  for (let i = 1; i < points.length; i++) {
+    const a = points[i - 1]!;
+    const b = points[i]!;
+    d += a.out || b.in ? ` C ${xy(a.out ?? a)} ${xy(b.in ?? b)} ${xy(b)}` : ` L ${xy(b)}`;
+  }
+  return now ? `${d} L ${xy(now)}` : d;
+}
+
+const cubic = (a: Point, c1: Point, c2: Point, b: Point, t: number): Point => {
+  const u = 1 - t;
+  const w = [u * u * u, 3 * u * u * t, 3 * u * t * t, t * t * t] as const;
+  return {
+    x: w[0] * a.x + w[1] * c1.x + w[2] * c2.x + w[3] * b.x,
+    y: w[0] * a.y + w[1] * c1.y + w[2] * c2.y + w[3] * b.y,
+  };
+};
+
+/** Where along the curve (0–1) it comes nearest to `p`: sampled, then narrowed down. */
+function nearestT(a: Point, c1: Point, c2: Point, b: Point, p: Point): number {
+  const far = (t: number) => {
+    const q = cubic(a, c1, c2, b, t);
+    return (q.x - p.x) ** 2 + (q.y - p.y) ** 2;
+  };
+  const STEPS = 100;
+  let best = 0;
+  for (let s = 1; s <= STEPS; s++) if (far(s / STEPS) < far(best / STEPS)) best = s;
+  let lo = Math.max(0, (best - 1) / STEPS);
+  let hi = Math.min(1, (best + 1) / STEPS);
+  for (let k = 0; k < 60; k++) {
+    const m1 = lo + (hi - lo) / 3;
+    const m2 = hi - (hi - lo) / 3;
+    if (far(m1) < far(m2)) hi = m2;
+    else lo = m1;
+  }
+  return (lo + hi) / 2;
+}
+
+/**
+ * The segment after anchor `segment` bent, as Animate's Selection tool bends a line: the point
+ * of it grabbed at `grab` (stage coordinates) goes to `to`, its two ends stay. Both of its
+ * handles move together (a straight segment first gets handles a third of the way along, so the
+ * grabbed point is where the pointer was). A smooth or symmetrical end becomes a cusp: its handle
+ * on the other side stays where it is.
+ */
+export function bendSegment(path: PathObject, segment: number, grab: Point, to: Point): PathObject {
+  const anchors = anchorsOnStage(path);
+  const n = anchors.length;
+  if (!Number.isInteger(segment) || segment < 0 || segment >= (path.closed ? n : n - 1))
+    throw new EditError('There is no segment there: the last point of an open path ends it.');
+  const j = (segment + 1) % n;
+  const a = anchors[segment]!;
+  const b = anchors[j]!;
+  const curved = a.out !== undefined || b.in !== undefined;
+  const third = (k: number): Point => ({
+    x: a.x + ((b.x - a.x) * k) / 3,
+    y: a.y + ((b.y - a.y) * k) / 3,
+  });
+  const c1 = curved ? (a.out ?? { x: a.x, y: a.y }) : third(1);
+  const c2 = curved ? (b.in ?? { x: b.x, y: b.y }) : third(2);
+  // Near an end, the handles would have to go far to move the curve: kept to 10–90 % along.
+  const t = Math.min(0.9, Math.max(0.1, nearestT(a, c1, c2, b, grab)));
+  const k = 3 * t * (1 - t);
+  const d = { x: (to.x - grab.x) / k, y: (to.y - grab.y) / k };
+  const cusp = (p: PathPoint): PathPoint =>
+    p.type && p.type !== 'cusp' ? { ...p, type: 'cusp' } : p;
+  const out = anchors.slice();
+  out[segment] = cusp({ ...a, out: { x: c1.x + d.x, y: c1.y + d.y } });
+  out[j] = cusp({ ...out[j]!, in: { x: c2.x + d.x, y: c2.y + d.y } });
+  return withAnchors(path, out);
 }

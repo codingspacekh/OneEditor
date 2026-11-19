@@ -146,7 +146,27 @@ export interface EnvelopeSides {
 }
 
 /** AN9: how a tween runs from one keyframe to the next. */
-export type Easing = 'linear' | 'ease-in' | 'ease-out' | 'ease-in-out' | 'bounce';
+export type Easing =
+  | 'linear'
+  | 'ease-in'
+  | 'ease-out'
+  | 'ease-in-out'
+  | 'bounce'
+  /** 2026-11-18: goes past the end and settles back (Overshoot). */
+  | 'back-out'
+  /** 2026-11-18: pulls back before it goes (Anticipate). */
+  | 'back-in'
+  /** 2026-11-18: springs past the end and back, smaller each time. */
+  | 'elastic'
+  /** 2026-11-18: the keyframe's own curve (`Keyframe.curve`). */
+  | 'custom';
+
+/**
+ * 2026-11-18: a custom ease's two handles, as CSS's cubic-bezier(x1, y1, x2, y2): the curve runs
+ * from (0, 0) to (1, 1), time across, the share of the change up; x1 and x2 are 0–1, y1 and y2
+ * may go below 0 or above 1 (pulling back, going past).
+ */
+export type EaseCurve = [x1: number, y1: number, x2: number, y2: number];
 
 /** AN9: the properties that can have keyframes. Colours are hex; `text` changes at the keyframe. */
 export type TweenProperty =
@@ -183,6 +203,8 @@ export interface Keyframe {
   value: KeyValue;
   easing: Easing;
   hold: boolean;
+  /** 2026-11-18: the curve, when `easing` is 'custom'. */
+  curve?: EaseCurve;
 }
 
 /**
@@ -211,6 +233,24 @@ export interface MotionPath {
   easing: Easing;
   /** The name of the path or shape it was taken from, for the Properties panel. */
   source?: string;
+  /**
+   * 2026-11-18: followed from its end to its start (the other way round a circle). Absent:
+   * from its start.
+   */
+  reverse?: boolean;
+  /** 2026-11-18: times round the path between `from` and `to`, a whole number. Absent: 1. */
+  laps?: number;
+}
+
+/**
+ * 2026-11-18: an object moving with another: wherever that object's point of turn is (AN27,
+ * moved by its own link too), this one is moved by as much as it is from (x, y), where it was at
+ * frame 0 when the link was made.
+ */
+export interface ObjectLink {
+  to: Id;
+  x: number;
+  y: number;
 }
 
 /** What every object has (AN6). Rotation in degrees, clockwise; opacity 0–100 %. */
@@ -253,6 +293,11 @@ interface ObjectBase {
   envelope?: Envelope;
   /** AN9: keyframes, one track per animated property. Absent or empty: the object stays still. */
   tracks?: Track[];
+  /**
+   * 2026-11-18 (links.ts): the object it moves with (the Moon with the Earth), on top of its own
+   * keyframes and paths. Absent: it moves on its own.
+   */
+  link?: ObjectLink;
   /**
    * AN11: the paths the object follows, in frame order, never overlapping (Task 6: out along one,
    * back along another). Before the first it waits at its start, between two at the end of the one
@@ -616,6 +661,28 @@ export interface PrintedSize {
   units: 'cm' | 'mm' | 'in' | 'pt';
 }
 
+/** 2026-11-18: what the camera can change over time. */
+export type CameraProperty = 'x' | 'y' | 'zoom' | 'rotation';
+
+/** One of the camera's properties keyed over time (as a Track of an object's). */
+export interface CameraTrack {
+  property: CameraProperty;
+  keyframes: Keyframe[];
+}
+
+/**
+ * 2026-11-18 (as Animate's camera): the point of the stage at the middle of the picture, the zoom
+ * in % (100: the whole stage; 200: half of it each way, twice as big) and the camera's turn in
+ * degrees, clockwise (the picture turns the other way); keyframes for any of them.
+ */
+export interface Camera {
+  x: number;
+  y: number;
+  zoom: number;
+  rotation: number;
+  tracks?: CameraTrack[];
+}
+
 export interface AnimationDoc {
   /**
    * 2 since M14 (keyframes), 3 since M15 (paths, morphs, masks), 4 since M16 (buttons, stop
@@ -632,6 +699,8 @@ export interface AnimationDoc {
   pictures: Picture[];
   /** AN28: absent when there are none, so older versions of the app still open the file. */
   sounds?: AnimSound[];
+  /** 2026-11-18 (camera.ts): the camera. Absent: the whole stage is seen, as it is. */
+  camera?: Camera;
   guides: Guides;
   view: ViewSettings;
 }

@@ -14,6 +14,7 @@
   import { addStop, changeStop, removeStop } from '../../core/animation/gradient.ts';
   import { alphaOf, opaqueOf, withAlpha } from '../../core/colour.ts';
   import { findObject } from '../../core/animation/layers.ts';
+  import { wouldLoop } from '../../core/animation/links.ts';
   import { stateAt } from '../../core/animation/state.ts';
   import { aspectOf, MAX_CURVE } from '../../core/animation/rules.ts';
   import { EASINGS } from '../../core/animation/tween.ts';
@@ -22,6 +23,7 @@
     ButtonAction,
     Dash,
     Easing,
+    MotionPath,
     Paint,
     TextAlign,
     TextObject,
@@ -48,6 +50,7 @@
   import { DECIMALS, fromPx, toPx, UNIT_NAMES } from '../../core/graphics/units.ts';
   import { textBox } from './measure.ts';
   import NumField from './NumField.svelte';
+  import CameraSection from './CameraSection.svelte';
   import TextSpacing from './TextSpacing.svelte';
   import {
     KERN_BIG_STEP,
@@ -103,6 +106,32 @@
   /** The other objects a path or a morph can be taken from (shapes only for a morph). */
   const others = (id: string, shapesOnly: boolean): AnimObject[] =>
     doc.layers.flatMap((l) => l.objects).filter((o) => o.id !== id && (!shapesOnly || isShape(o)));
+  /**
+   * 2026-11-18: a path's two ways, named as a student sees them: round a closed shape clockwise
+   * or anticlockwise (its points' turn, the stage's y going down), along an open one start to end
+   * or end to start. The first is the way it was drawn.
+   */
+  function directions(m: MotionPath): [string, string] {
+    if (!m.closed) return ['Start to end', 'End to start'];
+    let area = 0;
+    m.points.forEach((p, i) => {
+      const q = m.points[(i + 1) % m.points.length]!;
+      area += p.x * q.y - q.x * p.y;
+    });
+    return area >= 0 ? ['Clockwise', 'Anticlockwise'] : ['Anticlockwise', 'Clockwise'];
+  }
+  /** 2026-11-18: the objects this one can move with: on the stage, never round in a loop. */
+  const linkable = (id: string): AnimObject[] =>
+    $store.history.present.layers
+      .flatMap((l) => l.objects)
+      .filter((o) => o.id !== id && !wouldLoop($store.history.present, id, o.id));
+  let linkError: string | null = $state(null);
+  let motionError: string | null = $state(null);
+  /** 2026-11-18: motion copied (the store changes when it is: a message says so). */
+  const canPasteMotion = $derived.by(() => {
+    void $store;
+    return anim.hasMotion();
+  });
   function frames(id: string, index: number, which: 'from' | 'to', e: Event): void {
     const n = Number((e.currentTarget as HTMLInputElement).value);
     pathError = anim.setMotion(id, index, { [which]: n });
@@ -286,6 +315,10 @@
       <p class="hint">
         Click an object on the stage, or draw one with a tool from the strip on the left.
       </p>
+      {#if !editor.still}
+        <!-- 2026-11-18: the camera. -->
+        <CameraSection {app} />
+      {/if}
       {#if effectsLayer}
         <!-- G14 (M22): the current layer's effects (the halo, light blooms, a bevel); G10 (M23):
              a stroke round a clipping group (M/21's globe), on a vector layer too. -->
@@ -942,12 +975,34 @@
         <TextSpacing text={first} caret={many ? null : caretAt} patch={textPatch} />
       {/if}
 
+      {#if !editor.still}
+        <!-- 2026-11-18: Copy Motion / Paste Motion, as in Animate. -->
+        <div class="sec">
+          <h4>Copy motion <span class="syl">20.1 tweening</span></h4>
+          <div class="prop-buttons">
+            <button
+              class="sm"
+              title="Keep this object's keyframes and paths, to put the same motion on other objects"
+              disabled={many}
+              onclick={() => (motionError = anim.copyMotion())}>Copy motion</button
+            >
+            <button
+              class="sm"
+              title="Put the copied motion on the selected objects, from where each one is"
+              disabled={!canPasteMotion}
+              onclick={() => (motionError = anim.pasteMotion())}>Paste motion</button
+            >
+          </div>
+          {#if motionError}<p class="error" role="alert">{motionError}</p>{/if}
+        </div>
+      {/if}
       {#if !many && !editor.still}
         {@const paths = first.paths ?? []}
         <div class="sec">
           <h4>Motion path <span class="syl">20.1 setting paths</span></h4>
           {#each paths as m, i (i)}
             {@const n = i + 1}
+            {@const ways = directions(m)}
             <div class="path-head">Path {n}: {m.source ?? 'a path'}</div>
             <div class="prop-row frames">
               <label for="path-{n}-from">From</label>
@@ -996,6 +1051,30 @@
               >
             </div>
             <div class="prop-row">
+              <!-- 2026-11-18: the way round, and how many times. -->
+              <label for="path-{n}-direction">Direction</label>
+              <select
+                id="path-{n}-direction"
+                aria-label="Path {n} direction"
+                title="Which way the object goes along the path (round a shape: clockwise or anticlockwise)"
+                value={m.reverse ? 'reverse' : 'forward'}
+                onchange={(e) =>
+                  (pathError = anim.setMotion(first!.id, i, {
+                    reverse: (e.currentTarget as HTMLSelectElement).value === 'reverse',
+                  }))}
+              >
+                <option value="forward">{ways[0]}</option>
+                <option value="reverse">{ways[1]}</option>
+              </select>
+            </div>
+            <div class="prop-row">
+              <NumField
+                label="Times round"
+                value={m.laps ?? 1}
+                commit={(v) => (pathError = anim.setMotion(first!.id, i, { laps: v }))}
+              />
+            </div>
+            <div class="prop-row">
               <label for="path-{n}-easing">Easing</label>
               <select
                 id="path-{n}-easing"
@@ -1007,7 +1086,10 @@
                     easing: (e.currentTarget as HTMLSelectElement).value as Easing,
                   }))}
               >
-                {#each EASINGS as ez (ez.id)}<option value={ez.id}>{ez.label}</option>{/each}
+                <!-- A path has no curve of its own: the custom ease is a keyframe's. -->
+                {#each EASINGS.filter((ez) => ez.id !== 'custom') as ez (ez.id)}<option
+                    value={ez.id}>{ez.label}</option
+                  >{/each}
               </select>
             </div>
             <div class="prop-buttons">
@@ -1026,7 +1108,11 @@
               value=""
               title="Choose a pen path or shape: the object's centre follows it (a further path starts where the last ends)"
               onchange={(e) => {
-                const v = (e.currentTarget as HTMLSelectElement).value;
+                const box = e.currentTarget as HTMLSelectElement;
+                const v = box.value;
+                // A pick, not a setting: the box shows its first choice again (another object
+                // selected next would otherwise seem to follow this path).
+                box.value = '';
                 if (v) pathError = anim.followPath(first!.id, v);
               }}
             >
@@ -1038,6 +1124,32 @@
           {#if pathError}<p class="error" role="alert">{pathError}</p>{/if}
           <Why tool="animPath" />
         </div>
+        <!-- 2026-11-18: moving with another object (the Moon with the Earth). -->
+        <div class="sec">
+          <h4>Moves with <span class="syl">20.1 setting paths</span></h4>
+          <div class="field">
+            <label for="prop-link">Object</label>
+            <select
+              id="prop-link"
+              aria-label="Moves with"
+              title="Go along with another object wherever it goes (the Moon with the Earth), on top of this object's own path and keyframes"
+              value={first.link?.to ?? ''}
+              onchange={(e) =>
+                (linkError = anim.linkObject(
+                  first!.id,
+                  (e.currentTarget as HTMLSelectElement).value || null,
+                ))}
+            >
+              <option value="">Nothing (on its own)</option>
+              {#each linkable(first.id) as o (o.id)}<option value={o.id}>{o.name}</option>{/each}
+            </select>
+          </div>
+          <p class="hint">
+            Set it up at frame 0. The object goes along as the other one moves or is moved: give the
+            Earth a path round the Sun, then the Moon a path round the Earth and Moves with: Earth.
+          </p>
+          {#if linkError}<p class="error" role="alert">{linkError}</p>{/if}
+        </div>
         {#if isShape(first)}
           <div class="sec">
             <h4>Morph <span class="syl">20.1 morphing</span></h4>
@@ -1048,7 +1160,9 @@
                 value=""
                 title="At the playhead this shape becomes the one you pick, which is then removed"
                 onchange={(e) => {
-                  const v = (e.currentTarget as HTMLSelectElement).value;
+                  const box = e.currentTarget as HTMLSelectElement;
+                  const v = box.value;
+                  box.value = '';
                   if (v) pathError = anim.morphInto(first!.id, v);
                 }}
               >

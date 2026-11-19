@@ -4,6 +4,7 @@
 // be clicked. Pure: the HTML player and Test (in the app) both ask here.
 import { hitTest, toLocal, type Point } from './geometry.ts';
 import { stateAt } from './state.ts';
+import { cameraAt, fromCamera } from './camera.ts';
 import type { AnimObject, AnimationDoc, ButtonAction, ButtonObject } from './types.ts';
 
 export interface ButtonActionInfo {
@@ -36,7 +37,9 @@ function topAt(objects: readonly AnimObject[], p: Point): AnimObject | null {
 }
 
 /** The button clicked at a stage point at a frame, or null when the click is not on one. */
-export function buttonAt(doc: AnimationDoc, frame: number, p: Point): ButtonObject | null {
+export function buttonAt(doc: AnimationDoc, frame: number, at: Point): ButtonObject | null {
+  // 2026-11-18: the page shows the stage through the camera; the click is found on the stage.
+  const p = doc.camera ? fromCamera(cameraAt(doc, frame), doc.stage, at) : at;
   const { layers } = stateAt(doc, frame);
   for (let i = layers.length - 1; i >= 0; i--) {
     const layer = layers[i]!;

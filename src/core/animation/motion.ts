@@ -31,6 +31,8 @@ function check(motion: MotionPath): void {
     throw new EditError('A path runs between two whole frames, from frame 0 on.');
   if (motion.to <= motion.from) throw new EditError('The path must start before it ends.');
   if (motion.points.length < 2) throw new EditError('A path needs at least two points.');
+  if (motion.laps !== undefined && !(Number.isInteger(motion.laps) && motion.laps >= 1))
+    throw new EditError('Times round must be a whole number, 1 or more.');
 }
 
 /** The object follows these paths, in frame order; none: it goes back to its own keyframes. */

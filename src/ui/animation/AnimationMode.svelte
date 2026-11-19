@@ -100,7 +100,10 @@
     if (e.key === 'F6' || e.key === 'F7') {
       // AN14: as Animate — F6 a keyframe copying the drawing, F7 a blank one (Shift: remove).
       e.preventDefault();
-      if (e.shiftKey) anim.removeDrawing();
+      // 2026-11-18: Shift + F6 clears the selected objects' keyframes at the playhead (Animate's
+      // Clear Keyframe); with none there, the frame-by-frame drawing's keyframe.
+      if (e.shiftKey && e.key === 'F6' && keyedAtPlayhead()) anim.removeKeyframesHere();
+      else if (e.shiftKey) anim.removeDrawing();
       else anim.insertDrawing(e.key === 'F6' ? 'copy' : 'blank');
       return;
     }
@@ -126,6 +129,17 @@
       const tool = TOOL_KEYS[e.key.toLowerCase()];
       if (tool && !e.shiftKey) anim.setTool(tool);
     }
+  }
+
+  function keyedAtPlayhead(): boolean {
+    const { selection, frame, history } = $store;
+    return history.present.layers
+      .flatMap((l) => l.objects)
+      .some(
+        (o) =>
+          selection.includes(o.id) &&
+          (o.tracks ?? []).some((t) => t.keyframes.some((k) => k.frame === frame)),
+      );
   }
 
   function clipboard(action: 'cut' | 'copy' | 'paste') {

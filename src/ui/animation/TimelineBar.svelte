@@ -63,6 +63,15 @@
   function insertKeyframes(): void {
     for (const id of $store.selection) anim.insertKeyframe(id, 'all');
   }
+  /** 2026-11-18: a selected object has a keyframe at the playhead, to remove. */
+  const keyedHere = $derived(
+    $store.selection.some((id) =>
+      doc.layers
+        .flatMap((l) => l.objects)
+        .find((o) => o.id === id)
+        ?.tracks?.some((t) => t.keyframes.some((k) => k.frame === frame)),
+    ),
+  );
 </script>
 
 <div class="bar">
@@ -182,6 +191,14 @@
     title="Fix every property of the selected objects at the playhead"
     disabled={$store.selection.length === 0}
     onclick={insertKeyframes}><Icon name="plus" size={14} /> Keyframe</button
+  >
+  <button
+    class="sm"
+    aria-label="Remove keyframes at the playhead"
+    title="Remove keyframe: every keyframe of the selected objects at the playhead, for one made by mistake (Shift + F6)"
+    disabled={!keyedHere}
+    onclick={() => (error = anim.removeKeyframesHere())}
+    ><Icon name="minus" size={14} /> Keyframe</button
   >
   <Why tool="animTimeline" />
   <label class="zoom" title="Frame zoom">
