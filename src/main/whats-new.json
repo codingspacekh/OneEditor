@@ -1,4 +1,14 @@
 {
+  "1.6.1": [
+    "Animation: the Layers panel lists each layer's objects: click to select, double-click to rename, the bin to delete",
+    "The pen: click and drag to pull a curve; choosing another tool (or Enter) keeps the path, Escape throws it away; drag a segment of a selected path to bend it",
+    "A keyframe added by mistake can be removed: Delete on its dot, the − Keyframe button, or Shift+F6",
+    "Motion paths: go clockwise or anticlockwise (or from end to start) and round as many times as you like",
+    "Moves with: an object moves with another moving object, such as the Moon round the Earth round the Sun",
+    "New eases (Overshoot, Anticipate, Elastic) and a custom ease curve you drag into shape",
+    "Copy motion and Paste motion: give one object another object's movement",
+    "A camera: pan, zoom and turn across the stage with keyframes, see its frame on the stage, look through it, and every export is filmed through it"
+  ],
   "1.6.0": [
     "Graphics mode is complete for syllabus 19: vector drawing, text, photos and pixels, retouching and every file format the syllabus names",
     "Drawing: arcs, spirals and lines of many points; Convert to curves; the node tool (smooth, sharp and symmetrical points, join, break, simplify); Join, Cut out, Intersect and Exclude keeping curves; envelopes and perspective; pattern fills; step and repeat; mirror copies",
