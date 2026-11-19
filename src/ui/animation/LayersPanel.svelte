@@ -5,10 +5,13 @@
   // to it, in its folder) or onto empty space (out of its folder); a folder is renamed by
   // double-clicking it. G2, GB1 (M21), Graphics mode only: pixel layers (new, a picture as a
   // layer), each layer's opacity, blend mode and clipping mask, a pixel layer's layer mask,
-  // duplicate, merge down, merge visible and flatten.
+  // duplicate, merge down, merge visible and flatten. 2026-11-18: under each layer, its objects
+  // (front first; on a frame-by-frame layer, the drawing shown): a click selects one (Shift: one
+  // more), a double-click renames it, its bin deletes it; the layer's arrow folds them away.
   import type { App } from '../../app/app.ts';
   import { editorOf } from './editor.ts';
   import type { LayerDrop } from '../../core/animation/layers.ts';
+  import { objectsShown } from '../../core/animation/frames.ts';
   import { BLEND_MODES, type BlendMode, type Id, type Layer } from '../../core/animation/types.ts';
   import NumField from './NumField.svelte';
   import { withWhy } from '../../core/effects/help.ts';
@@ -93,6 +96,23 @@
     dropOn = null;
   }
   const count = (l: Layer) => `${l.objects.length} object${l.objects.length === 1 ? '' : 's'}`;
+
+  // ---- 2026-11-18: the objects in each layer ----
+  /** Layers whose object list is folded away (open unless folded). */
+  let folded: Record<Id, boolean> = $state({});
+  /** The objects listed under a layer, front first. */
+  const objectsOf = (l: Layer) => (l.pixels ? [] : [...objectsShown(l, $store.frame)].reverse());
+  let renamingObject: Id | null = $state(null);
+  function commitObjectName(id: Id, event: Event): void {
+    if (renamingObject !== id) return;
+    renameError = anim.renameObject(id, (event.currentTarget as HTMLInputElement).value);
+    if (!renameError) renamingObject = null;
+  }
+  function pickObject(id: Id, e: MouseEvent): void {
+    const sel = $store.selection;
+    if (e.shiftKey) anim.select(sel.includes(id) ? sel.filter((s) => s !== id) : [...sel, id]);
+    else anim.select([id]);
+  }
 
   // ---- G2, GB1 (M21): Graphics mode's layer look, masks and merging ----
   const current = $derived(doc.layers.find((l) => l.id === $store.layerId));
@@ -360,6 +380,21 @@
           onkeydown={(e) => e.key === 'Enter' && anim.selectLayer(layer.id)}
           ondblclick={() => (renaming = layer.id)}
         >
+          {#if objectsOf(layer).length}
+            <button
+              class="ghost sm icon-only twist"
+              class:closed={folded[layer.id]}
+              aria-label="{folded[layer.id] ? 'Show' : 'Hide'} the objects in {layer.name}"
+              aria-expanded={!folded[layer.id]}
+              title={folded[layer.id] ? 'Show its objects' : 'Hide its objects'}
+              onclick={(e) => {
+                e.stopPropagation();
+                folded = { ...folded, [layer.id]: !folded[layer.id] };
+              }}><Icon name="chevron" size={11} /></button
+            >
+          {:else}
+            <span class="twist-space"></span>
+          {/if}
           <span class="tag" style:background={layer.colour ?? 'var(--accent)'}></span>
           <button
             class="ghost sm icon-only"
@@ -475,6 +510,54 @@
             </label>
           {/if}
         </li>
+        {@const objects = objectsOf(layer)}
+        {#if objects.length && !folded[layer.id]}
+          <li class="objects" class:infolder={layer.folderId !== undefined} role="presentation">
+            <ul aria-label="Objects in {layer.name}">
+              {#each objects as o (o.id)}
+                <li class="obj" class:sel={$store.selection.includes(o.id)}>
+                  {#if renamingObject === o.id}
+                    <!-- svelte-ignore a11y_autofocus -->
+                    <input
+                      class="rename"
+                      aria-label="Object name"
+                      value={o.name}
+                      autofocus
+                      aria-invalid={renameError !== null}
+                      onchange={(e) => commitObjectName(o.id, e)}
+                      onblur={(e) => commitObjectName(o.id, e)}
+                      onkeydown={(e) => {
+                        if (e.key === 'Escape') {
+                          renamingObject = null;
+                          renameError = null;
+                        }
+                      }}
+                    />
+                  {:else}
+                    <button
+                      class="ghost sm obj-name"
+                      aria-label="Select {o.name}"
+                      aria-pressed={$store.selection.includes(o.id)}
+                      title="Click to select (Shift: one more) · double-click to rename"
+                      onclick={(e) => pickObject(o.id, e)}
+                      ondblclick={() => {
+                        renameError = null;
+                        renamingObject = o.id;
+                      }}>{o.name}</button
+                    >
+                    <button
+                      class="ghost sm icon-only"
+                      aria-label="Delete {o.name}"
+                      title="Delete {o.name}"
+                      onclick={() => anim.deleteObject(o.id)}
+                      ><Icon name="delete" size={11} /></button
+                    >
+                  {/if}
+                </li>
+              {/each}
+            </ul>
+          </li>
+        {/if}
       {/if}
     {/each}
   </ul>
@@ -564,6 +647,59 @@
   }
   .layer.infolder {
     padding-left: 14px;
+  }
+  /* 2026-11-18: a layer's objects, under it, in from its name. */
+  .twist-space {
+    flex: none;
+    width: 21px;
+  }
+  .objects {
+    padding: 0 8px 2px 34px;
+  }
+  .objects.infolder {
+    padding-left: 42px;
+  }
+  .objects ul {
+    list-style: none;
+    margin: 0;
+    padding: 0 0 0 6px;
+    border-left: 1px solid var(--line);
+  }
+  .obj {
+    display: flex;
+    align-items: center;
+    gap: 2px;
+    min-height: 24px;
+    font-size: 11.5px;
+    border-radius: 3px;
+  }
+  .obj.sel {
+    background: var(--accent-soft);
+  }
+  .obj-name {
+    flex: 1;
+    min-width: 0;
+    justify-content: flex-start;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+    color: var(--tx-2);
+    font-weight: 400;
+  }
+  .obj.sel .obj-name {
+    color: var(--tx-1);
+  }
+  .obj > button.sm.icon-only {
+    flex: none;
+    width: 21px;
+    height: 22px;
+    padding: 0;
+    justify-content: center;
+    opacity: 0.6;
+  }
+  .obj:hover > button.sm.icon-only,
+  .obj.sel > button.sm.icon-only {
+    opacity: 1;
   }
   /* G2 (M21): a layer clipped to the one below sits in from it. */
   .layer.clipped {

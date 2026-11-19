@@ -20,17 +20,21 @@
   import { findObject } from '../../core/animation/layers.ts';
   import {
     anchorsOnStage,
+    bendSegment,
     cornerPoint,
     insertPoint,
     moveAnchor,
     moveHandle,
+    penPathData,
     pullHandles,
   } from '../../core/animation/pen.ts';
   import { deleteNodes } from '../../core/graphics/nodes.ts';
   import { snapBox } from '../../core/animation/snap.ts';
   import { angleStep } from '../../core/graphics/shapes.ts';
   import { stateAt } from '../../core/animation/state.ts';
-  import type { PathObject } from '../../core/animation/types.ts';
+  import { movingWith } from '../../core/animation/links.ts';
+  import { cameraAt, cameraFrame } from '../../core/animation/camera.ts';
+  import type { PathObject, PathPoint } from '../../core/animation/types.ts';
   import { toMediaUrl } from '../../core/media-url.ts';
   import { animUi, SNAP_PX, ZOOM_STEPS } from './animation-ui.svelte.ts';
   import { textBox } from './measure.ts';
@@ -45,7 +49,7 @@
   import { pixelToolOf, type PixelPointer, type StageView } from '../graphics/pixel-pointer.ts';
   import { HAND } from '../graphics/view-tools.ts';
   import { PIXEL_MOVE } from '../graphics/pixel-move.ts';
-  import { tick } from 'svelte';
+  import { tick, untrack } from 'svelte';
   import { shortcutAllowed } from '../keys.ts';
   import {
     GRAPHICS_ZOOM_STEPS,
@@ -184,9 +188,33 @@
   }
 
   let drag: StageDrag | null = $state(null);
-  /** The pen's points so far (AN3). */
-  let pen: Point[] = $state([]);
+  /** 2026-11-18: the stage seen through the camera (a preview), and the camera's frame on it. */
+  const lookingThrough = $derived(
+    animUi.cameraView && !editor.still && $store.history.present.camera !== undefined,
+  );
+  const cameraCorners = $derived.by(() => {
+    const present = $store.history.present;
+    if (editor.still || !present.camera || lookingThrough) return null;
+    return cameraFrame(cameraAt(present, $store.frame), present.stage);
+  });
+  /** The pen's points so far (AN3); a point clicked and dragged has its curve handles. */
+  let pen: PathPoint[] = $state([]);
   let penNow: Point | null = $state(null);
+  /** The tool drawing those points (the pen or the polyline). */
+  let penTool: 'pen' | 'polyline' = 'pen';
+  /** Stops following the pointer for the last point's handles (its drag ended). */
+  let stopPull: (() => void) | null = null;
+
+  // 2026-11-18: another tool ends the path being drawn, its points kept (as Animate's and
+  // Illustrator's pens do): one point alone is not a path and goes. The tool chosen stays chosen.
+  $effect(() => {
+    const tool = $store.tool;
+    if (tool === penTool || pen.length === 0) return;
+    untrack(() => {
+      finishPen(false);
+      if (anim.store.get().tool !== tool) anim.setTool(tool);
+    });
+  });
   let paper: HTMLDivElement | undefined = $state();
   let canvas: HTMLCanvasElement | undefined = $state();
 
@@ -300,6 +328,9 @@
       ...($store.onionSkin ? { onionSkin: skinOf } : {}),
       // GV7 (M19): View ▸ Outline: lines one screen pixel wide at any zoom.
       ...(view.wireframe ? { wireframe: { lineWidth: 1 / zoom } } : {}),
+      // 2026-11-18: through the camera only while looking through it.
+      camera: lookingThrough,
+      cameraFrame: $store.frame,
     });
   });
 
@@ -339,6 +370,8 @@
 
   function onpointerdown(e: PointerEvent): void {
     if (e.button !== 0) return;
+    // 2026-11-18: looking through the camera is a preview; nothing is edited meanwhile.
+    if (lookingThrough) return;
     const tool = $store.tool;
     const pointer: PixelPointer = {
       anim,
@@ -405,7 +438,10 @@
         return f ? [f.object] : [];
       });
       const u = unionBounds(objects);
-      drag = { kind: 'move', start: raw, ids, union: u, dx: 0, dy: 0 };
+      // 2026-11-18: what moves with them is seen going along while they are dragged (and is
+      // not snapped to).
+      const moving = [...ids, ...movingWith(doc, ids)];
+      drag = { kind: 'move', start: raw, ids: moving, union: u, dx: 0, dy: 0 };
       track(
         (m) => {
           if (drag?.kind !== 'move') return;
@@ -419,7 +455,7 @@
           const r = snapBox(
             doc,
             { ...u, x: u.x + dx, y: u.y + dy },
-            { threshold: threshold(), exclude: ids, off: m.altKey },
+            { threshold: threshold(), exclude: moving, off: m.altKey },
           );
           animUi.snapped = r.to;
           drag = { ...drag, dx: round(dx + r.dx), dy: round(dy + r.dy) };
@@ -448,13 +484,18 @@
       return;
     }
     if (tool === 'pen' || tool === 'polyline') {
+      if (pen.length === 0) penTool = tool;
       const p = clickedPoint(raw, e);
       const first = pen[0];
       if (first && pen.length >= 3 && Math.hypot(p.x - first.x, p.y - first.y) <= 6 / zoom) {
         finishPen(true);
         return;
       }
-      pen = [...pen, { x: round(p.x), y: round(p.y) }];
+      const anchor = { x: round(p.x), y: round(p.y) };
+      pen = [...pen, anchor];
+      // 2026-11-18: the pen's click and drag pulls out the point's curve handles (the pointer
+      // holds the one leaving it, the other is mirrored); the polyline's lines stay straight.
+      if (tool === 'pen') pullPenHandles(anchor);
       return;
     }
     if (tool === 'brush') {
@@ -509,12 +550,43 @@
 
   function finishPen(closed: boolean): void {
     const points = pen;
-    pen = [];
-    penNow = null;
+    cancelPen();
     if (points.length < 2) return;
     // GV1 (M19): the polyline's points are straight lines with a name of their own.
-    if ($store.tool === 'polyline') anim.addPolyline(points, closed && points.length >= 3);
+    if (penTool === 'polyline') anim.addPolyline(points, closed && points.length >= 3);
     else anim.addPath(points, closed && points.length >= 3);
+  }
+
+  /** The points drawn so far thrown away (Escape). */
+  function cancelPen(): void {
+    stopPull?.();
+    pen = [];
+    penNow = null;
+  }
+
+  /** While the button is held, the last point's handles follow the pointer (a curve point). */
+  function pullPenHandles(anchor: Point): void {
+    stopPull?.();
+    const move = (m: PointerEvent) => {
+      // Only a drag (the button held), and not a wobble of the click.
+      if ((m.buttons & 1) === 0) return;
+      const p = at(m);
+      const last = pen.at(-1);
+      if (!last || last.x !== anchor.x || last.y !== anchor.y) return;
+      if (Math.hypot(p.x - anchor.x, p.y - anchor.y) < 3 / zoom && !last.out) return;
+      const out = { x: round(p.x), y: round(p.y) };
+      const back = { x: round(2 * anchor.x - out.x), y: round(2 * anchor.y - out.y) };
+      pen = [...pen.slice(0, -1), { ...anchor, out, in: back }];
+      penNow = null;
+    };
+    const up = () => stopPull?.();
+    stopPull = () => {
+      window.removeEventListener('pointermove', move);
+      window.removeEventListener('pointerup', up);
+      stopPull = null;
+    };
+    window.addEventListener('pointermove', move);
+    window.addEventListener('pointerup', up);
   }
 
   /** The pen's or polyline's next point; GV1: Shift keeps a polyline's line to 15° steps. */
@@ -642,6 +714,30 @@
     );
   }
 
+  /**
+   * 2026-11-18: a segment of the edited path dragged bends it (as Animate's Selection tool bends a
+   * line): the point grabbed follows the pointer, its ends stay. A click without a drag selects
+   * as before (Alt: through to the stage).
+   */
+  function startSegment(e: PointerEvent, segment: number): void {
+    if (!editablePath || e.altKey || e.shiftKey) return;
+    e.stopPropagation();
+    const id = editablePath.id;
+    const grab = at(e);
+    drag = { kind: 'bend', id, segment, grab, now: grab };
+    track(
+      (m) => {
+        if (drag?.kind === 'bend') drag = { ...drag, now: at(m) };
+      },
+      () => {
+        if (drag?.kind !== 'bend') return;
+        const { now } = drag;
+        if (Math.hypot(now.x - grab.x, now.y - grab.y) < 1 / zoom) return;
+        anim.editPath(id, 'Bend segment', (p) => bendSegment(p, segment, grab, now));
+      },
+    );
+  }
+
   function removeAnchor(e: MouseEvent, index: number): void {
     e.stopPropagation();
     // GV3: the curves either side are fitted again, so the shape stays as close as it can.
@@ -736,7 +832,7 @@
   function onpointermove(e: PointerEvent): void {
     const p = at(e);
     animUi.pointer = { x: Math.round(p.x), y: Math.round(p.y) };
-    if (($store.tool === 'pen' || $store.tool === 'polyline') && pen.length)
+    if (($store.tool === 'pen' || $store.tool === 'polyline') && pen.length && !stopPull)
       penNow = clickedPoint(p, e);
   }
 
@@ -758,14 +854,21 @@
     }
   }
 
+  // 2026-11-18: whatever the tool shown and whatever has the focus (a tool button just clicked),
+  // Escape throws away the points being drawn and Enter makes them a path.
   function onkeydown(e: KeyboardEvent): void {
-    if (($store.tool !== 'pen' && $store.tool !== 'polyline') || pen.length === 0) return;
+    if (pen.length === 0) return;
+    const el = e.target;
+    if (
+      el instanceof HTMLElement &&
+      (el.isContentEditable || ['INPUT', 'TEXTAREA', 'SELECT'].includes(el.tagName))
+    )
+      return;
     if (e.key === 'Enter') {
       e.preventDefault();
       finishPen(false);
     } else if (e.key === 'Escape') {
-      pen = [];
-      penNow = null;
+      cancelPen();
     }
   }
 
@@ -856,6 +959,7 @@
         {onpointermove}
         onpointerleave={() => (animUi.pointer = null)}
         {ondblclick}
+        class:looking={lookingThrough}
       >
         {#if view.grid.show && view.grid.over}
           <defs>
@@ -920,6 +1024,7 @@
             chosen={chosenNodes}
             oncurve={startCurve}
             onremove={removeAnchor}
+            onsegment={startSegment}
           />
         {/if}
         {#if drag?.kind === 'marquee'}
@@ -933,12 +1038,28 @@
           />
         {/if}
         {#if pen.length}
-          <polyline
-            class="pen"
-            points={[...pen, ...(penNow ? [penNow] : [])].map((p) => `${p.x},${p.y}`).join(' ')}
-            vector-effect="non-scaling-stroke"
-          />
+          <path class="pen" d={penPathData(pen, penNow)} vector-effect="non-scaling-stroke" />
           {#each pen as p, i (i)}
+            {#if i === pen.length - 1 && p.out && p.in}
+              <!-- The curve point being pulled: its handles, as on a path being edited. -->
+              <line
+                class="pen-handle"
+                x1={p.in.x}
+                y1={p.in.y}
+                x2={p.out.x}
+                y2={p.out.y}
+                vector-effect="non-scaling-stroke"
+              />
+              {#each [p.in, p.out] as h, k (k)}
+                <circle
+                  class="handle"
+                  cx={h.x}
+                  cy={h.y}
+                  r={hs / 3}
+                  vector-effect="non-scaling-stroke"
+                />
+              {/each}
+            {/if}
             <circle
               class="handle"
               cx={p.x}
@@ -949,7 +1070,27 @@
           {/each}
         {/if}
         <PixelOverlay {anim} {zoom} part={seen} />
+        {#if cameraCorners}
+          <!-- 2026-11-18: what the camera sees: what every export shows. -->
+          <polygon
+            class="camera-frame"
+            points={cameraCorners.map((c) => `${c.x},${c.y}`).join(' ')}
+            vector-effect="non-scaling-stroke"
+            aria-label="Camera frame"
+          />
+          <text
+            class="camera-label"
+            x={cameraCorners[0]!.x + 6 / zoom}
+            y={cameraCorners[0]!.y + 14 / zoom}
+            font-size={11 / zoom}>Camera</text
+          >
+        {/if}
       </svg>
+      {#if lookingThrough}
+        <p class="camera-note" role="status">
+          Looking through the camera: turn it off in Properties to edit.
+        </p>
+      {/if}
     </div>
   </div>
 </div>
@@ -991,6 +1132,37 @@
     display: block;
     touch-action: none;
   }
+  /* 2026-11-18: looking through the camera, the stage is only shown: no handles over it. */
+  .overlay.looking > :global(*) {
+    display: none;
+  }
+  .overlay.looking {
+    cursor: default !important;
+  }
+  .camera-frame {
+    fill: none;
+    stroke: #e5484d;
+    stroke-width: 2;
+    stroke-dasharray: 8 4;
+    pointer-events: none;
+  }
+  .camera-label {
+    fill: #e5484d;
+    font-weight: 600;
+    pointer-events: none;
+  }
+  .camera-note {
+    position: absolute;
+    left: 8px;
+    top: 8px;
+    margin: 0;
+    padding: 4px 8px;
+    border-radius: 4px;
+    background: rgba(0, 0, 0, 0.7);
+    color: #fff;
+    font-size: 12px;
+    pointer-events: none;
+  }
   .grid {
     fill: none;
     stroke: rgba(0, 0, 0, 0.14);
@@ -1016,5 +1188,10 @@
     fill: none;
     stroke: var(--accent);
     stroke-width: 1;
+  }
+  .pen-handle {
+    stroke: var(--accent);
+    stroke-width: 1;
+    stroke-dasharray: 3 2;
   }
 </style>

@@ -136,6 +136,13 @@
     window.addEventListener('pointerup', up);
   }
 
+  /** 2026-11-18: the frames where the camera has a keyframe. */
+  const cameraFrames = $derived(
+    [...new Set((doc.camera?.tracks ?? []).flatMap((t) => t.keyframes.map((k) => k.frame)))].sort(
+      (a, b) => a - b,
+    ),
+  );
+
   // ---- AN28: sounds ----
   const sounds = $derived(doc.sounds ?? []);
   let pickedSound: Id | null = $state(null);
@@ -286,6 +293,14 @@
               onclick={() => {
                 if (!moved) picked = { id: row.id, property: row.track.property, frame: k.frame };
               }}
+              onkeydown={(e) => {
+                // 2026-11-18: Delete (or Backspace) on the picked dot removes that keyframe only.
+                if (e.key !== 'Delete' && e.key !== 'Backspace') return;
+                e.preventDefault();
+                e.stopPropagation();
+                anim.removeKeyframe(row.id, row.track.property, k.frame);
+                picked = null;
+              }}
             ></button>
           {/each}
         {:else if row.kind === 'motion'}
@@ -310,11 +325,49 @@
             {/each}
           {/if}
           {#each row.frames as f (f)}
-            <span class="dot" style:left="{xOf(f)}px" aria-hidden="true"></span>
+            {#if row.kind === 'object'}
+              <!-- 2026-11-18: the object's dot selects it and takes the playhead there, where
+                   Remove keyframe (Shift + F6) clears it. -->
+              <button
+                class="dot"
+                style:left="{xOf(f)}px"
+                tabindex="-1"
+                aria-label="Keyframes of {row.name} at frame {f}"
+                title="Frame {f}: select {row.name} and go there (Remove keyframe clears it)"
+                onclick={() => {
+                  anim.select([row.id]);
+                  anim.pause();
+                  anim.setFrame(f);
+                }}
+              ></button>
+            {:else}
+              <span class="dot" style:left="{xOf(f)}px" aria-hidden="true"></span>
+            {/if}
           {/each}
         {/if}
       </div>
     {/each}
+
+    {#if cameraFrames.length}
+      <!-- 2026-11-18: the camera's keyframes; a dot shows the camera there, in Properties. -->
+      <div class="label camera-row"><span class="name">Camera</span></div>
+      <div class="lane camera-row" style:width="{span}px">
+        {#each cameraFrames as f (f)}
+          <button
+            class="dot camera-dot"
+            style:left="{xOf(f)}px"
+            tabindex="-1"
+            aria-label="Camera keyframe at frame {f}"
+            title="Frame {f}: the camera's settings, in Properties"
+            onclick={() => {
+              anim.select([]);
+              anim.pause();
+              anim.setFrame(f);
+            }}
+          ></button>
+        {/each}
+      </div>
+    {/if}
 
     <div class="label sounds-head">
       <span class="name">Sounds</span>
@@ -548,6 +601,18 @@
     background: var(--accent);
     cursor: grab;
     z-index: 1;
+  }
+  button.dot {
+    padding: 0;
+    border: none;
+    min-height: 0;
+    cursor: pointer;
+  }
+  button.dot:hover {
+    background: var(--accent);
+  }
+  .camera-dot {
+    background: #e5484d;
   }
   .key.held {
     background: var(--warn);

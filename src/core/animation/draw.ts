@@ -14,6 +14,7 @@ import { colourStops, radialCentre } from './gradient.ts';
 import { patternTileOf, timesMatrix, type PatternTile } from './appearance.ts';
 import { TRANSPARENT } from './rules.ts';
 import { stateAt } from './state.ts';
+import { cameraAt, cameraMatrix, isPlainView } from './camera.ts';
 import { clipBaseIndex } from '../graphics/pixels/clipping.ts';
 import type { Bitmap, Mask } from '../graphics/pixels/raster.ts';
 import type {
@@ -195,6 +196,13 @@ export interface DrawOptions {
    * own colour keeps it.
    */
   background?: string;
+  /**
+   * 2026-11-18: false leaves the camera out (the editing stage, unless it looks through it).
+   * Every export draws through the camera, at the frame drawn.
+   */
+  camera?: boolean;
+  /** The frame the camera is at, when the doc given is already at its frame (the editing stage). */
+  cameraFrame?: number;
 }
 
 /** AN14: how strongly the onion skin's neighbouring drawings are drawn. */
@@ -953,6 +961,24 @@ export function drawStage(ctx: StageCanvas, doc: AnimationDoc, given: DrawOption
       );
     return layer.pixels ? drawPixels(target, layer, true) : drawVectors(target, layer, i);
   };
+  // 2026-11-18: the objects through the camera (the background fills the picture as it is).
+  const view =
+    doc.camera && options.camera !== false
+      ? cameraAt(doc, options.cameraFrame ?? options.frame ?? 0)
+      : null;
+  const throughCamera = view !== null && !isPlainView(view, doc.stage);
+  if (throughCamera) {
+    ctx.save();
+    const [a, b, c, d, e, f] = cameraMatrix(view, doc.stage) as [
+      number,
+      number,
+      number,
+      number,
+      number,
+      number,
+    ];
+    ctx.transform(a, b, c, d, e, f);
+  }
   layers.forEach((layer, i) => {
     if (!layer.visible || masking(layer)) return;
     if (layer.template) return drawTemplate(ctx, layer, options);
@@ -1009,4 +1035,5 @@ export function drawStage(ctx: StageCanvas, doc: AnimationDoc, given: DrawOption
     }
     drawVectors(ctx, layer, i, opacity < 1 ? opacity : undefined);
   });
+  if (throughCamera) ctx.restore();
 }

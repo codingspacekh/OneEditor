@@ -23,12 +23,17 @@ import type { MeasureText } from '../core/animation/letters.ts';
 import { validateObject, validateStage } from '../core/animation/rules.ts';
 import { changeFps as changeFpsIn } from '../core/animation/time.ts';
 import { motionFrom, withPaths } from '../core/animation/motion.ts';
+import * as camera from '../core/animation/camera.ts';
+import { pasteMotion as pasteMotion_, type Motion } from '../core/animation/copy-motion.ts';
+import { linkChain, linkObject as linkTo, linkOffset, shiftedBy } from '../core/animation/links.ts';
 import * as frames from '../core/animation/frames.ts';
 import { applyEffect as withEffect, effectOf } from '../core/animation/effects.ts';
 import { validateSound } from '../core/animation/sound.ts';
 import * as tween from '../core/animation/tween.ts';
 import { BUTTON_LABELS } from '../core/animation/factory.ts';
 import type {
+  CameraProperty,
+  EaseCurve,
   AnimSound,
   AnimObject,
   AnimationDoc,
@@ -94,7 +99,14 @@ function changeAt(
         layers.updateObject(d, id, (o) => {
           // AN14: a still drawing on a frame-by-frame layer is changed itself, not keyframed.
           const at = o.drawing !== undefined && !tween.isAnimated(o) ? 0 : frame;
-          const next = tween.editAt(o, at, change);
+          // 2026-11-18: a linked object is changed where it is shown (moved by its link), and
+          // kept without the link's move, which is added again when it is shown.
+          const by = o.link === undefined ? null : linkOffset(d, id, at);
+          const next = by
+            ? tween.editAt(o, at, (now) =>
+                shiftedBy(change(shiftedBy(now, by)), { x: -by.x, y: -by.y }),
+              )
+            : tween.editAt(o, at, change);
           validateObject(next);
           validateObject(tween.objectAt(next, frame));
           return next;
@@ -174,7 +186,11 @@ function keepingOutlines(c: AnimCommand, ids: readonly Id[]): AnimCommand {
 }
 
 export function moveObjects(ids: readonly Id[], dx: number, dy: number, frame = 0): AnimCommand {
-  return changeAt(ids, frame, 'Move', (o) => ({ ...o, x: o.x + dx, y: o.y + dy }));
+  // 2026-11-18: an object moving with another that moves too goes along with it, not twice.
+  return command('Move', (doc) => {
+    const own = ids.filter((id) => !linkChain(doc, id).some((other) => ids.includes(other)));
+    return changeAt(own, frame, 'Move', (o) => ({ ...o, x: o.x + dx, y: o.y + dy })).apply(doc);
+  });
 }
 
 export function resizeObject(
@@ -257,7 +273,38 @@ export const followPath = (id: Id, sourceId: Id): AnimCommand =>
     });
   });
 
-export type PathChange = Partial<Pick<MotionPath, 'from' | 'to' | 'orient' | 'even' | 'easing'>>;
+export type PathChange = Partial<
+  Pick<MotionPath, 'from' | 'to' | 'orient' | 'even' | 'easing' | 'reverse' | 'laps'>
+>;
+
+/** 2026-11-18: the camera's property set at a frame (a keyframe after frame 0). */
+export const setCamera = (property: CameraProperty, frame: number, value: number): AnimCommand =>
+  command('Camera', (doc) => camera.setCameraAt(doc, property, frame, value));
+export const removeCameraKeys = (frame: number): AnimCommand =>
+  command('Delete camera keyframe', (doc) => camera.removeCameraKeysAt(doc, frame));
+export const resetCamera = (): AnimCommand =>
+  command('Reset camera', (doc) => {
+    if (!doc.camera) throw new EditError('The camera already sees the whole stage.');
+    return camera.resetCamera(doc);
+  });
+
+/** 2026-11-18: Paste Motion: the copied motion put on each of these objects, one undo step. */
+export const pasteMotion = (ids: readonly Id[], motion: Motion): AnimCommand =>
+  command('Paste motion', (doc) =>
+    ids.reduce(
+      (d, id) =>
+        layers.updateObject(d, id, (o) => {
+          const next = pasteMotion_(o, motion);
+          validateObject(next);
+          return next;
+        }),
+      doc,
+    ),
+  );
+
+/** 2026-11-18: the object moves with another (null: on its own again). */
+export const linkObject = (id: Id, parentId: Id | null): AnimCommand =>
+  command('Moves with', (doc) => linkTo(doc, id, parentId));
 
 export const setMotion = (id: Id, index: number, change: PathChange): AnimCommand =>
   command('Path settings', (doc) =>
@@ -317,6 +364,28 @@ export const insertKeyframe = (id: Id, property: PropertyChoice, frame: number):
 export const removeKeyframe = (id: Id, property: TweenProperty, frame: number): AnimCommand =>
   changeTrack(id, property, 'Delete keyframe', (t) => tween.removeKeyframe(t, frame));
 
+/**
+ * Pilot feedback 2026-11-18 (AN9): every keyframe of these objects on `frame` removed, one undo
+ * step (Animate's Clear Keyframe, Shift + F6); objects with none there are passed over.
+ */
+export const removeKeyframesAt = (ids: readonly Id[], frame: number): AnimCommand =>
+  command('Delete keyframe', (doc) => {
+    let out = doc;
+    for (const id of ids) {
+      const found = layers.findObject(out, id);
+      const keyed = (found?.object.tracks ?? []).some((t) =>
+        t.keyframes.some((k) => k.frame === frame),
+      );
+      if (keyed) out = layers.updateObject(out, id, (o) => tween.removeKeyframesAt(o, frame));
+    }
+    if (out === doc) throw new EditError(`There is no keyframe on frame ${frame}.`);
+    return out;
+  });
+
+/** Pilot feedback 2026-11-18 (AN6): an object renamed from the Layers panel. */
+export const renameObject = (id: Id, name: string): AnimCommand =>
+  command('Rename', (doc) => layers.renameObject(doc, id, name));
+
 export const moveKeyframe = (
   id: Id,
   property: TweenProperty,
@@ -336,7 +405,7 @@ export const copyKeyframe = (
 const changeKey = (
   track: Track,
   frame: number,
-  change: Partial<Pick<Track['keyframes'][number], 'easing' | 'hold'>>,
+  change: Partial<Pick<Track['keyframes'][number], 'easing' | 'hold' | 'curve'>>,
 ): Track => {
   if (!track.keyframes.some((k) => k.frame === frame))
     throw new EditError(`There is no keyframe on frame ${frame}.`);
@@ -351,7 +420,28 @@ export const setEasing = (
   property: TweenProperty,
   frame: number,
   easing: Easing,
-): AnimCommand => changeTrack(id, property, 'Easing', (t) => changeKey(t, frame, { easing }));
+): AnimCommand =>
+  changeTrack(id, property, 'Easing', (t) =>
+    // 2026-11-18: a custom ease starts from a gentle S curve, or the curve it had before.
+    changeKey(t, frame, {
+      easing,
+      ...(easing === 'custom' && !t.keyframes.find((k) => k.frame === frame)?.curve
+        ? { curve: [...tween.DEFAULT_CURVE] as EaseCurve }
+        : {}),
+    }),
+  );
+
+/** 2026-11-18: a custom ease's two handles (the keyframe's easing becomes custom). */
+export const setCurve = (
+  id: Id,
+  property: TweenProperty,
+  frame: number,
+  curve: EaseCurve,
+): AnimCommand =>
+  changeTrack(id, property, 'Ease curve', (t) => {
+    tween.checkCurve(curve);
+    return changeKey(t, frame, { easing: 'custom', curve: [...curve] as EaseCurve });
+  });
 
 export const setHold = (
   id: Id,

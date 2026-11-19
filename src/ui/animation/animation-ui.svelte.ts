@@ -55,6 +55,8 @@ export const animUi = $state({
   focusText: 0,
   /** GB1 (M21): View ▸ Pixel grid: lines between the pixels from 800 % (Graphics mode). */
   pixelGrid: true,
+  /** 2026-11-18: the stage seen through the camera (a preview: editing is off meanwhile). */
+  cameraView: false,
   /**
    * The tool strip's families (tool-families.ts): the tool each one shows, the one of it last
    * used (by its button, its flyout or its key), for the session.

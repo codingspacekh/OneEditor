@@ -7,7 +7,6 @@ import {
   createButton,
   createEllipse,
   createLine,
-  createPath,
   createPolygon,
   createRect,
   createStar,
@@ -19,12 +18,14 @@ import { findObject, pictureIdsOf } from '../../core/animation/layers.ts';
 import type { MeasureText } from '../../core/animation/letters.ts';
 import { itemById, placeItem } from '../../core/animation/library/index.ts';
 import { sameColour, type ColourPart } from '../../core/animation/same-colour.ts';
+import { createPenPath } from '../../core/animation/pen.ts';
 import { objectAt } from '../../core/animation/tween.ts';
 import type {
   AnimObject,
   ButtonAction,
   Id,
   PathObject,
+  PathPoint,
   Picture,
   TextObject,
 } from '../../core/animation/types.ts';
@@ -153,10 +154,13 @@ export function drawingActions(ctx: AnimationContext) {
       addToStage(createLine(from, to));
     },
 
-    /** A pen (clicked points) or brush (dragged) path (AN3). */
-    addPath(points: Point[], closed: boolean): void {
+    /**
+     * A pen (clicked points) or brush (dragged) path (AN3); a pen point clicked and dragged
+     * brings its curve handles (2026-11-18).
+     */
+    addPath(points: PathPoint[], closed: boolean): void {
       try {
-        addToStage(createPath(points, closed));
+        addToStage(createPenPath(points, closed));
       } catch (error) {
         showError(error);
       }
@@ -291,6 +295,8 @@ export function drawingActions(ctx: AnimationContext) {
 
     /** AN11: the object follows another object's path (or outline); returns why not. */
     followPath: (id: Id, sourceId: Id): string | null => edit(cmd.followPath(id, sourceId)),
+    /** 2026-11-18: the object moves with another, the Moon with the Earth (null: on its own). */
+    linkObject: (id: Id, parentId: Id | null): string | null => edit(cmd.linkObject(id, parentId)),
     /** The frames, Orient to path, even speed or easing of one of its paths (0 = the first). */
     setMotion: (id: Id, index: number, change: cmd.PathChange): string | null =>
       edit(cmd.setMotion(id, index, change)),
@@ -305,6 +311,15 @@ export function drawingActions(ctx: AnimationContext) {
       const refused = edit(cmd.morphInto(id, targetId, store.get().frame, keepTarget));
       if (!refused) patch({ selection: [id] });
       return refused;
+    },
+
+    /** Pilot feedback 2026-11-18: an object renamed from the Layers panel; returns why not. */
+    renameObject: (id: Id, name: string): string | null => edit(cmd.renameObject(id, name)),
+
+    /** Pilot feedback 2026-11-18: one object deleted from the Layers panel. */
+    deleteObject(id: Id): void {
+      if (run(cmd.removeObjects([id])))
+        patch({ selection: store.get().selection.filter((s) => s !== id) });
     },
 
     deleteSelection(): void {

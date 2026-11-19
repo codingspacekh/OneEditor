@@ -4,16 +4,23 @@
 import { EditError } from '../model/errors.ts';
 import { toStage, type Point } from './geometry.ts';
 import { objectsShown } from './frames.ts';
+import { hasLinks, linkOffsets, shiftedBy } from './links.ts';
 import { objectAt } from './tween.ts';
 import type { AnimObject, AnimationDoc, Id } from './types.ts';
 
 export function stateAt(doc: AnimationDoc, frame: number): AnimationDoc {
+  // 2026-11-18: an object linked to another moves with it (links.ts).
+  const offsets = hasLinks(doc) ? linkOffsets(doc, frame) : null;
   return {
     ...doc,
     layers: doc.layers.map((layer) => ({
       ...layer,
       // AN14: a frame-by-frame layer shows only the drawing of the keyframe at or before it.
-      objects: objectsShown(layer, frame).map((o) => objectAt(o, frame)),
+      objects: objectsShown(layer, frame).map((o) => {
+        const now = objectAt(o, frame);
+        const by = offsets?.get(o.id);
+        return by ? shiftedBy(now, by) : now;
+      }),
     })),
   };
 }

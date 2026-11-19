@@ -239,9 +239,16 @@ export function updateObject(
   return replaceLayer(doc, { ...layer, objects: layer.objects.toSpliced(index, 1, next) });
 }
 
+/** Pilot feedback 2026-11-18 (AN6): an object renamed (from the Layers panel or Properties). */
+export function renameObject(doc: AnimationDoc, id: Id, name: string): AnimationDoc {
+  const trimmed = name.trim();
+  if (trimmed === '') throw new EditError('Give the object a name.');
+  return updateObject(doc, id, (o) => (o.name === trimmed ? o : { ...o, name: trimmed }));
+}
+
 export function removeObjects(doc: AnimationDoc, ids: readonly Id[]): AnimationDoc {
   const gone = new Set(ids);
-  return withLayers(
+  const removed = withLayers(
     doc,
     doc.layers.map((layer) => {
       if (!layer.objects.some((o) => gone.has(o.id))) return layer;
@@ -249,6 +256,23 @@ export function removeObjects(doc: AnimationDoc, ids: readonly Id[]): AnimationD
       return { ...layer, objects: layer.objects.filter((o) => !gone.has(o.id)) };
     }),
   );
+  // 2026-11-18: what moved with a deleted object moves on its own again.
+  return {
+    ...removed,
+    layers: removed.layers.map((layer) =>
+      layer.objects.some((o) => o.link !== undefined && gone.has(o.link.to))
+        ? {
+            ...layer,
+            objects: layer.objects.map((o) => {
+              if (o.link === undefined || !gone.has(o.link.to)) return o;
+              const rest = { ...o };
+              delete rest.link;
+              return rest;
+            }),
+          }
+        : layer,
+    ),
+  };
 }
 
 export function reorderObject(doc: AnimationDoc, id: Id, how: Reorder): AnimationDoc {

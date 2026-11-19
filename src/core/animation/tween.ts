@@ -6,12 +6,13 @@ import { lineHeightOf } from './text-layout.ts';
 import { pivotInBox, setSize, shiftedMotion } from './geometry.ts';
 import { isShapeValue, morphShapes, shapeOf } from './morph.ts';
 import { flattenCurves, pointAtFraction, polylineOf, type Polyline } from './path.ts';
-import { isGradientColour } from './rules.ts';
+import { isGradientColour, MAX_SKEW } from './rules.ts';
 import { opaqueOf } from '../colour.ts';
 import type {
   AnimObject,
   Easing,
   Keyframe,
+  EaseCurve,
   KeyValue,
   MotionPath,
   PathObject,
@@ -26,7 +27,47 @@ export const EASINGS: readonly { id: Easing; label: string; hint: string }[] = [
   { id: 'ease-out', label: 'Ease out', hint: 'Starts fast, then slows to a stop' },
   { id: 'ease-in-out', label: 'Ease in and out', hint: 'Slow at both ends' },
   { id: 'bounce', label: 'Bounce', hint: 'Lands and bounces to a stop' },
+  // 2026-11-18: the professional eases.
+  { id: 'back-out', label: 'Overshoot', hint: 'Goes a little past the end, then settles back' },
+  { id: 'back-in', label: 'Anticipate', hint: 'Pulls back a little before it goes' },
+  { id: 'elastic', label: 'Elastic', hint: 'Springs past the end and back, like a spring' },
+  { id: 'custom', label: 'Custom curve', hint: 'Your own curve: drag its two handles' },
 ];
+
+/** 2026-11-18: the curve a new custom ease starts with (CSS's ease-in-out). */
+export const DEFAULT_CURVE: EaseCurve = [0.42, 0, 0.58, 1];
+/** How far above 1 or below 0 a custom curve's handles may go. */
+export const CURVE_REACH = 2;
+
+/** 2026-11-18: a custom curve's handles are refused when they cannot make a curve over time. */
+export function checkCurve(curve: readonly number[]): void {
+  const [x1, y1, x2, y2] = curve;
+  if (curve.length !== 4 || ![x1, y1, x2, y2].every((n) => Number.isFinite(n)))
+    throw new EditError('A custom curve has two handles, each with two numbers.');
+  if (x1! < 0 || x1! > 1 || x2! < 0 || x2! > 1)
+    throw new EditError(
+      'A handle of the curve must stay between the start and the end across (0–1).',
+    );
+  if ([y1!, y2!].some((y) => y < -CURVE_REACH + 1 || y > CURVE_REACH))
+    throw new EditError(
+      `A handle of the curve must be between ${1 - CURVE_REACH} and ${CURVE_REACH} up.`,
+    );
+}
+
+/** The cubic-bezier from (0, 0) to (1, 1) with these handles, at time t: x(s) = t solved for s. */
+function bezierEase([x1, y1, x2, y2]: EaseCurve, t: number): number {
+  const at = (a: number, b: number, s: number) =>
+    3 * a * s * (1 - s) ** 2 + 3 * b * s * s * (1 - s) + s ** 3;
+  let lo = 0;
+  let hi = 1;
+  let s = t;
+  for (let i = 0; i < 60; i++) {
+    s = (lo + hi) / 2;
+    if (at(x1, x2, s) < t) lo = s;
+    else hi = s;
+  }
+  return at(y1, y2, s);
+}
 
 export const TWEEN_PROPERTIES: readonly { id: TweenProperty; label: string }[] = [
   { id: 'x', label: 'X' },
@@ -58,9 +99,24 @@ function bounceOut(t: number): number {
 }
 
 /** Maps the share of the way through a tween (0–1) to the share of the change. */
-export function ease(easing: Easing, t: number): number {
+export function ease(easing: Easing, t: number, curve?: EaseCurve): number {
   const u = Math.max(0, Math.min(1, t));
   switch (easing) {
+    case 'back-out': {
+      // The "back" ease of Penner's easing equations (CSS and Animate presets use it too).
+      const c1 = 1.70158;
+      return 1 + (c1 + 1) * (u - 1) ** 3 + c1 * (u - 1) ** 2;
+    }
+    case 'back-in': {
+      const c1 = 1.70158;
+      return (c1 + 1) * u ** 3 - c1 * u ** 2;
+    }
+    case 'elastic':
+      return u === 0 || u === 1
+        ? u
+        : 2 ** (-10 * u) * Math.sin(((u * 10 - 0.75) * 2 * Math.PI) / 3) + 1;
+    case 'custom':
+      return curve && u > 0 && u < 1 ? bezierEase(curve, u) : u;
     case 'linear':
       return u;
     case 'ease-in':
@@ -120,7 +176,7 @@ export function valueAt(track: Track, frame: number): KeyValue {
   const to = keys[i + 1]!;
   if (from.hold) return from.value;
   const t = (f - from.frame) / (to.frame - from.frame);
-  return interpolate(from.value, to.value, ease(from.easing, t));
+  return interpolate(from.value, to.value, ease(from.easing, t, from.curve));
 }
 
 const checkFrame = (frame: number): void => {
@@ -383,6 +439,19 @@ export function insertKeyframe<T extends AnimObject>(
   return withTrack(object, setKeyframe(base, { frame, value }));
 }
 
+/**
+ * Pilot feedback 2026-11-18 (AN9): every property's keyframe on `frame` removed at once (as
+ * Animate's Clear Keyframe), for a keyframe made by mistake; a track left empty goes.
+ */
+export function removeKeyframesAt<T extends AnimObject>(object: T, frame: number): T {
+  const tracks = (object.tracks ?? []).filter((t) => t.keyframes.some((k) => k.frame === frame));
+  if (tracks.length === 0) throw new EditError(`There is no keyframe on frame ${frame}.`);
+  return tracks.reduce(
+    (o, t) => withTrack(o, { ...t, keyframes: t.keyframes.filter((k) => k.frame !== frame) }),
+    object,
+  );
+}
+
 export function setTrack<T extends AnimObject>(object: T, track: Track): T {
   return withTrack(object, track);
 }
@@ -411,14 +480,43 @@ function pathAt(paths: readonly MotionPath[], frame: number): MotionPath {
  */
 function onPath<T extends AnimObject>(o: T, m: MotionPath, frame: number): T {
   const t = (Math.max(m.from, Math.min(m.to, frame)) - m.from) / (m.to - m.from);
-  const p = pointAtFraction(polylineFor(m), ease(m.easing, t), m.even);
+  // 2026-11-18: round it `laps` times, each lap eased; it ends at the end, not back at the start.
+  const laps = m.laps ?? 1;
+  const round = t * laps;
+  const lap = t >= 1 ? 1 : round - Math.floor(round);
+  const along = ease(m.easing, lap);
+  // Backwards: from its end, facing the other way.
+  const p = pointAtFraction(polylineFor(m), m.reverse ? 1 - along : along, m.even);
   const pivot = pivotInBox(o);
   return {
     ...o,
     x: p.x - pivot.x,
     y: p.y - pivot.y,
-    ...(m.orient ? { rotation: o.rotation + p.angle } : {}),
+    ...(m.orient ? { rotation: o.rotation + p.angle + (m.reverse ? 180 : 0) } : {}),
   };
+}
+
+/**
+ * 2026-11-18: an ease that goes past its end (Overshoot, Elastic, a custom curve) stops at what
+ * the object can be: opacity 0–100 %, sizes and outlines not below 0, a skew inside its limit.
+ */
+function withinLimits(property: TweenProperty, value: KeyValue): KeyValue {
+  if (typeof value !== 'number') return value;
+  switch (property) {
+    case 'opacity':
+      return Math.max(0, Math.min(100, value));
+    case 'width':
+    case 'height':
+    case 'strokeWidth':
+    case 'radius':
+    case 'size':
+      return Math.max(0, value);
+    case 'skewX':
+    case 'skewY':
+      return Math.max(-MAX_SKEW, Math.min(MAX_SKEW, value));
+    default:
+      return value;
+  }
 }
 
 /**
@@ -438,7 +536,7 @@ export function objectAt<T extends AnimObject>(object: T, frame: number): T {
     ...tracks.filter((t) => t.property === 'shape'),
   ]) {
     if (track.keyframes.length === 0) continue;
-    o = withProperty(o, track.property, valueAt(track, frame));
+    o = withProperty(o, track.property, withinLimits(track.property, valueAt(track, frame)));
   }
   if (object.paths?.length) o = onPath(o, pathAt(object.paths, frame), frame);
   if (o.kind === 'group') return { ...o, children: o.children.map((c) => objectAt(c, frame)) };

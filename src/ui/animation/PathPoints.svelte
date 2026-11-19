@@ -5,7 +5,8 @@
   // instead of the box's handles: drag a point, Alt-drag for a curve, Alt-click for a corner,
   // double-click to remove; drag a curve handle (Alt: that side alone). GV3: the nodes chosen
   // (click, Shift-click, a box dragged round them) are drawn hollow, to be moved or changed together.
-  import { anchorsOnStage } from '../../core/animation/pen.ts';
+  // 2026-11-18: a segment (the line between two points) is dragged to bend it into a curve.
+  import { anchorsOnStage, penPathData } from '../../core/animation/pen.ts';
   import type { PathObject } from '../../core/animation/types.ts';
 
   let {
@@ -15,6 +16,7 @@
     onanchor,
     oncurve,
     onremove,
+    onsegment,
   }: {
     /** The path as it looks now (during a drag too). */
     path: PathObject;
@@ -25,10 +27,36 @@
     onanchor: (e: PointerEvent, index: number) => void;
     oncurve: (e: PointerEvent, index: number, which: 'in' | 'out') => void;
     onremove: (e: MouseEvent, index: number) => void;
+    /** A segment (the one after point `index`) pressed, to bend it. */
+    onsegment?: (e: PointerEvent, index: number) => void;
   } = $props();
+
+  const anchors = $derived(anchorsOnStage(path));
+  /** Each segment's outline, the one after point i (a closed path's last goes back to the first). */
+  const segments = $derived(
+    anchors.flatMap((a, i) => {
+      const b = anchors[(i + 1) % anchors.length];
+      if (!b || (!path.closed && i === anchors.length - 1)) return [];
+      return [penPathData([a, b], null)];
+    }),
+  );
 </script>
 
-{#each anchorsOnStage(path) as a, i (i)}
+{#if onsegment}
+  {#each segments as d, i (i)}
+    <!-- svelte-ignore a11y_no_static_element_interactions -->
+    <path
+      class="segment"
+      {d}
+      stroke-width={size}
+      aria-label="Segment {i + 1}"
+      onpointerdown={(e) => onsegment(e, i)}
+      ><title>Drag to bend this segment into a curve · Alt-drag to move the path</title></path
+    >
+  {/each}
+{/if}
+
+{#each anchors as a, i (i)}
   {#each [['in', a.in], ['out', a.out]] as const as [which, h] (which)}
     {#if h}
       <line class="curve" x1={a.x} y1={a.y} x2={h.x} y2={h.y} vector-effect="non-scaling-stroke" />
@@ -66,6 +94,16 @@
 {/each}
 
 <style>
+  /* A wide, unseen line over the segment, so it is easy to grab; it shows on hover. */
+  .segment {
+    fill: none;
+    stroke: transparent;
+    cursor: grab;
+    pointer-events: stroke;
+  }
+  .segment:hover {
+    stroke: color-mix(in srgb, var(--accent) 35%, transparent);
+  }
   .handle {
     fill: #fff;
     stroke: var(--accent);

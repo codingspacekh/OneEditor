@@ -285,7 +285,9 @@ const isTrack = (t: Obj): boolean =>
         isString(k.value) ||
         (isObject(k.value) && isPathPoints(k.value.points) && isBoolean(k.value.closed))) &&
       isString(k.easing) &&
-      isBoolean(k.hold),
+      isBoolean(k.hold) &&
+      // 2026-11-18: a custom ease's curve.
+      optional(k.curve, (c) => Array.isArray(c) && c.length === 4 && c.every(isNumber)),
   ) &&
   (t.repeat === undefined || t.repeat === 'end' || isNumber(t.repeat));
 
@@ -303,7 +305,26 @@ const isMotion = (m: unknown): boolean =>
   isPathPoints(m.points) &&
   has(m, ['closed', 'orient', 'even'], isBoolean) &&
   has(m, ['from', 'to'], isNumber) &&
-  isString(m.easing);
+  isString(m.easing) &&
+  // 2026-11-18: backwards, and times round.
+  optional(m.reverse, isBoolean) &&
+  optional(m.laps, isNumber);
+
+/** 2026-11-18: the camera, and its keyframes. */
+const isCamera = (c: unknown): boolean =>
+  isObject(c) &&
+  has(c, ['x', 'y', 'zoom', 'rotation'], isNumber) &&
+  optional(c.tracks, (ts) =>
+    listOf(
+      ts,
+      (t) =>
+        ['x', 'y', 'zoom', 'rotation'].includes(t.property as string) &&
+        listOf(
+          t.keyframes,
+          (k) => isNumber(k.frame) && isNumber(k.value) && isString(k.easing) && isBoolean(k.hold),
+        ),
+    ),
+  );
 
 function isAnimObject(o: Obj): boolean {
   if (!isString(o.kind) || !KINDS.includes(o.kind as ObjectKind)) return false;
@@ -323,6 +344,9 @@ function isAnimObject(o: Obj): boolean {
   if (o.tracks !== undefined && !listOf(o.tracks, isTrack)) return false;
   if (o.paths !== undefined && !(Array.isArray(o.paths) && o.paths.every(isMotion))) return false;
   if (o.drawing !== undefined && !isNumber(o.drawing)) return false;
+  // 2026-11-18: the object it moves with.
+  if (!optional(o.link, (l) => isObject(l) && isString(l.to) && has(l, ['x', 'y'], isNumber)))
+    return false;
   if (
     (o.flipX !== undefined && !isBoolean(o.flipX)) ||
     (o.flipY !== undefined && !isBoolean(o.flipY))
@@ -455,6 +479,7 @@ function isAnimation(doc: ProjectDocument): doc is ProjectDocument & AnimationDo
       (p) => has(p, ['id', 'path'], isString) && has(p, ['width', 'height'], isNumber),
     ) &&
     (doc.sounds === undefined || listOf(doc.sounds, isSound)) &&
+    optional(doc.camera, isCamera) &&
     // G1 (M18): a Graphics mode image's resolution and units.
     (doc.graphic === undefined ||
       (isObject(doc.graphic) &&
